@@ -215,7 +215,8 @@ def run():
 
     # Define dynamic date range
     # HISTORICAL_START_DATE = datetime(2026, 3, 31)
-    HISTORICAL_START_DATE = datetime(2025, 8, 1)
+    # HISTORICAL_START_DATE = datetime(2025, 8, 1)
+    HISTORICAL_START_DATE = datetime(2025, 12, 1)
     end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Build list of (month_start, month_end) tuples from Aug 1 → today
