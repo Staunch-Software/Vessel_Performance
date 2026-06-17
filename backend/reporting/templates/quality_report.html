@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Data Quality Report - {{ week_label }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1a1a1a; background-color: #f5f5f5; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .header { background-color: #1a1a1a; color: #ffffff; padding: 40px 40px 30px 40px; border-bottom: 3px solid #0066cc; }
+        .header h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+        .header .subtitle { font-size: 14px; color: #00bfff; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        .header .week-info { font-size: 13px; color: #999999; margin-top: 4px; }
+        .content { padding: 40px; }
+        
+        /* Two Column Cards */
+        .summary-row { display: table; width: 100%; border-spacing: 10px 0; margin-bottom: 20px; }
+        .summary-card { display: table-cell; background: #fafafa; border: 1px solid #e0e0e0; padding: 20px; width: 50%; vertical-align: top; }
+        .summary-card h3 { font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 8px; }
+        .summary-card .value { font-size: 28px; font-weight: 300; color: #1a1a1a; }
+        
+        .section-header { font-size: 16px; font-weight: 600; margin: 40px 0 15px 0; padding-bottom: 10px; border-bottom: 1px solid #e0e0e0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+        table thead { background-color: #fafafa; border-top: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; }
+        table th { padding: 12px 15px; text-align: left; font-weight: 600; color: #666; text-transform: uppercase; font-size: 11px; }
+        table td { padding: 12px 15px; border-bottom: 1px solid #f0f0f0; }
+        
+        .badge { display: inline-block; padding: 3px 8px; font-size: 10px; font-weight: 600; text-transform: uppercase; border-radius: 2px; }
+        .badge-duplicate { background-color: #fff3e0; color: #e65100; }
+        .badge-mismatch { background-color: #ffebee; color: #c62828; }
+        
+        .footer { background-color: #fafafa; padding: 20px 40px; text-align: center; font-size: 11px; color: #666; border-top: 1px solid #e0e0e0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Weekly Data Quality Report</h1>
+            <div class="subtitle">DATA SOURCE: {{ source_name | upper }}</div> 
+            <div class="week-info">{{ week_label }} | {{ date_range }}</div>
+        </div>
+        
+        <div class="content">
+            <!-- SIDE BY SIDE SUMMARY CARDS -->
+            <div class="summary-row">
+                <div class="summary-card" style="border-top: 4px solid #00bfff;">
+                    <h3>Issues This Week</h3>
+                    <p class="value">{{ total_issues }}</p>
+                </div>
+                <div class="summary-card" style="border-top: 4px solid #1a1a1a;">
+                    <h3>Total Since Jan 1, 2026</h3>
+                    <p class="value">{{ total_ytd }}</p>
+                </div>
+            </div>
+
+            {% if total_issues > 0 %}
+                <h2 class="section-header">Issues by Type</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Issue Type</th>
+                            <th style="text-align: center;">This Week</th>
+                            <th style="text-align: center;">Total YTD</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set all_types = ['DUPLICATE_REPORT'] %}
+                        {% for type in all_types %}
+                        <tr>
+                            <td>
+                                <span class="badge {% if type == 'DUPLICATE_REPORT' %}badge-duplicate{% else %}badge-mismatch{% endif %}">{{ type }}</span>
+                            </td>
+                            <td style="text-align: center;">{{ issues_by_type.get(type, 0) }}</td>
+                            <td style="text-align: center;"><strong>{{ ytd_by_type.get(type, 0) }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <h2 class="section-header">Issues by Vessel (This Week)</h2>
+                <table>
+                    <thead><tr><th>Vessel Name</th><th style="text-align: right;">Issue Count</th></tr></thead>
+                    <tbody>
+                        {% for vessel_data in issues_by_vessel %}
+                        <tr><td><strong>{{ vessel_data.vessel }}</strong></td><td style="text-align: right;">{{ vessel_data.count }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <h2 class="section-header">Detailed Issue Log (This Week)</h2>
+                <table>
+                    <thead><tr><th>Vessel</th><th>Issue</th><th>Event</th><th>Date</th><th>Detected</th></tr></thead>
+                    <tbody>
+                        {% for log in details[:30] %}
+                        <tr>
+                            <td><strong>{{ log.vessel }}</strong></td>
+                            <td><span class="badge {% if log.issue_type == 'DUPLICATE_REPORT' %}badge-duplicate{% else %}badge-mismatch{% endif %}">{{ log.issue_type }}</span></td>
+                            <td>{{ log.event_type }}</td>
+                            <td>{{ log.report_date }}</td>
+                            <td>{{ log.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div style="text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 80px; margin-bottom: 25px;">📬</div>
+                    <h2 style="font-size: 36px; font-weight: 700; color: #5c7899;">No new issues!</h2>
+                    <p style="color: #999;">The system found no discrepancies in this week's reports.</p>
+                </div>
+            {% endif %}
+            
+            <p style="text-align: center; color: #888; font-size: 11px; margin-top: 30px;">
+                <i>* A full history of all issues since Jan 1st is attached as a multi-tab Excel file.</i>
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p><strong>Maritime Noon Report System</strong> — Data Quality Engine</p>
+            <p>Generated on {{ generated_at }}</p>
+        </div>
+    </div>
+</body>
+</html>

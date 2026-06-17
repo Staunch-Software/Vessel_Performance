@@ -1,0 +1,133 @@
+.sidenav {
+  width: 200px;
+  background: #08111a;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 100;
+  transition: width 0.2s ease;
+  overflow: hidden;
+}
+
+.sidenav.collapsed {
+  width: 52px;
+}
+
+/* Logo area */
+.sidenav-logo {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sidenav-logo-icon {
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(135deg, var(--accent-2), var(--accent));
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.sidenav-logo-text {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidenav-logo-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sidenav-logo-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Toggle button */
+.sidenav-toggle {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.sidenav-toggle:hover { color: var(--text-primary); background: var(--bg-panel); }
+
+/* Nav items */
+.sidenav-nav {
+  flex: 1;
+  padding: 8px 0;
+  overflow: hidden;
+}
+
+.sidenav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  border-left: 3px solid transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sidenav-item:hover {
+  background: var(--row-hover);
+  color: var(--text-primary);
+}
+
+.sidenav-item.active {
+  background: rgba(56,189,248,0.08);
+  color: var(--accent-2);
+  border-left-color: var(--accent-2);
+}
+
+.sidenav-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.sidenav-label {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Footer */
+.sidenav-footer {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}

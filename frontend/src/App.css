@@ -1,0 +1,206 @@
+:root {
+  --bg-primary:    #0d1b2a;
+  --bg-panel:      #1a2a3a;
+  --bg-table-head: #1e3a5f;
+  --accent:        #d946ef;
+  --accent-2:      #38bdf8;
+  --accent-3:      #34d399;
+  --accent-4:      #f59e0b;
+  --text-primary:  #e2e8f0;
+  --text-muted:    #94a3b8;
+  --border:        #2d4a6a;
+  --row-hover:     rgba(30, 58, 95, 0.4);
+  --row-selected:  rgba(30, 58, 95, 0.7);
+}
+
+/* ── Page tab bar (shared across all pages) ── */
+.page-tabs {
+  display: flex;
+  background: #08111a;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.page-tab {
+  padding: 0 24px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.page-tab:hover { color: var(--text-primary); }
+
+.page-tab.active {
+  color: var(--accent-2);
+  border-bottom-color: var(--accent-2);
+  font-weight: 600;
+}
+
+.page-tab-icon { font-size: 15px; }
+
+/* ── Logbook app wrapper ── */
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg-primary);
+  min-height: 0;
+}
+
+/* ── Middle section (chart + avg panel) ── */
+.middle-section {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.chart-panel {
+  background: var(--bg-panel);
+  padding: 10px 14px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chart-panel .section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.chart-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  gap: 8px;
+}
+
+/* ── Drag handle ── */
+.drag-handle {
+  height: 5px;
+  background: var(--border);
+  cursor: row-resize;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.drag-handle:hover,
+.drag-handle.dragging {
+  background: var(--accent-2);
+}
+
+.drag-handle-grip {
+  width: 40px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.2);
+  pointer-events: none;
+}
+
+/* ── Category filter bar ── */
+.cat-filter-bar {
+  display: flex;
+  gap: 5px;
+  padding: 6px 16px;
+  background: #0a1520;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cat-filter-bar::-webkit-scrollbar { display: none; }
+
+.cat-chip {
+  flex-shrink: 0;
+  padding: 3px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  font-family: inherit;
+}
+.cat-chip:hover  { color: var(--text-primary); border-color: var(--text-muted); }
+/* Performance filter chip */
+.cat-perf-chip { border-color: #854d0e; color: #f59e0b; }
+.cat-perf-chip:hover { background: rgba(245,158,11,0.08); }
+.cat-perf-chip.active { background: rgba(245,158,11,0.15); color: #fbbf24; border-color: #f59e0b; font-weight: 700; }
+.cat-chip.active {
+  background: rgba(56,189,248,0.12);
+  color: var(--accent-2);
+  border-color: rgba(56,189,248,0.4);
+  font-weight: 600;
+}
+
+/* ── Table section (fills remaining height) ── */
+.table-section {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── Loading / error ── */
+.loading-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 13px;
+  gap: 8px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent-2);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin      { to { transform: rotate(360deg); } }
+@keyframes icon-spin { to { transform: rotate(360deg); } }
+.icon-spin { animation: icon-spin 0.75s linear infinite; display: inline-flex; }
+
+.error-bar {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 8px 16px;
+  font-size: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

@@ -1,0 +1,145 @@
+.table-container {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg-primary);
+  position: relative;
+}
+
+.analysis-table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 12px;
+}
+
+/* ── Header ── */
+.analysis-table thead tr th {
+  background: var(--bg-table-head);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-bottom: 2px solid var(--border);
+  border-right: 1px solid rgba(45,74,106,0.4);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  text-align: left;
+  user-select: none;
+}
+
+/* Sticky first 4 column headers: Errors | Event/Log Type | Date | Voyage/Log # */
+.analysis-table thead tr th:nth-child(1),
+.analysis-table thead tr th:nth-child(2),
+.analysis-table thead tr th:nth-child(3),
+.analysis-table thead tr th:nth-child(4) {
+  position: sticky;
+  z-index: 3;
+  background: var(--bg-table-head);
+}
+.analysis-table thead tr th:nth-child(1) { left: 0px;   min-width: 62px;  }
+.analysis-table thead tr th:nth-child(2) { left: 62px;  min-width: 110px; }
+.analysis-table thead tr th:nth-child(3) { left: 172px; min-width: 110px; }
+.analysis-table thead tr th:nth-child(4) { left: 282px; min-width: 110px; }
+
+/* ── Body rows ── */
+.analysis-table tbody tr {
+  border-bottom: 1px solid rgba(45,74,106,0.3);
+  transition: background 0.1s;
+}
+
+.analysis-table tbody tr:hover    { background: var(--row-hover); }
+.analysis-table tbody tr.selected { background: var(--row-selected); }
+
+.analysis-table tbody tr td {
+  padding: 5px 10px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  border-right: 1px solid rgba(45,74,106,0.2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sticky first 4 body columns */
+.analysis-table tbody tr td:nth-child(1),
+.analysis-table tbody tr td:nth-child(2),
+.analysis-table tbody tr td:nth-child(3),
+.analysis-table tbody tr td:nth-child(4) {
+  position: sticky;
+  background: var(--bg-panel);
+  z-index: 1;
+}
+
+.analysis-table tbody tr:hover td:nth-child(1),
+.analysis-table tbody tr:hover td:nth-child(2),
+.analysis-table tbody tr:hover td:nth-child(3),
+.analysis-table tbody tr:hover td:nth-child(4) {
+  background: #223548;
+}
+
+.analysis-table tbody tr td:nth-child(1) { left: 0px;   min-width: 62px;  text-align: center; }
+.analysis-table tbody tr td:nth-child(2) { left: 62px;  min-width: 110px; }
+.analysis-table tbody tr td:nth-child(3) { left: 172px; min-width: 110px; }
+.analysis-table tbody tr td:nth-child(4) { left: 282px; min-width: 110px; }
+
+/* ── Error count badge ── */
+.error-count-badge {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  background: rgba(202,138,4,0.15);
+  color: #ca8a04;
+  border: 1px solid rgba(202,138,4,0.35);
+}
+
+/* Event type badge */
+.event-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(56,189,248,0.15);
+  color: var(--accent-2);
+  border: 1px solid rgba(56,189,248,0.3);
+}
+
+.event-badge.mari { background: rgba(217,70,239,0.15); color: var(--accent); border-color: rgba(217,70,239,0.3); }
+
+/* Date link style */
+.date-link { color: var(--accent-2); font-weight: 500; }
+
+/* Triggered cell — value matched a saved scan condition */
+.cell-triggered {
+  background: rgba(202,138,4,0.13) !important;
+}
+.analysis-table tbody tr:hover .cell-triggered {
+  background: rgba(202,138,4,0.23) !important;
+}
+.analysis-table tbody tr.selected .cell-triggered {
+  background: rgba(202,138,4,0.2) !important;
+}
+
+/* Numeric / null cells */
+.cell-num  { text-align: right; }
+.cell-null { color: var(--text-muted); }
+
+/* Empty state */
+.table-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Thin scrollbar */
+.table-container::-webkit-scrollbar        { width: 6px; height: 6px; }
+.table-container::-webkit-scrollbar-track  { background: var(--bg-primary); }
+.table-container::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 3px; }
+.table-container::-webkit-scrollbar-thumb:hover { background: #3d6a9a; }
