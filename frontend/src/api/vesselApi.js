@@ -1,6 +1,9 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: 'http://localhost:8000/api/v1' })
+// --- LOCAL (original hardcoded dev URL — uncomment to use against a local backend) ---
+// const api = axios.create({ baseURL: 'http://localhost:8000/api/v1' })
+// --- VM / PRODUCTION: relative path (same origin via nginx); override with VITE_API_BASE_URL ---
+const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1' })
 
 export async function fetchVessels() {
   const { data } = await api.get('/vessels')
