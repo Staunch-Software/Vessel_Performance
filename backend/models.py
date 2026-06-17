@@ -14,7 +14,7 @@
 # 8. MariAppsReportData - Normalized 160-column format for MariApps
 # ============================================================
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Float, TEXT,Date
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Float, TEXT,Date, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -531,7 +531,15 @@ class ExpandedColumnMetadata(Base):
     description  = Column(TEXT)
     is_active    = Column(Boolean, default=True)         # yellow=True, pink=False
     is_identity  = Column(Boolean, default=False)        # id/date/vessel cols
+    performance  = Column(Boolean, default=False)        # performance-relevant column flag
     sort_order   = Column(Integer, default=0)
+
+    # Matches the ON CONFLICT (source, db_column) upsert in pipeline/expander.py.
+    # Without this, Base.metadata.create_all() builds the table with no matching
+    # unique constraint and the metadata upsert fails on a fresh database.
+    __table_args__ = (
+        UniqueConstraint("source", "db_column", name="uq_expanded_col_source_dbcol"),
+    )
 
 class VesselParticulars(Base):
     """
