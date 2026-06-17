@@ -31,20 +31,22 @@ log = logging.getLogger(__name__)
 # CONFIGURATION
 # ---------------------------------------------------------------------------
 VESSEL_LIST = [
-    # "AM KIRTI", 
-    # "AM TARANG", "AM UMANG", 
-    # "AMNS POLAR", "AMNS TUFMAX",
-    # "AMNSI STALLION", "GCL FOS", 
-    # "GCL GANGA",
+    "AM KIRTI",
+    "AM TARANG", "AM UMANG",
+    "AMNS POLAR", "AMNS TUFMAX",
+    "AMNSI STALLION", "GCL FOS",
+    "GCL GANGA",
     "GCL TAPI",
-    # "GCL NARMADA", 
-    # "GCL SABARMATI", "GCL SARASWATI", 
-    # "AMNSI MAXIMUS", "GCL TAPI", "OZELLAR OFFICE", "GCL YAMUNA", 
+    "GCL NARMADA",
+    "GCL SABARMATI", "GCL SARASWATI",
+    "AMNSI MAXIMUS", "OZELLAR OFFICE", "GCL YAMUNA",
 ]
 
-FROM_DATE = "31-JAN-2026"
-# TO_DATE = datetime.now().strftime("%d-%b-%Y")
-TO_DATE = "01-MAR-2026"
+# --- LOCAL (previous fixed range — uncomment to use) ---
+# FROM_DATE = "31-JAN-2026"
+# TO_DATE = "01-MAR-2026"
+FROM_DATE = "01-APR-2026"
+TO_DATE = datetime.now().strftime("%d-%b-%Y")
 
 # ---------------------------------------------------------------------------
 # HELPERS
