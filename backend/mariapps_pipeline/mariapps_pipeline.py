@@ -42,11 +42,11 @@ VESSEL_LIST = [
     "AMNSI MAXIMUS", "OZELLAR OFFICE", "GCL YAMUNA",
 ]
 
-# --- LOCAL (previous fixed range — uncomment to use) ---
-# FROM_DATE = "31-JAN-2026"
-# TO_DATE = "01-MAR-2026"
-FROM_DATE = "01-APR-2026"
-TO_DATE = datetime.now().strftime("%d-%b-%Y")
+# --- Previous ranges (uncomment to reuse) ---
+# FROM_DATE = "31-JAN-2026"; TO_DATE = "01-MAR-2026"
+# FROM_DATE = "01-APR-2026"; TO_DATE = datetime.now().strftime("%d-%b-%Y")
+FROM_DATE = "01-JAN-2026"
+TO_DATE = "01-APR-2026"
 
 # ---------------------------------------------------------------------------
 # HELPERS
