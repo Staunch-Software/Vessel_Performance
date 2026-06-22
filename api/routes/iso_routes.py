@@ -124,6 +124,7 @@ def _curve_to_dict(r) -> dict:
 def get_events(imo: str, db: Session = Depends(get_db)):
     rows = (db.query(VesselMaintenanceEvent)
             .filter(VesselMaintenanceEvent.vessel_imo == imo)
+            .filter(text("EXTRACT(year FROM event_date) BETWEEN 1900 AND 9999"))
             .order_by(VesselMaintenanceEvent.event_date.desc())
             .all())
     return [_event_to_dict(r) for r in rows]
@@ -133,10 +134,20 @@ def get_events(imo: str, db: Session = Depends(get_db)):
 def add_event(imo: str, payload: Dict[str, Any], db: Session = Depends(get_db)):
     if not payload.get("event_type") or not payload.get("event_date"):
         raise HTTPException(status_code=422, detail="event_type and event_date are required")
+
+    from datetime import date as _date
+    try:
+        raw_date = payload["event_date"]
+        parsed = _date.fromisoformat(str(raw_date)) if not isinstance(raw_date, _date) else raw_date
+        if not (1900 <= parsed.year <= 9999):
+            raise HTTPException(status_code=422, detail=f"Invalid event year: {parsed.year}")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid event_date: {exc}")
+
     ev = VesselMaintenanceEvent(
         vessel_imo=imo,
         event_type=payload["event_type"],
-        event_date=payload["event_date"],
+        event_date=parsed,
         notes=payload.get("notes"),
     )
     db.add(ev)

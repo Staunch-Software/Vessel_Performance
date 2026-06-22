@@ -59,8 +59,11 @@ def load_iso_config(vessel_imo: str, db: Session) -> Optional[ISOConfig]:
     for i, f in enumerate(fields):
         v = row[i]
         if v is not None:
-            if f == 'sfoc_curve' and isinstance(v, list):
-                cfg.sfoc_curve = [(r['load_pct'], r['sfoc_gkwh'], r['lcv_kjkg']) for r in v]
+            if f == 'sfoc_curve':
+                import json as _json
+                data = v if isinstance(v, list) else _json.loads(v) if isinstance(v, str) else None
+                if data:
+                    cfg.sfoc_curve = [(r['load_pct'], r['sfoc_gkwh'], r['lcv_kjkg']) for r in data]
             elif f == 'active_baseline':
                 cfg.active_baseline = str(v)
             else:
@@ -156,17 +159,18 @@ def _build_noon_record(ad_row, nd_row) -> NoonRecord:
 def _upsert_result(db: Session, res) -> None:
     db.execute(text("""
         INSERT INTO iso19030_results
-            (analysis_id, vessel_imo, record_date, condition,
+            (analysis_id, vessel_imo, record_date, condition, data_source,
              stw_corr, filter_pass, filter_reason,
              delta_actual, rho_sw, dp_wind, dp_wave, p_source, p_corr,
              v_exp_b1, v_exp_b2, speed_loss_b1, speed_loss_b2)
         VALUES
-            (:analysis_id, :vessel_imo, :record_date, :condition,
+            (:analysis_id, :vessel_imo, :record_date, :condition, 'mariapps',
              :stw_corr, :filter_pass, :filter_reason,
              :delta_actual, :rho_sw, :dp_wind, :dp_wave, :p_source, :p_corr,
              :v_exp_b1, :v_exp_b2, :speed_loss_b1, :speed_loss_b2)
         ON CONFLICT (analysis_id) DO UPDATE SET
             condition      = EXCLUDED.condition,
+            data_source    = EXCLUDED.data_source,
             stw_corr       = EXCLUDED.stw_corr,
             filter_pass    = EXCLUDED.filter_pass,
             filter_reason  = EXCLUDED.filter_reason,
