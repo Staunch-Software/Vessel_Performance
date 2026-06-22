@@ -124,6 +124,7 @@ class NoonRecord:
     me_foc_kgph:    Optional[float] = None   # ME FOC (kg/h) — for fuel-derived power
     me_rpm:         Optional[float] = None   # ME RPM (for load% calculation)
     me_mcr_kw:      Optional[float] = None   # ME MCR (kW) — for load% calculation
+    me_torque_knm:  Optional[float] = None   # ME shaft torque (kNm) — from torsion meter
 
     # Environmental
     wind_speed_ms:  Optional[float] = None   # Relative wind speed at anemometer (m/s)
