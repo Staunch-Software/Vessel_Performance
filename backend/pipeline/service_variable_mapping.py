@@ -380,7 +380,7 @@ MARIAPPS_TO_NEWCOL = {
     'me_calculated_load_avg_no_8': 'ME_me_calculated_load_avg_no_8_operational_LF',
     'me_calculated_load_avg_no_9': 'ME_me_calculated_load_avg_no_9_operational_LF',
     'me_calculated_load_avg_value': 'ME_mcrcalME_avg_operational_LF',
-    'me_calculated_speed_avg_no_1': 'ME_NcalME_avg_operational_LF',
+    'me_calculated_speed_avg_no_1': 'ME_NME_avg_operational_LF',
     'me_calculated_speed_avg_no_10': 'ME_me_calculated_speed_avg_no_10_operational_LF',
     'me_calculated_speed_avg_no_2': 'ME_me_calculated_speed_avg_no_2_operational_LF',
     'me_calculated_speed_avg_no_3': 'ME_me_calculated_speed_avg_no_3_operational_LF',
@@ -390,7 +390,7 @@ MARIAPPS_TO_NEWCOL = {
     'me_calculated_speed_avg_no_7': 'ME_me_calculated_speed_avg_no_7_operational_LF',
     'me_calculated_speed_avg_no_8': 'ME_me_calculated_speed_avg_no_8_operational_LF',
     'me_calculated_speed_avg_no_9': 'ME_me_calculated_speed_avg_no_9_operational_LF',
-    'me_calculated_speed_avg_value': 'ME_NcalME_avg_operational_LF',
+    'me_calculated_speed_avg_value': 'ME_NME_avg_operational_LF',
     'me_exhaust_gas_pressure_at_receiver_inst': 'ME_pegRME_avg_operational_LF',
     'me_fuel_index_inst': 'ME_FPIME_avg_operational_LF',
     'me_ht_cooling_water_inlet_temperature_inst': 'ME_ThtcwinME_avg_operational_LF',
@@ -777,7 +777,7 @@ MARIAPPS_TO_NEWCOL = {
     'op_me_running_hours_value':                 'ME_RHME_dCnt_operational_LF',
     'op_me_calculated_effective_power_avg_value':'ME_PeffcalME_avg_operational_LF',
     'op_me_calculated_load_avg_value':           'ME_mcrcalME_avg_operational_LF',
-    'op_me_calculated_speed_avg_value':          'ME_NcalME_avg_operational_LF',
+    'op_me_calculated_speed_avg_value':          'ME_NME_avg_operational_LF',
     'op_fwg_total_running_hours_cnt':            'FWG_RHFWG_Cnt_operational_LF',
 
     # KPI_Data (prefix: kpi_)

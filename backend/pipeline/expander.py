@@ -149,9 +149,8 @@ _PERFORMANCE_COLUMNS = {
     "Weather_Ucut_avg_operational_LF",       # Current Speed
     "Weather_psicut_avg_operational_LF",     # Current Direction
     # ME General — NoonData inputs (power source, RPM)
-    "ME_NME_avg_operational_LF",             # ME Speed (RPM)
+    "ME_NME_avg_operational_LF",             # ME Speed (RPM) — filled from calculated speed for MariApps
     "ME_NME_operational_LF",
-    "ME_NcalME_avg_operational_LF",         # ME Calculated Speed (Avg.) — MariApps noon source
     "ME_PSME_avg_operational_LF",            # ME Shaft Power
     "ME_PSME_operational_LF",
     "ME_PeffestME_avg_operational_LF",       # ME Estimated Effective Power
