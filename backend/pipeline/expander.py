@@ -151,6 +151,7 @@ _PERFORMANCE_COLUMNS = {
     # ME General — NoonData inputs (power source, RPM)
     "ME_NME_avg_operational_LF",             # ME Speed (RPM)
     "ME_NME_operational_LF",
+    "ME_NcalME_avg_operational_LF",         # ME Calculated Speed (Avg.) — MariApps noon source
     "ME_PSME_avg_operational_LF",            # ME Shaft Power
     "ME_PSME_operational_LF",
     "ME_PeffestME_avg_operational_LF",       # ME Estimated Effective Power

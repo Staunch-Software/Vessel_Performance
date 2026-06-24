@@ -754,7 +754,13 @@ MARIAPPS_TO_NEWCOL = {
     'pos_calculated_speed_over_ground_avg':    'Vessel_SOGcal_avg_operational_LF',
     'pos_calculated_speed_through_water_avg':  'Vessel_STWcal_avg_operational_LF',
 
-    # Operation_Data (prefix: op_)
+    # Operation_Data (prefix: op_) — ME fields with broken legacy keys fixed
+    'op_estimated_power_value':    'ME_PeffestME_avg_operational_LF',
+    'op_estimated_power_no_1':     'ME_PeffestME_avg_operational_LF',
+    'op_energy_produced_value':    'ME_DESME_dCnt_operational_LF',
+    'op_total_revolutions_value':  'ME_DRME_dCnt_operational_LF',
+
+    # Operation_Data (prefix: op_) — AE fields
     'op_ae_running_hours_tot_no_1':              'AE_RHAE_dCnt_1_operational_LF',
     'op_ae_running_hours_tot_no_2':              'AE_RHAE_dCnt_2_operational_LF',
     'op_ae_running_hours_tot_no_3':              'AE_RHAE_dCnt_3_operational_LF',
