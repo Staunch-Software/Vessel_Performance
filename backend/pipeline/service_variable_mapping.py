@@ -691,6 +691,96 @@ MARIAPPS_TO_NEWCOL = {
     'wave_period_inst': 'Weather_Twv_avg_operational_LF',
     'wind_direction_deg': 'Weather_psiwit_avg_operational_LF',
     'wind_speed_kn': 'Weather_Uwit_avg_operational_LF',
+
+    # ── Section-prefixed keys missing from original generation ────────────────
+    # Excel_Data fields whose key names didn't match original mapping
+    'log_duration_h':              'VoyageMeta_log_durationh_operational_LF',
+    'distance_og_nm':              'Vessel_DOG_dCnt_operational_LF',
+    'speed_og_knots':              'Vessel_SOG_avg_operational_LF',
+    'anchorage_hours_h':           'Vessel_AH_dCnt_operational_LF',
+    'drifting_hours_h':            'Vessel_DH_dCnt_operational_LF',
+    'cargo_on_board_mt_or_m3':     'Vessel_Cargo_onboard_operational_LF',
+
+    # Header_Data (prefix: hdr_)
+    'hdr_departure_port_last_leg':  'VoyageMeta_departure_port_last_leg_operational_LF',
+    'hdr_arrival_port_current_leg': 'VoyageMeta_arrival_port_current_leg_operational_LF',
+    'hdr_speed_over_ground':        'Vessel_SOG_avg_operational_LF',
+    'hdr_speed_through_water':      'Vessel_STW_avg_operational_LF',
+    'hdr_distance_over_ground':     'Vessel_DOG_dCnt_operational_LF',
+    'hdr_distance_through_water':   'Vessel_DTW_dCnt_operational_LF',
+    'hdr_cargo_onboard':            'Vessel_Cargo_onboard_operational_LF',
+    'hdr_duration':                 'VoyageMeta_log_durationh_operational_LF',
+    'hdr_distance_to_eosp':         'Vessel_DEOSP_operational_LF',
+    'hdr_drifting_time':            'Vessel_DH_dCnt_operational_LF',
+    'hdr_anchorage_time':           'Vessel_AH_dCnt_operational_LF',
+    'hdr_time_remaining':           'Vessel_HrTEOSP_operational_LF',
+
+    # Performance_Data (prefix: perf_)
+    'perf_aft_draught':                           'Vessel_Ta_avg_operational_LF',
+    'perf_fore_draught':                          'Vessel_Tf_avg_operational_LF',
+    'perf_displacement':                          'Vessel_DISP_avg_operational_LF',
+    'perf_ship_heading_inst':                     'Vessel_HEAD_operational_LF',
+    'perf_speed_over_ground_inst':                'Vessel_SOG_operational_LF',
+    'perf_speed_through_water_inst':              'Vessel_STW_operational_LF',
+    'perf_wave_height_inst':                      'Weather_Hwv_operational_LF',
+    'perf_wave_period_inst':                      'Weather_Twv_operational_LF',
+    'perf_swell_height_inst':                     'Weather_Hsl_operational_LF',
+    'perf_swell_period_inst':                     'Weather_Tsl_operational_LF',
+    'perf_sea_water_depth_inst':                  'Weather_hsw_operational_LF',
+    'perf_sea_water_temperature_inst':            'Weather_Tsw_operational_LF',
+    'perf_true_current_speed_inst':               'Weather_Ucut_operational_LF',
+    'perf_true_current_direction_inst':           'Weather_psicut_operational_LF',
+    'perf_atmospheric_air_temperature_inst':      'Weather_Tair_operational_LF',
+    'perf_atmospheric_air_pressure_inst_abs':     'Weather_pair_operational_LF',
+    'perf_true_wind_speed_at_anemometer_inst':    'Weather_Uwit_operational_LF',
+    'perf_true_wind_direction_at_anemometer_inst':'Weather_psiwit_operational_LF',
+    'perf_total_ballast_onboard_avg':             'Vessel_BallastTot_operational_LF',
+    'perf_true_wave_direction_inst':              'Weather_psiwvt_operational_LF',
+    'perf_true_swell_direction_inst':             'Weather_psislwt_avg_operational_LF',
+
+    # Machinery_Data (prefix: mach_)
+    'mach_me_speed_inst':                    'ME_NME_operational_LF',
+    'mach_me_shaft_power_inst':              'ME_PSME_operational_LF',
+    'mach_er_ambient_air_temperature_inst':  'Vessel_TambairER_operational_LF',
+    'mach_er_ambient_air_pressure_inst_abs': 'Vessel_pambairER_operational_LF',
+
+    # Position_Data (prefix: pos_)
+    'pos_time_to_eosp':                        'VoyageMeta_time_to_eosp_operational_LF',
+    'pos_cargo_on_board':                      'Vessel_Cargo_onboard_operational_LF',
+    'pos_drifting_hours':                      'Vessel_DH_dCnt_operational_LF',
+    'pos_anchorage_hours':                     'Vessel_AH_dCnt_operational_LF',
+    'pos_distance_over_ground':                'Vessel_DOG_dCnt_operational_LF',
+    'pos_distance_through_water':              'Vessel_DTW_dCnt_operational_LF',
+    'pos_calculated_speed_over_ground_avg':    'Vessel_SOGcal_avg_operational_LF',
+    'pos_calculated_speed_through_water_avg':  'Vessel_STWcal_avg_operational_LF',
+
+    # Operation_Data (prefix: op_)
+    'op_ae_running_hours_tot_no_1':              'AE_RHAE_dCnt_1_operational_LF',
+    'op_ae_running_hours_tot_no_2':              'AE_RHAE_dCnt_2_operational_LF',
+    'op_ae_running_hours_tot_no_3':              'AE_RHAE_dCnt_3_operational_LF',
+    'op_ae_running_hours_cnt_no_1':              'AE_RHAE_Cnt_1_operational_LF',
+    'op_ae_electric_power_avg_no_1':             'AE_PelAE_avg_1_operational_LF',
+    'op_ae_electric_power_avg_no_2':             'AE_PelAE_avg_2_operational_LF',
+    'op_ae_electric_power_avg_no_3':             'AE_PelAE_avg_3_operational_LF',
+    'op_ae_calculated_electric_power_avg_no_1':  'AE_PelcalAE_avg_1_operational_LF',
+    'op_ae_calculated_alternator_load_avg_no_1': 'AE_mcrALTcalAE_avg_1_operational_LF',
+    'op_ae_electric_energy_produced_tot_no_1':   'AE_DEelAE_dCnt_1_operational_LF',
+    'op_ae_electric_energy_produced_tot_no_2':   'AE_DEelAE_dCnt_2_operational_LF',
+    'op_ae_electric_energy_produced_tot_no_3':   'AE_DEelAE_dCnt_3_operational_LF',
+    'op_ae_electric_energy_produced_cnt_no_1':   'AE_DEelAE_Cnt_1_operational_LF',
+    'op_me_running_hours_value':                 'ME_RHME_dCnt_operational_LF',
+    'op_me_calculated_effective_power_avg_value':'ME_PeffcalME_avg_operational_LF',
+    'op_me_calculated_load_avg_value':           'ME_mcrcalME_avg_operational_LF',
+    'op_me_calculated_speed_avg_value':          'ME_NcalME_avg_operational_LF',
+    'op_fwg_total_running_hours_cnt':            'FWG_RHFWG_Cnt_operational_LF',
+
+    # KPI_Data (prefix: kpi_)
+    'kpi_real_slip':            'VoyageMeta_real_slip_operational_LF',
+    'kpi_eeoi_since_last_bosp': 'VoyageMeta_eeoi_since_last_bosp_operational_LF',
+
+    # Consumption_Data (prefix: cons_)
+    'cons_section0_aux_engine_mass_consumption_mt':  'AE_FO_mFOCAE_dCnt_operational_LF',
+    'cons_section0_main_engine_mass_consumption_mt': 'ME_FO_mFOCME_dCnt_operational_LF',
 }
 
 WNI_TO_NEWCOL = {

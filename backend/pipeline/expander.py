@@ -412,13 +412,23 @@ def populate_column_metadata(engine):
             if source == "wni" and nc not in _WNI_VALID_DATA_COLS:
                 continue
             meta = NEWCOL_META.get(nc, {})
+            base_display = meta.get("display_name", nc)
+            copy_no = meta.get("copy_no")
+            if copy_no and str(copy_no) not in ("nan", ""):
+                try:
+                    copy_int = int(float(copy_no))
+                    display_name = f"{base_display} — No. {copy_int}"
+                except (ValueError, TypeError):
+                    display_name = base_display
+            else:
+                display_name = base_display
             entries.append({
                 "source":       source,
                 "db_column":    nc,
-                "display_name": meta.get("display_name", nc),
+                "display_name": display_name,
                 "category":     meta.get("category_full", "Other"),
                 "unit":         meta.get("unit", ""),
-                "description":  meta.get("display_name", nc),
+                "description":  base_display,
                 "is_active":    meta.get("is_active", False),
                 "is_identity":  False,
                 "performance":  nc in _PERFORMANCE_COLUMNS,
