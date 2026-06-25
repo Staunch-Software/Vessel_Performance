@@ -7,7 +7,7 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v
 
 export async function fetchVessels() {
   const { data } = await api.get('/vessels')
-  return data
+  return Array.isArray(data) ? data : []
 }
 
 export async function addVessel(imoNumber, vesselName) {
@@ -19,7 +19,7 @@ export async function fetchVoyages(vesselImo, sourceId) {
   const params = { vessel_imo: vesselImo }
   if (sourceId && sourceId !== 'all') params.source_id = sourceId
   const { data } = await api.get('/voyages', { params })
-  return data
+  return Array.isArray(data) ? data : []
 }
 
 export async function queryAnalysis(filters) {
@@ -47,7 +47,7 @@ export async function runScan(payload) {
 
 export async function fetchExpandedColumns(source) {
   const { data } = await api.get('/expanded/columns', { params: { source } })
-  return data
+  return Array.isArray(data) ? data : []
 }
 
 export async function queryExpandedData(source, filters) {

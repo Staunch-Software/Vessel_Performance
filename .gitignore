@@ -52,6 +52,10 @@ backend/*.zip
 *.db
 *.sqlite3
 
+# DB migration / data dumps (contain real data — keep local)
+migration/
+*.dump
+
 # ============================================================
 # OS FILES
 # ============================================================

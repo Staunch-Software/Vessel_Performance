@@ -1364,5 +1364,7 @@ class ISO19030Result(Base):
     speed_loss_b1   = Column(Float)             # speed loss % vs B1
     speed_loss_b2   = Column(Float)             # speed loss % vs B2 (main KPI input)
 
+    data_source     = Column(String(20), default='mariapps')  # 'mariapps' or 'wni'
+
     created_at      = Column(DateTime, default=datetime.utcnow)
     updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
