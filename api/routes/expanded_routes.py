@@ -10,7 +10,7 @@ API endpoints for the two expanded flat tables:
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func
 from typing import List, Optional
 from datetime import date
 
@@ -35,11 +35,16 @@ def get_columns(
     source: str = Query(..., description="'wni' or 'mari_apps'"),
     db: Session = Depends(get_db),
 ):
-    """Return all column metadata for a given source, ordered by sort_order."""
+    """Return all column metadata for a given source, ordered by the user-defined
+    order (user_sort_order) when set, falling back to the default sort_order."""
+    order_key = func.coalesce(
+        ExpandedColumnMetadata.user_sort_order,
+        ExpandedColumnMetadata.sort_order,
+    )
     rows = (
         db.query(ExpandedColumnMetadata)
         .filter(ExpandedColumnMetadata.source == source)
-        .order_by(ExpandedColumnMetadata.sort_order)
+        .order_by(order_key)
         .all()
     )
     return [
@@ -54,9 +59,53 @@ def get_columns(
             "is_identity":  r.is_identity,
             "performance":  getattr(r, "performance", False) or False,
             "sort_order":   r.sort_order,
+            "user_sort_order": r.user_sort_order,
         }
         for r in rows
     ]
+
+
+@router.put("/columns/reorder")
+def reorder_columns(body: dict, db: Session = Depends(get_db)):
+    """
+    Persist a user-defined column order for a source (shared by all users).
+    Body: { "source": "mari_apps" | "wni", "order": ["db_col_1", "db_col_2", ...] }
+    Writes user_sort_order = position for each listed column. Columns not listed
+    keep their existing user_sort_order (or fall back to sort_order).
+    """
+    source = body.get("source")
+    order  = body.get("order")
+    if source not in ("mari_apps", "wni"):
+        raise HTTPException(status_code=400, detail="source must be 'mari_apps' or 'wni'")
+    if not isinstance(order, list) or not order:
+        raise HTTPException(status_code=400, detail="order must be a non-empty list of db_column names")
+
+    rows = (
+        db.query(ExpandedColumnMetadata)
+        .filter(ExpandedColumnMetadata.source == source)
+        .all()
+    )
+    by_col = {r.db_column: r for r in rows}
+    pos = 0
+    for db_col in order:
+        r = by_col.get(db_col)
+        if r is not None:
+            r.user_sort_order = pos
+            pos += 1
+    db.commit()
+    return {"source": source, "updated": pos}
+
+
+@router.delete("/columns/reorder")
+def reset_column_order(source: str = Query(...), db: Session = Depends(get_db)):
+    """Clear the user-defined order for a source (revert to default sort_order)."""
+    if source not in ("mari_apps", "wni"):
+        raise HTTPException(status_code=400, detail="source must be 'mari_apps' or 'wni'")
+    db.query(ExpandedColumnMetadata).filter(
+        ExpandedColumnMetadata.source == source
+    ).update({ExpandedColumnMetadata.user_sort_order: None}, synchronize_session=False)
+    db.commit()
+    return {"source": source, "reset": True}
 
 
 @router.patch("/columns/{col_id}")
@@ -101,15 +150,31 @@ def _build_query(
         where_clauses.append(f"{date_col} <= :to_date")
         params["to_date"] = to_date
     if voyage_no and voyage_col:
+        # voyage_no may be a single value or a comma-separated list (multi-select).
         # Use LIKE so "AM KIRTI V 36/02" matches "AM KIRTI V 36/02/01" etc.
-        where_clauses.append(f'"{voyage_col}" LIKE :voyage_no')
-        params["voyage_no"] = f"{str(voyage_no)}%"
+        voyages = (
+            voyage_no if isinstance(voyage_no, (list, tuple))
+            else [v.strip() for v in str(voyage_no).split(",") if v.strip()]
+        )
+        like_conds = []
+        for i, v in enumerate(voyages):
+            key = f"voyage_no_{i}"
+            like_conds.append(f'"{voyage_col}" LIKE :{key}')
+            params[key] = f"{v}%"
+        if like_conds:
+            where_clauses.append("(" + " OR ".join(like_conds) + ")")
     if loading_cond and loading_cond.lower() != "all":
         where_clauses.append(f'"{loading_col}" ILIKE :loading_cond')
         params["loading_cond"] = loading_cond
 
     where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-    sql = f"SELECT {col_sql} FROM {table} {where_sql} ORDER BY {date_col} DESC LIMIT 2000"
+    # Keep the most-recent 2000 rows (inner DESC + LIMIT), but return them
+    # ascending so the table reads oldest → newest top-to-bottom.
+    sql = (
+        f"SELECT * FROM ("
+        f"SELECT {col_sql} FROM {table} {where_sql} ORDER BY {date_col} DESC LIMIT 2000"
+        f") sub ORDER BY {date_col} ASC"
+    )
     return sql, params
 
 
@@ -137,7 +202,10 @@ def query_mariapps(
                 (ExpandedColumnMetadata.is_active == True) |
                 (ExpandedColumnMetadata.is_identity == True),
             )
-            .order_by(ExpandedColumnMetadata.sort_order)
+            .order_by(func.coalesce(
+                ExpandedColumnMetadata.user_sort_order,
+                ExpandedColumnMetadata.sort_order,
+            ))
             .all()
         )
         if not meta:
@@ -188,7 +256,10 @@ def query_wni(
                 (ExpandedColumnMetadata.is_active == True) |
                 (ExpandedColumnMetadata.is_identity == True),
             )
-            .order_by(ExpandedColumnMetadata.sort_order)
+            .order_by(func.coalesce(
+                ExpandedColumnMetadata.user_sort_order,
+                ExpandedColumnMetadata.sort_order,
+            ))
             .all()
         )
         if not meta:

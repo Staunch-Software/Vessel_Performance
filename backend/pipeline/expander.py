@@ -97,6 +97,200 @@ _WNI_VALID_DATA_COLS: set = {
     if v and v != "__identity__"
 }
 
+# Genuine WNI extras: fields WNI reports that have an EXISTING service-variable
+# column (the same columns MariApps already populates) but which map_row() never
+# produces. Mapped here directly from the raw WNI record so the WNI grid gains
+# STW, engine slip and swell — without touching map_row() or the 160-col contract.
+_WNI_EXTRA_MAP = {
+    "Speed_TW Spd. (kts)":       "Vessel_STW_avg_operational_LF",        # Speed Through Water (Avg.)
+    "Engine_Slip (%)":           "VoyageMeta_apparent_slip_operational_LF",  # Apparent Slip
+    "Wave (WNI)_Swell Hgt. (m)": "Weather_Hsl_avg_operational_LF",       # Swell Height (Avg.)
+}
+
+
+def _wni_extra_fields(raw_json, table_cols) -> dict:
+    """Pull WNI fields straight from raw_json into their target columns (only those
+    physically present in the table). Covers both the original service-variable
+    extras (_WNI_EXTRA_MAP) and the dedicated direct columns (_WNI_DIRECT_MAP).
+    A raw key may legitimately appear in both maps (e.g. TW Spd. → service column
+    *and* its own grouped column), so we iterate both."""
+    out = {}
+    if not isinstance(raw_json, dict):
+        return out
+    for mapping in (_WNI_EXTRA_MAP, _WNI_DIRECT_MAP):
+        for raw_key, col in mapping.items():
+            if col not in table_cols:
+                continue
+            sv = _safe_str(raw_json.get(raw_key))
+            if sv is not None:
+                out[col] = sv
+    return out
+
+
+# The extras' target columns must also be listed in WNI column metadata, otherwise
+# the /expanded/wni route would never surface them in the grid.
+_WNI_VALID_DATA_COLS |= set(_WNI_EXTRA_MAP.values())
+
+# ── WNI direct fields (bypass the 160-col map_row bottleneck) ──────────────────
+# These WNI noon fields exist in raw_noon_reports.raw_json but have no slot in the
+# 160-col MARI_APPS_COLUMNS schema, so map_row() drops them. We surface them straight
+# from raw_json into DEDICATED columns on expanded_wni_data (added via ALTER TABLE,
+# no service-variable rebuild). Each tuple: (raw_json key, display name, category, unit).
+# Column name is derived from the raw key with a `wnix_` prefix.
+_WNI_DIRECT_FIELDS = [
+    # Distance
+    ("Distance (nm)_Reported Distance (nm)",            "Reported Distance",            "Distance (nm)",        "nm"),
+    ("Time Sailed (hrs)",                               "Time Sailed",                  "Distance (nm)",        "hrs"),
+    # Wind (Reported)
+    ("Wind (Reported)_Relative Wind Dir.",              "Relative Wind Dir.",           "Wind (Reported)",      ""),
+    ("Wind (Reported)_Wind Dir.",                       "Wind Dir.",                    "Wind (Reported)",      ""),
+    ("Wind (Reported)_BF Wind",                         "BF Wind",                      "Wind (Reported)",      "Bft"),
+    # Wind (WNI)
+    ("Wind (WNI)_Relative Wind Dir.",                   "Relative Wind Dir.",           "Wind (WNI)",           ""),
+    ("Wind (WNI)_Wind Dir.",                            "Wind Dir.",                    "Wind (WNI)",           ""),
+    ("Wind (WNI)_BF Wind",                              "BF Wind",                      "Wind (WNI)",           "Bft"),
+    # Wave (Reported)
+    ("Wave (Reported)_Wind Seas (m)",                   "Wind Seas",                    "Wave (Reported)",      "m"),
+    ("Wave (Reported)_Swell Dir.",                      "Swell Dir.",                   "Wave (Reported)",      ""),
+    ("Wave (Reported)_Swell Hgt. (m)",                  "Swell Hgt.",                   "Wave (Reported)",      "m"),
+    # Wave (WNI)  — source has no "Wind Seas"; closest is Sig. Wave (m)
+    ("Wave (WNI)_Sig. Wave (m)",                        "Sig. Wave",                    "Wave (WNI)",           "m"),
+    ("Wave (WNI)_Swell Dir.",                           "Swell Dir.",                   "Wave (WNI)",           ""),
+    ("Wave (WNI)_Swell Hgt. (m)",                       "Swell Hgt.",                   "Wave (WNI)",           "m"),
+    # Current (WNI)
+    ("Current (WNI)_Relative Current Dir.",             "Relative Current Dir.",        "Current (WNI)",        ""),
+    ("Current (WNI)_Current Factor (kts)",              "Current Factor",               "Current (WNI)",        "kts"),
+    # Speed
+    ("Speed_Reported Spd. (kts)",                       "Reported Spd.",                "Speed",                "kts"),
+    ("Speed_Instructed Spd. (kts)",                     "Instructed Spd.",              "Speed",                "kts"),
+    ("Speed_Diff. Reported - Instructed (kts)",         "Diff. Reported - Instructed",  "Speed",                "kts"),
+    ("Speed_TW Spd. (kts)",                             "TW Spd.",                      "Speed",                "kts"),
+    ("Speed_TW Spd. - Instructed (kts)",                "TW Spd. - Instructed",         "Speed",                "kts"),
+    # Fuel Efficiency
+    ("Fuel Efficiency_NM/Ton (nm)",                     "NM/Ton",                       "Fuel Efficiency",      "nm"),
+    ("Fuel Efficiency_Ton / NM (nm)",                   "Ton/NM",                       "Fuel Efficiency",      "nm"),
+    # M/E Fuel Consumption
+    ("M/E Fuel Consumption_HSFO (>0.5%) (mt)",          "HSFO (>0.5%)",                 "M/E Fuel Consumption", "mt"),
+    ("M/E Fuel Consumption_VLSFO (HFO) (mt)",           "VLSFO (HFO)",                  "M/E Fuel Consumption", "mt"),
+    ("M/E Fuel Consumption_VLSFO (HFO/LFO) (mt)",       "VLSFO (HFO/LFO)",              "M/E Fuel Consumption", "mt"),
+    ("M/E Fuel Consumption_MGO (>0.1%) (mt)",           "MGO (>0.1%)",                  "M/E Fuel Consumption", "mt"),
+    ("M/E Fuel Consumption_LSMGO (mt)",                 "LSMGO",                        "M/E Fuel Consumption", "mt"),
+    ("M/E Fuel Consumption_MDO (>0.1%) (mt)",           "MDO (>0.1%)",                  "M/E Fuel Consumption", "mt"),
+    ("M/E Fuel Consumption_Bio (mt)",                   "Bio",                          "M/E Fuel Consumption", "mt"),
+    # A/E Fuel Consumption
+    ("A/E Fuel Consumption_HSFO (>0.5%) (mt)",          "HSFO (>0.5%)",                 "A/E Fuel Consumption", "mt"),
+    ("A/E Fuel Consumption_VLSFO (LFO) (mt)",           "VLSFO (LFO)",                  "A/E Fuel Consumption", "mt"),
+    ("A/E Fuel Consumption_VLSFO (HFO/LFO) (mt)",       "VLSFO (HFO/LFO)",              "A/E Fuel Consumption", "mt"),
+    ("A/E Fuel Consumption_MGO (>0.1%) (mt)",           "MGO (>0.1%)",                  "A/E Fuel Consumption", "mt"),
+    ("A/E Fuel Consumption_LSMGO (mt)",                 "LSMGO",                        "A/E Fuel Consumption", "mt"),
+    ("A/E Fuel Consumption_MDO (>0.1%) (mt)",           "MDO (>0.1%)",                  "A/E Fuel Consumption", "mt"),
+    ("A/E Fuel Consumption_Bio (mt)",                   "Bio",                          "A/E Fuel Consumption", "mt"),
+    # Boiler Fuel Consumption
+    ("Boiler Fuel Consumption_HSFO (>0.5%) (mt)",       "HSFO (>0.5%)",                 "Boiler Fuel Consumption", "mt"),
+    ("Boiler Fuel Consumption_VLSFO (LFO) (mt)",        "VLSFO (LFO)",                  "Boiler Fuel Consumption", "mt"),
+    ("Boiler Fuel Consumption_MGO (>0.1%) (mt)",        "MGO (>0.1%)",                  "Boiler Fuel Consumption", "mt"),
+    ("Boiler Fuel Consumption_LSMGO (mt)",              "LSMGO",                        "Boiler Fuel Consumption", "mt"),
+    ("Boiler Fuel Consumption_MDO (>0.1%) (mt)",        "MDO (>0.1%)",                  "Boiler Fuel Consumption", "mt"),
+    ("Boiler Fuel Consumption_Bio (mt)",                "Bio",                          "Boiler Fuel Consumption", "mt"),
+    # IGG and GCU Consumption
+    ("IGG and GCU Consumption_HSFO (>0.5%) (mt)",       "HSFO (>0.5%)",                 "IGG and GCU Consumption", "mt"),
+    ("IGG and GCU Consumption_MGO (>0.1%) (mt)",        "MGO (>0.1%)",                  "IGG and GCU Consumption", "mt"),
+    ("IGG and GCU Consumption_MDO (>0.1%) (mt)",        "MDO (>0.1%)",                  "IGG and GCU Consumption", "mt"),
+    # Cargo Heating Fuel Consumption
+    ("Cargo Heating Fuel Consumption_HSFO (>0.5%) (mt)","HSFO (>0.5%)",                 "Cargo Heating Fuel Consumption", "mt"),
+    ("Cargo Heating Fuel Consumption_MGO (>0.1%) (mt)", "MGO (>0.1%)",                  "Cargo Heating Fuel Consumption", "mt"),
+    ("Cargo Heating Fuel Consumption_MDO (>0.1%) (mt)", "MDO (>0.1%)",                  "Cargo Heating Fuel Consumption", "mt"),
+    # Cargo Cooling Fuel Consumption
+    ("Cargo Cooling Fuel Consumption_HSFO (>0.5%) (mt)","HSFO (>0.5%)",                 "Cargo Cooling Fuel Consumption", "mt"),
+    ("Cargo Cooling Fuel Consumption_MGO (>0.1%) (mt)", "MGO (>0.1%)",                  "Cargo Cooling Fuel Consumption", "mt"),
+    ("Cargo Cooling Fuel Consumption_MDO (>0.1%) (mt)", "MDO (>0.1%)",                  "Cargo Cooling Fuel Consumption", "mt"),
+    # Engine
+    ("Engine_RPM",                                      "RPM",                          "Engine",               "rpm"),
+    ("Engine_Slip (%)",                                 "Slip",                         "Engine",               "%"),
+    ("Engine_M/E Power (kW)",                           "M/E Power",                    "Engine",               "kW"),
+    ("Engine_M/E Load (%)",                             "M/E Load",                     "Engine",               "%"),
+    # Cargo
+    ("Cargo_Type (Primary)",                            "Type (Primary)",               "Cargo",                ""),
+    ("Cargo_Total Cargo Weight on Dep/Arr (mt)",        "Total Cargo Weight on Dep/Arr","Cargo",                "mt"),
+    ("Cargo_Loaded (mt)",                               "Loaded",                       "Cargo",                "mt"),
+    ("Cargo_Unloaded (mt)",                             "Unloaded",                     "Cargo",                "mt"),
+    # ROB
+    ("ROB_HSFO (>0.5%) (mt)",                           "HSFO (>0.5%)",                 "ROB",                  "mt"),
+    ("ROB_VLSFO (LFO) (mt)",                            "VLSFO (LFO)",                  "ROB",                  "mt"),
+    ("ROB_VLSFO (HFO/LFO) (mt)",                        "VLSFO (HFO/LFO)",              "ROB",                  "mt"),
+    ("ROB_MGO (>0.1%) (mt)",                            "MGO (>0.1%)",                  "ROB",                  "mt"),
+    ("ROB_LSMGO (mt)",                                  "LSMGO",                        "ROB",                  "mt"),
+    ("ROB_MDO (>0.1%) (mt)",                            "MDO (>0.1%)",                  "ROB",                  "mt"),
+    ("ROB_Bio (mt)",                                    "Bio",                          "ROB",                  "mt"),
+    # Bunkered
+    ("Bunkered_HSFO (>0.5%) (mt)",                      "HSFO (>0.5%)",                 "Bunkered",             "mt"),
+    ("Bunkered_MGO (>0.1%) (mt)",                       "MGO (>0.1%)",                  "Bunkered",             "mt"),
+    ("Bunkered_MDO (>0.1%) (mt)",                       "MDO (>0.1%)",                  "Bunkered",             "mt"),
+    ("Bunkered_Bio (mt)",                               "Bio",                          "Bunkered",             "mt"),
+    # Total Fuel Consumption
+    ("Total Fuel Consumption_LFO (mt)",                 "LFO",                          "Total Fuel Consumption", "mt"),
+    ("Total Fuel Consumption_GO (mt)",                  "GO",                           "Total Fuel Consumption", "mt"),
+    ("Total Fuel Consumption_Bio (mt)",                 "Bio",                          "Total Fuel Consumption", "mt"),
+    # Speed and Consumption Order
+    ("Speed and Consumption Order_Speed (kts)",         "Speed",                        "Speed and Consumption Order", "kts"),
+    ("Speed and Consumption Order_FO (mt)",             "FO",                           "Speed and Consumption Order", "mt"),
+    ("Speed and Consumption Order_DO (mt)",             "DO",                           "Speed and Consumption Order", "mt"),
+]
+
+
+def _wnix_col(raw_key: str) -> str:
+    """Derive a safe, unique dedicated column name from a raw WNI key."""
+    s = re.sub(r"[^a-z0-9]+", "_", raw_key.lower()).strip("_")
+    return ("wnix_" + s)[:_PG_MAX_IDENT]
+
+
+# Build the dedicated-column metadata list + raw_key→column map.
+# Kept SEPARATE from _WNI_EXTRA_MAP so the original service-variable extras
+# (STW / slip / swell) keep populating their columns too — a raw key present in
+# both maps fills both columns (see _wni_extra_fields).
+_WNI_DIRECT_MAP = {}
+_WNI_DIRECT_META = []
+for _rk, _disp, _cat, _unit in _WNI_DIRECT_FIELDS:
+    _c = _wnix_col(_rk)
+    _WNI_DIRECT_MAP[_rk] = _c                      # populated via _wni_extra_fields()
+    _WNI_DIRECT_META.append(
+        {"col": _c, "display_name": _disp, "category": _cat, "unit": _unit}
+    )
+_WNI_DIRECT_COLS = [m["col"] for m in _WNI_DIRECT_META]
+_WNI_VALID_DATA_COLS |= set(_WNI_DIRECT_COLS)
+
+# Short prefix prepended to a direct column's display name so the grid header is
+# self-describing (e.g. "M/E HSFO (>0.5%)" instead of an ambiguous "HSFO (>0.5%)").
+# Categories whose own field names are already unique are left unprefixed.
+_WNI_DISPLAY_PREFIX = {
+    "Wind (Reported)":                "Wind (Rep.)",
+    "Wind (WNI)":                     "Wind (WNI)",
+    "Wave (Reported)":                "Wave (Rep.)",
+    "Wave (WNI)":                     "Wave (WNI)",
+    "M/E Fuel Consumption":           "M/E",
+    "A/E Fuel Consumption":           "A/E",
+    "Boiler Fuel Consumption":        "Boiler",
+    "IGG and GCU Consumption":        "IGG/GCU",
+    "Cargo Heating Fuel Consumption": "Cargo Heat.",
+    "Cargo Cooling Fuel Consumption": "Cargo Cool.",
+    "ROB":                            "ROB",
+    "Bunkered":                       "Bunkered",
+    "Total Fuel Consumption":         "Total Fuel",
+    "Speed and Consumption Order":    "Order",
+    "Cargo":                          "Cargo",
+}
+
+
+def _wni_direct_display(meta: dict) -> str:
+    """Display name with a consumer/group prefix when needed for disambiguation."""
+    prefix = _WNI_DISPLAY_PREFIX.get(meta["category"], "")
+    name = meta["display_name"]
+    if prefix and not name.startswith(prefix):
+        return f"{prefix} {name}"
+    return name
+# Sentinel: presence of this dedicated column means the extras have been added.
+_WNI_DIRECT_SENTINEL = _WNI_DIRECT_COLS[0] if _WNI_DIRECT_COLS else None
+
 # Rebuild-detection sentinel: new schema has this column
 _SCHEMA_SENTINEL = "Vessel_SOG_avg_operational_LF"
 
@@ -305,6 +499,7 @@ def create_expanded_tables(engine):
                 is_identity  BOOLEAN DEFAULT FALSE,
                 performance  BOOLEAN DEFAULT FALSE,
                 sort_order   INTEGER DEFAULT 0,
+                user_sort_order INTEGER,
                 UNIQUE (source, db_column)
             )
         """))
@@ -313,6 +508,18 @@ def create_expanded_tables(engine):
             conn.execute(text(
                 "ALTER TABLE expanded_column_metadata ADD COLUMN IF NOT EXISTS "
                 "performance BOOLEAN DEFAULT FALSE"
+            ))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
+        # Add user_sort_order column (user-defined column order from the picker).
+        # Kept separate from sort_order because populate_column_metadata() resets
+        # sort_order on every startup; user_sort_order must survive restarts.
+        try:
+            conn.execute(text(
+                "ALTER TABLE expanded_column_metadata ADD COLUMN IF NOT EXISTS "
+                "user_sort_order INTEGER"
             ))
             conn.commit()
         except Exception:
@@ -368,6 +575,13 @@ def create_expanded_tables(engine):
             """))
             log.info(f"Created expanded_wni_data with {len(CLEAN_OPERATIONAL_COLUMNS)} data columns.")
 
+        # Dedicated WNI direct columns (raw_json → expanded_wni_data, bypassing the
+        # 160-col map_row schema). Idempotent — added if not already present.
+        for c in _WNI_DIRECT_COLS:
+            conn.execute(text(
+                f'ALTER TABLE expanded_wni_data ADD COLUMN IF NOT EXISTS "{c}" TEXT'
+            ))
+
         conn.commit()
 
 
@@ -379,24 +593,32 @@ def populate_column_metadata(engine):
     """Populate expanded_column_metadata from NEWCOL_META."""
     entries = []
 
-    # Shared identity columns
-    identity_defs = [
+    # MariApps identity columns (log_date/log_type/log_number are real columns here)
+    mari_identity = [
         ("vessel_imo",        "Vessel IMO",          "Identity", ""),
         ("log_date",          "Log Date",             "Identity", ""),
         ("log_type",          "Log Type",             "Identity", ""),
         ("log_number",        "Log Number",           "Identity", ""),
         ("source_id",         "Source",               "Identity", ""),
         ("loading_condition", "Loading Condition",    "Identity", ""),
+        ("raw_log_id",        "Raw Log ID",           "Identity", ""),
+    ]
+    # WNI identity columns. WNI has NO log_date/log_type/log_number columns — those
+    # were phantom empties duplicating date/event_type/voyage_no, so they're dropped.
+    # raw_report_id is internal and not shown. The surviving columns carry the values.
+    wni_identity = [
+        ("vessel_imo",        "Vessel IMO",          "Identity", ""),
+        ("source_id",         "Source",               "Identity", ""),
+        ("loading_condition", "Loading Condition",    "Identity", ""),
+        ("date",              "Log Date",             "Identity", ""),
+        ("event_type",        "Log Type",             "Identity", ""),
+        ("voyage_no",         "Voyage No",            "Identity", ""),
     ]
 
     for source in ("mari_apps", "wni"):
         so = 0
         # Identity cols
-        id_cols = identity_defs + ([("raw_log_id", "Raw Log ID", "Identity", "")] if source == "mari_apps"
-                                   else [("raw_report_id", "Raw Report ID", "Identity", ""),
-                                         ("date",          "Date",           "Identity", ""),
-                                         ("event_type",    "Event Type",     "Identity", ""),
-                                         ("voyage_no",     "Voyage No",      "Identity", "")])
+        id_cols = mari_identity if source == "mari_apps" else wni_identity
         for col, disp, cat, unit in id_cols:
             entries.append({
                 "source": source, "db_column": col, "display_name": disp,
@@ -435,6 +657,25 @@ def populate_column_metadata(engine):
                 "sort_order":   so,
             })
             so += 1
+
+        # WNI-only dedicated direct columns (raw_json → expanded_wni_data).
+        # Active by default so the previously-missing WNI fields show in the grid.
+        if source == "wni":
+            for dm in _WNI_DIRECT_META:
+                disp = _wni_direct_display(dm)
+                entries.append({
+                    "source":       source,
+                    "db_column":    dm["col"],
+                    "display_name": disp,
+                    "category":     dm["category"],
+                    "unit":         dm["unit"],
+                    "description":  disp,
+                    "is_active":    True,
+                    "is_identity":  False,
+                    "performance":  False,
+                    "sort_order":   so,
+                })
+                so += 1
 
     with engine.connect() as conn:
         conn.execute(text("DELETE FROM expanded_column_metadata"))
@@ -588,6 +829,7 @@ def backfill_wni(engine, batch_size: int = 50):
                         "source_id":        "wni",
                         "loading_condition": _safe_str(mapped_160.get("loading_condition")),
                         **data_rec,
+                        **_wni_extra_fields(raw_json, table_cols),
                     }
                     _upsert_row(conn, "expanded_wni_data", "raw_report_id", record)
                     processed += 1
@@ -664,6 +906,7 @@ def write_expanded_wni(conn, raw_report_id, vessel_imo, raw_json):
             "source_id":        "wni",
             "loading_condition": _safe_str(mapped_160.get("loading_condition")),
             **data_rec,
+            **_wni_extra_fields(raw_json, table_cols),
         }
         _upsert_row(conn, "expanded_wni_data", "raw_report_id", record)
     except Exception as exc:
@@ -706,15 +949,27 @@ def setup_expanded_tables(engine):
         existing.discard("expanded_wni_data")
         existing.discard("expanded_mariapps_data")
 
-    create_expanded_tables(engine)
+    # ── Detect missing WNI direct columns → re-backfill WNI to populate them ──────
+    wni_extras_missing = False
+    if not needs_rebuild and "expanded_wni_data" in existing and _WNI_DIRECT_SENTINEL:
+        with engine.connect() as _c:
+            cols = {r[0] for r in _c.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='expanded_wni_data'"
+            ))}
+        if _WNI_DIRECT_SENTINEL not in cols:
+            wni_extras_missing = True
+            log.info("expanded_wni_data missing WNI direct columns — will add and backfill.")
+
+    create_expanded_tables(engine)   # ALTERs the dedicated WNI columns into place
 
     need_backfill_m = "expanded_mariapps_data" not in existing
     need_backfill_w = "expanded_wni_data"       not in existing
 
-    if need_backfill_m or need_backfill_w or needs_rebuild:
+    if need_backfill_m or need_backfill_w or needs_rebuild or wni_extras_missing:
         if need_backfill_m or needs_rebuild:
             backfill_mariapps(engine)
-        if need_backfill_w or needs_rebuild:
+        if need_backfill_w or needs_rebuild or wni_extras_missing:
             backfill_wni(engine)
 
     populate_column_metadata(engine)

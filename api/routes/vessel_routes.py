@@ -152,6 +152,7 @@ async def query_analysis_data(filters: dict, db: Session = Depends(get_db)):
     """
     try:
         voyage_no         = filters.get("voyageNo")
+        voyage_nos        = filters.get("voyageNos")    # optional list (multi-select)
         from_date_str     = filters.get("fromDate")
         to_date_str       = filters.get("toDate")
         loading_conditions= filters.get("loadingConditions", [])
@@ -185,17 +186,25 @@ async def query_analysis_data(filters: dict, db: Session = Depends(get_db)):
         if source_id and source_id != "all":
             query = query.filter(AnalysisData.source_id == source_id)
 
-        # FIX: Voyage_No is VARCHAR — never compare to integer
-        if voyage_no:
-            voyage_str = str(voyage_no).strip()
-            try:
-                voyage_int_str = str(int(voyage_str.split()[0]))
-                query = query.filter(
-                    (AnalysisData.Voyage_No == voyage_str) |
-                    (AnalysisData.Voyage_No == voyage_int_str)
-                )
-            except (ValueError, IndexError):
-                query = query.filter(AnalysisData.Voyage_No == voyage_str)
+        # FIX: Voyage_No is VARCHAR — never compare to integer.
+        # Accept either a single voyageNo or a voyageNos list (multi-select).
+        voyage_list = []
+        if voyage_nos:
+            voyage_list = [str(v).strip() for v in voyage_nos if str(v).strip()]
+        elif voyage_no:
+            voyage_list = [str(voyage_no).strip()]
+
+        if voyage_list:
+            conds = []
+            for voyage_str in voyage_list:
+                conds.append(AnalysisData.Voyage_No == voyage_str)
+                try:
+                    voyage_int_str = str(int(voyage_str.split()[0]))
+                    if voyage_int_str != voyage_str:
+                        conds.append(AnalysisData.Voyage_No == voyage_int_str)
+                except (ValueError, IndexError):
+                    pass
+            query = query.filter(or_(*conds))
 
         if from_date_str and from_date_str != "None":
             query = query.filter(AnalysisData.Date >= datetime.strptime(from_date_str, '%Y-%m-%d'))
@@ -486,12 +495,35 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
 
             records = q.all()
 
-            # 1. Missing report — gaps in daily date sequence
+            # 1. Missing report — gaps in daily date sequence.
+            #    Upper bound is "yesterday" (today - 1) when the data belongs to
+            #    the current year / no year filter, so a stale feed (latest report
+            #    older than yesterday) is counted as missing. A vessel that has
+            #    reported through yesterday shows 0 trailing gap; a gap at
+            #    day-before-yesterday or earlier is counted.
+            from datetime import timedelta, date as _date
             dates = sorted({r.Date for r in records if r.Date})
-            if len(dates) >= 2:
-                from datetime import timedelta
-                expected = (dates[-1] - dates[0]).days + 1
-                missing_report = max(0, expected - len(dates))
+            if dates:
+                first = dates[0]
+                last  = dates[-1]
+                today     = _date.today()
+                yesterday = today - timedelta(days=1)
+
+                upper = last
+                # Extend trailing edge to yesterday only for the live (current) year
+                if (year is None or year == today.year) and yesterday > last:
+                    upper = yesterday
+                # Never let the window spill past the selected year
+                if year is not None:
+                    year_end = _date(year, 12, 31)
+                    if upper > year_end:
+                        upper = year_end
+
+                if upper >= first:
+                    expected = (upper - first).days + 1
+                    missing_report = max(0, expected - len(dates))
+                else:
+                    missing_report = 0
             else:
                 missing_report = 0
 

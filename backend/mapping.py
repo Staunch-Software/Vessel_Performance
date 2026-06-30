@@ -78,7 +78,7 @@ ANALYSIS_DATA_COLUMNS = [
     "True_Wind_Dir_deg", "Sig_Wave_Ht_m", "Wave_Period_s", "Wave_Dir_deg", "Swell_Ht_m",
     "Swell_Period_s", "Swell_Dir_deg", "Water_Temp_C", "Water_Depth_m", "Current_Spd_kn",
     "Current_Dir_deg", "Rudder_Angle_deg", "P_wind_kW", "P_wave_kW", "P_temp_kW", "VTI",
-    "Power_Dev_pct", "Speed_Loss_pct"
+    "Power_Dev_pct", "Speed_Loss_pct", "BF_Wind"
 ]
 
 # ===========================================================================
@@ -683,6 +683,8 @@ def map_mariapps_to_analysis(payload, excel_data=None, header_data=None, vessel_
         (float(m160["wind_direction"]) if m160.get("wind_direction") else None)
     )
     out["Sig_Wave_Ht_m"]   = m160["wave_height"]
+    # True Wind Force (Bft) — used by the CP fair-weather filter (BF <= 4).
+    out["BF_Wind"]         = m160["true_wind_force"]
     out["Wave_Period_s"] = (
         val_num(perf, find_key_fuzzy(perf, ["Wave Period"])) or
         val_num(excel, find_key_fuzzy(excel, ["Wave Period"]))

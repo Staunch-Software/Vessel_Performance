@@ -1,12 +1,21 @@
 .filter-bar {
   background: #0f1e2d;
   border-bottom: 1px solid var(--border);
-  padding: 8px 16px;
+  padding: 8px 14px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;          /* keep everything on one line */
   align-items: center;
-  gap: 16px;
+  gap: 10px;
+  overflow-x: auto;           /* scroll instead of wrapping on narrow screens */
+  overflow-y: visible;
+  scrollbar-width: thin;
+  flex-shrink: 0;             /* never let the flex column collapse the bar vertically */
 }
+.filter-bar::-webkit-scrollbar { height: 5px; }
+.filter-bar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Never shrink/wrap individual control groups */
+.filter-bar > * { flex-shrink: 0; }
 
 /* Vessel select + add button wrapper */
 .vessel-select-wrap {
@@ -193,10 +202,10 @@
   background: var(--bg-panel);
   border: 1px solid var(--border);
   color: var(--text-primary);
-  padding: 5px 28px 5px 10px;
+  padding: 5px 26px 5px 10px;
   border-radius: 4px;
   font-size: 13px;
-  min-width: 180px;
+  min-width: 140px;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -217,7 +226,7 @@
 
 .radio-group {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -265,16 +274,118 @@
   background: var(--bg-panel);
   border: 1px solid var(--border);
   color: var(--text-primary);
-  padding: 4px 14px;
+  padding: 4px 10px;
   border-radius: 4px;
   font-size: 13px;
-  min-width: 110px;
+  min-width: 92px;
   text-align: center;
+}
+
+/* Period controls (preset / custom range) */
+.period-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.period-preset-select {
+  min-width: 140px;
+}
+
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.date-input {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  color-scheme: dark;
+}
+.date-input:focus { border-color: var(--accent-2); }
+
+.date-range-sep {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Voyage multi-select */
+.voyage-multi {
+  position: relative;
+}
+
+.voyage-multi-trigger {
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voyage-multi-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  min-width: 220px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+  padding: 6px;
+}
+
+.voyage-multi-actions {
+  display: flex;
+  gap: 6px;
+  padding: 2px 4px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.voyage-multi-actions button {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 3px 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.voyage-multi-actions button:hover { color: var(--accent-2); border-color: var(--accent-2); }
+
+.voyage-multi-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: 3px;
+}
+.voyage-multi-item:hover { background: var(--bg-table-head); }
+.voyage-multi-item input[type="checkbox"] { accent-color: var(--accent-2); cursor: pointer; }
+
+.voyage-multi-empty {
+  padding: 8px 6px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* Graph type */
 .graph-type-select {
-  min-width: 160px;
+  min-width: 132px;
 }
 
 /* Divider */

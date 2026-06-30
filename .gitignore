@@ -71,6 +71,9 @@ desktop.ini
 *.swp
 *.swo
 
+# Claude Code preview/launch config (local only)
+.claude/
+
 # ============================================================
 # WINDOWS SHORTCUTS
 # ============================================================

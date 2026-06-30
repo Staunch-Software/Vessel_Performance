@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { BookOpen, Zap, AlertTriangle, FileText, Columns, Database, BarChart2 } from 'lucide-react'
+import { BookOpen, Zap, AlertTriangle, FileText, Database, BarChart2 } from 'lucide-react'
 import { queryAnalysis, queryExpandedData, fetchExpandedColumns } from './api/vesselApi'
 import { PERFORMANCE_COLUMNS } from './utils/performanceColumns'
 import TopFilterBar from './components/TopFilterBar'
 import FuelBarChart from './components/FuelBarChart'
 import AverageValuesPanel from './components/AverageValuesPanel'
+import CPSummaryPanel from './components/CPSummaryPanel'
 import AnalysisTable from './components/AnalysisTable'
 import ColumnPicker from './components/ColumnPicker'
 import SpeedLossChart from './components/SpeedLossChart'
@@ -23,9 +24,9 @@ const MAX_TOP = 520
 // ── Page tab bar ──────────────────────────────────────────────────────────────
 function PageTabBar({ active, onChange }) {
   const tabs = [
+    { id: 'reports',  icon: <FileText  size={14} />, label: 'Vessel Reports'  },
     { id: 'logbook',  icon: <BookOpen  size={14} />, label: 'Logbook+'        },
     { id: 'scan',     icon: <Zap       size={14} />, label: 'Vessel Scan'     },
-    { id: 'reports',  icon: <FileText  size={14} />, label: 'Vessel Reports'  },
     { id: 'mdm',      icon: <Database   size={14} />, label: 'Design Data'     },
     { id: 'iso',      icon: <BarChart2  size={14} />, label: 'ISO 19030'       },
   ]
@@ -53,13 +54,19 @@ function LogbookPage({ preloadVesselImo }) {
   const [error, setError]           = useState(null)
   const [filtersApplied, setFiltersApplied] = useState(false)   // true once first fetch fires
   const [vesselImo, setVesselImo]   = useState('')       // current vessel IMO for scatter chart
+  const [cpVoyages, setCpVoyages]   = useState(null)     // selected voyages — non-null ONLY in Voyage view
   const [graphType, setGraph]       = useState('fuel')
+  const [fuelMode, setFuelMode]     = useState('daily')   // daily | event | underway
   const [topHeight, setTopH]        = useState(240)
   const [dragging, setDrag]         = useState(false)
   const [columnsMeta, setColsMeta]  = useState([])
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [source, setSource]         = useState('mari_apps')
+  const [source, setSource]         = useState('mari_apps')   // raw selection: all | wni | mari_apps
   const [catFilter, setCatFilter]   = useState('All')
+  const [colsVersion, setColsVersion] = useState(0)           // bump to force column-metadata reload
+
+  // 'all' has no expanded table of its own — it shows WNI columns/data
+  const effSource = source === 'all' ? 'wni' : source
 
   // User-toggled pink columns — persisted in localStorage per source
   const [userVisible, setUserVisible] = useState(() => {
@@ -75,25 +82,31 @@ function LogbookPage({ preloadVesselImo }) {
   // Load column metadata when source changes
   // Augment with client-side performance flag (don't rely on DB value alone)
   useEffect(() => {
-    fetchExpandedColumns(source)
+    fetchExpandedColumns(effSource)
       .then(cols => setColsMeta(
         cols.map(c => ({ ...c, performance: c.performance || PERFORMANCE_COLUMNS.has(c.db_column) }))
       ))
       .catch(console.error)
     // Restore user-visible prefs for this source
     try {
-      const saved = localStorage.getItem(LS_VISIBLE_KEY_PREFIX + source)
+      const saved = localStorage.getItem(LS_VISIBLE_KEY_PREFIX + effSource)
       setUserVisible(new Set(saved ? JSON.parse(saved) : []))
     } catch { setUserVisible(new Set()) }
-  }, [source])
+  }, [effSource, colsVersion])
 
   const handleFilters = useCallback(async (filters) => {
+    // source is controlled by the page (radio / picker); derive concrete src for the query
     const src = filters.source_id || 'wni'
-    setSource(src)
     setLoading(true)
     setError(null)
     setFiltersApplied(true)
     if (filters.vessel_imo) setVesselImo(filters.vessel_imo)
+    // CP panel is voyage-scoped: only populate when the user is in Voyage view.
+    setCpVoyages(
+      Array.isArray(filters.voyageNos) && filters.voyageNos.length
+        ? filters.voyageNos.map(String)
+        : null
+    )
     try {
       // Fetch chart data (analysis_data) and expanded table data in parallel
       const [chartData, tableData] = await Promise.all([
@@ -116,7 +129,7 @@ function LogbookPage({ preloadVesselImo }) {
       const next = new Set(prev)
       if (next.has(dbCol)) next.delete(dbCol)
       else next.add(dbCol)
-      localStorage.setItem(LS_VISIBLE_KEY_PREFIX + source, JSON.stringify([...next]))
+      localStorage.setItem(LS_VISIBLE_KEY_PREFIX + effSource, JSON.stringify([...next]))
       return next
     })
   }
@@ -139,6 +152,9 @@ function LogbookPage({ preloadVesselImo }) {
   }
 
   const hasChartData = chartRows.length > 0
+
+  // Voyage view → CP performance replaces the data table in the lower area.
+  const voyageView = !!(cpVoyages && cpVoyages.length > 0)
 
   // Derive distinct categories from non-identity columns
   const categories = useMemo(() => {
@@ -186,6 +202,10 @@ function LogbookPage({ preloadVesselImo }) {
       <TopFilterBar
         graphType={graphType}
         onGraphTypeChange={setGraph}
+        fuelMode={fuelMode}
+        onFuelModeChange={setFuelMode}
+        source={source}
+        onSourceChange={setSource}
         onFiltersChange={handleFilters}
         defaultVesselImo={preloadVesselImo}
         onColumnsClick={() => setPickerOpen(true)}
@@ -196,7 +216,8 @@ function LogbookPage({ preloadVesselImo }) {
       <div className="middle-section" style={{ height: topHeight }}>
         <div className="chart-panel">
           <div className="section-title">
-            {graphType === 'fuel'       ? 'Total Fuel Consumption (mt)'
+            {graphType === 'fuel'
+              ? `Total Fuel Consumption (mt) · ${fuelMode === 'event' ? 'Event-wise' : fuelMode === 'underway' ? 'Underway' : 'Daily'}`
              : graphType === 'speed'    ? 'Speed & Power'
              : 'Power-Normalised Speed Loss %'}
           </div>
@@ -208,7 +229,7 @@ function LogbookPage({ preloadVesselImo }) {
                 : 'Select a vessel and date range to view data.'}
             </div>
           )}
-          {!loading && hasChartData && graphType === 'fuel'       && <FuelBarChart rows={chartRows} />}
+          {!loading && hasChartData && graphType === 'fuel'       && <FuelBarChart rows={chartRows} mode={fuelMode} />}
           {!loading && graphType === 'speed'      && <SpeedPowerScatter vesselImo={vesselImo} />}
           {!loading && graphType === 'speed_loss' && <SpeedLossChart rows={chartRows} />}
         </div>
@@ -219,8 +240,8 @@ function LogbookPage({ preloadVesselImo }) {
         <div className="drag-handle-grip" />
       </div>
 
-      {/* Category filter bar — shown only when columns are loaded */}
-      {categories.length > 0 && (
+      {/* Category filter bar — only in Month/Period (table) view */}
+      {!voyageView && categories.length > 0 && (
         <div className="cat-filter-bar">
           <button
             className={`cat-chip${catFilter === 'All' ? ' active' : ''}`}
@@ -241,18 +262,23 @@ function LogbookPage({ preloadVesselImo }) {
         </div>
       )}
 
+      {/* Lower area. In Voyage view the CP performance table fully REPLACES the
+          data table, inheriting the same full-width / full-height box. */}
       <div className="table-section">
-        {loading
-          ? <div className="loading-overlay"><div className="spinner" /> Loading reports…</div>
-          : <AnalysisTable rows={rows} columnsMeta={filteredMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} />
+        {voyageView
+          ? <CPSummaryPanel imo={vesselImo} source={source} voyages={cpVoyages} />
+          : loading
+            ? <div className="loading-overlay"><div className="spinner" /> Loading reports…</div>
+            : <AnalysisTable rows={rows} columnsMeta={filteredMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} />
         }
       </div>
 
       {pickerOpen && (
         <ColumnPicker
-          columns={columnsMeta}
-          userVisible={userVisible}
-          onToggle={handleToggleColumn}
+          pageSource={effSource}
+          pageUserVisible={userVisible}
+          onPageToggle={handleToggleColumn}
+          onOrderChanged={() => setColsVersion(v => v + 1)}
           onClose={() => setPickerOpen(false)}
         />
       )}
@@ -262,7 +288,7 @@ function LogbookPage({ preloadVesselImo }) {
 
 // ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [page,             setPage]             = useState('logbook')
+  const [page,             setPage]             = useState('reports')
   const [scanPreload,      setScanPreload]      = useState(null)
   const [logbookVesselImo, setLogbookVesselImo] = useState(null)
 

@@ -63,4 +63,19 @@ def init_mariapps_database():
             END $$;
         """))
 
+        # CP fair-weather filter needs Beaufort per analysis_data row.
+        conn.execute(text("""
+            ALTER TABLE analysis_data ADD COLUMN IF NOT EXISTS "BF_Wind" DOUBLE PRECISION;
+        """))
+
+        # CP warranty: FO (HFO/LFO) and DO/GO (distillate) per-day warranties (WNI layout).
+        conn.execute(text("""
+            DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='vessel_cp_config') THEN
+                    ALTER TABLE vessel_cp_config ADD COLUMN IF NOT EXISTS warranted_fo_mtpd   DOUBLE PRECISION;
+                    ALTER TABLE vessel_cp_config ADD COLUMN IF NOT EXISTS warranted_dogo_mtpd DOUBLE PRECISION;
+                END IF;
+            END $$;
+        """))
+
         conn.commit()

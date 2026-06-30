@@ -158,7 +158,8 @@ ANALYSIS_DATA_COLUMNS = [
     "True_Wind_Dir_deg", "Sig_Wave_Ht_m", "Wave_Period_s", "Wave_Dir_deg", 
     "Swell_Ht_m", "Swell_Period_s", "Swell_Dir_deg", "Water_Temp_C", 
     "Water_Depth_m", "Current_Spd_kn", "Current_Dir_deg", "Rudder_Angle_deg", 
-    "P_wind_kW", "P_wave_kW", "P_temp_kW", "VTI", "Power_Dev_pct", "Speed_Loss_pct"
+    "P_wind_kW", "P_wave_kW", "P_temp_kW", "VTI", "Power_Dev_pct", "Speed_Loss_pct",
+    "BF_Wind"
 ]
 
 # ============================================================
@@ -272,6 +273,9 @@ def map_analysis_row(row, specs=None):
 
     # 4. Environment (Using DB Specs)
     out["True_Wind_Dir_deg"] = WIND_DIR_MAP.get(val_str(row, "Wind (WNI)_Wind Dir."))
+
+    # WNI-analyzed Beaufort — used by the CP fair-weather filter (BF <= 4).
+    out["BF_Wind"] = val_num(row, "Wind (WNI)_BF Wind", default=None)
 
     out["Sig_Wave_Ht_m"] = val_num(row, "Wave (WNI)_Sig. Wave (m)")
     rel_wind_ms = val_num(row, "Wind (WNI)_Wind Spd. (kts)") * 0.5144

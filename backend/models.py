@@ -302,6 +302,9 @@ class AnalysisData(Base):
     VTI = Column(Float)
     Power_Dev_pct = Column(Float)
     Speed_Loss_pct = Column(Float)
+    # Beaufort wind force — WNI: WNI-analyzed BF; MariApps: True Wind Force (Bft).
+    # Drives the CP fair-weather filter (good weather = BF_Wind <= 4 AND Sig_Wave_Ht_m <= 2.0).
+    BF_Wind = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 # ============================================================
@@ -533,6 +536,7 @@ class ExpandedColumnMetadata(Base):
     is_identity  = Column(Boolean, default=False)        # id/date/vessel cols
     performance  = Column(Boolean, default=False)        # performance-relevant column flag
     sort_order   = Column(Integer, default=0)
+    user_sort_order = Column(Integer, nullable=True)     # user-defined order (column picker); survives restarts
 
     # Matches the ON CONFLICT (source, db_column) upsert in pipeline/expander.py.
     # Without this, Base.metadata.create_all() builds the table with no matching
@@ -1276,6 +1280,35 @@ class VesselISOConfig(Base):
     amber_slope_pct30d      = Column(Float, default=0.5)    # amber alert slope %/30d
     red_slope_pct30d        = Column(Float, default=1.0)    # red alert slope %/30d
     rolling_window_records  = Column(Integer, default=7)    # rolling window for trigger
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class VesselCPConfig(Base):
+    """
+    Charter-Party (CP) performance warranty config — per vessel × loading condition.
+
+    CP speed/consumption warranties differ Laden vs Ballast, so the primary key is
+    composite (vessel_imo, loading_cond). These are the only values the user must
+    enter by hand for CP compliance monitoring; everything else is measured or derived.
+    Consumed by the CP compliance calculator (backend/cp/).
+    """
+    __tablename__ = 'vessel_cp_config'
+
+    vessel_imo   = Column(String(20), ForeignKey('vessels.imo_number', ondelete='CASCADE'), primary_key=True)
+    loading_cond = Column(String(10), primary_key=True)   # 'Laden' or 'Ballast'
+
+    warranted_speed_kn  = Column(Float)              # CP "about" warranted speed (kn)
+    # WNI CP warranty splits consumption by fuel TYPE (vessel totals), not by consumer:
+    warranted_fo_mtpd   = Column(Float)              # warranted FO (HFO/LFO) consumption (MT/day)
+    warranted_dogo_mtpd = Column(Float)              # warranted DO/GO (distillate) consumption (MT/day)
+    # Legacy per-consumer warranties (kept for backward-compat; not used by the WNI table):
+    warranted_me_mtpd   = Column(Float)
+    warranted_ae_mtpd   = Column(Float)
+    speed_tol_kn        = Column(Float, default=0.5) # "about" speed tolerance (± kn)
+    cons_tol_pct        = Column(Float, default=5.0) # "about" consumption tolerance (± %)
+    fuel_price_usd_mt   = Column(Float)              # optional — only for a $ claim figure
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

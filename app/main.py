@@ -7,7 +7,9 @@ from api.routes.vessel_routes import router as vessel_router
 from api.routes.expanded_routes import router as expanded_router
 from api.routes.vessel_design_routes import router as vessel_design_router
 from api.routes.iso_routes import router as iso_router
-from fastapi.middleware.cors import CORSMiddleware 
+from api.routes.sync_routes import router as sync_router
+from api.routes.cp_routes import router as cp_router
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from datetime import datetime
@@ -98,6 +100,39 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.error(f"AE_FOC_MT backfill failed: {e}")
 
+    # 3c. BF_Wind backfill — Beaufort per analysis_data row (drives CP fair-weather filter).
+    #     WNI:      from noon_report_data.true_wind_force (already mapped by map_row)
+    #     MariApps: from raw_mariapps_logs.raw_json Excel_Data 'True Wind Force (Bft)'
+    #     Both idempotent — only touch rows where "BF_Wind" IS NULL.
+    try:
+        from sqlalchemy import text as _text
+        from backend.database import engine as _eng
+        with _eng.connect() as _conn:
+            wni_res = _conn.execute(_text("""
+                UPDATE analysis_data a
+                SET    "BF_Wind" = n.true_wind_force
+                FROM   noon_report_data n
+                WHERE  n.raw_report_id = a.raw_report_id
+                  AND  a."BF_Wind"     IS NULL
+                  AND  a.source_id     = 'wni'
+                  AND  n.true_wind_force IS NOT NULL
+            """))
+            mari_res = _conn.execute(_text("""
+                UPDATE analysis_data a
+                SET    "BF_Wind" = TRIM(r.raw_json->'Excel_Data'->>'True Wind Force (Bft)')::float
+                FROM   raw_mariapps_logs r
+                WHERE  r.id          = a.raw_mariapps_id
+                  AND  a."BF_Wind"   IS NULL
+                  AND  a.source_id   = 'mari_apps'
+                  AND  TRIM(COALESCE(
+                         r.raw_json->'Excel_Data'->>'True Wind Force (Bft)', ''
+                       )) ~ '^[0-9]+\.?[0-9]*$'
+            """))
+            _conn.commit()
+            log.info(f"✅ BF_Wind backfill: {wni_res.rowcount} WNI, {mari_res.rowcount} MariApps rows updated.")
+    except Exception as e:
+        log.error(f"BF_Wind backfill failed: {e}")
+
     # 4. Set up expanded flat tables (creates + backfills on first run)
     try:
         from backend.pipeline.expander import setup_expanded_tables
@@ -106,6 +141,33 @@ async def lifespan(app: FastAPI):
         log.info("✅ Expanded tables ready.")
     except Exception as e:
         log.error(f"Failed to setup expanded tables: {e}")
+
+    # 4b. Genuine-WNI-extras backfill — populate STW / Apparent Slip / Swell Height
+    #     for existing expanded_wni_data rows (the full backfill_wni only re-runs on
+    #     a schema rebuild). New WNI records get these via the live write path.
+    #     Idempotent: only fills rows where the target column is still NULL.
+    try:
+        from sqlalchemy import text as _text
+        from backend.database import engine as _eng
+        with _eng.connect() as _conn:
+            res = _conn.execute(_text("""
+                UPDATE expanded_wni_data e
+                SET "Vessel_STW_avg_operational_LF"
+                        = COALESCE(e."Vessel_STW_avg_operational_LF",       r.raw_json->>'Speed_TW Spd. (kts)'),
+                    "VoyageMeta_apparent_slip_operational_LF"
+                        = COALESCE(e."VoyageMeta_apparent_slip_operational_LF", r.raw_json->>'Engine_Slip (%)'),
+                    "Weather_Hsl_avg_operational_LF"
+                        = COALESCE(e."Weather_Hsl_avg_operational_LF",       r.raw_json->>'Wave (WNI)_Swell Hgt. (m)')
+                FROM raw_noon_reports r
+                WHERE r.id = e.raw_report_id
+                  AND (e."Vessel_STW_avg_operational_LF"        IS NULL
+                    OR e."VoyageMeta_apparent_slip_operational_LF" IS NULL
+                    OR e."Weather_Hsl_avg_operational_LF"        IS NULL)
+            """))
+            _conn.commit()
+            log.info(f"✅ WNI extras backfill (STW/slip/swell): {res.rowcount} rows touched.")
+    except Exception as e:
+        log.error(f"WNI extras backfill failed: {e}")
 
     # 5. ISO 19030 backfill — process all existing analysis_data records for
     #    any vessel that already has an ISO config saved.
@@ -182,6 +244,8 @@ app.include_router(vessel_router,        prefix="/api/v1")
 app.include_router(expanded_router,      prefix="/api/v1")
 app.include_router(vessel_design_router, prefix="/api/v1")
 app.include_router(iso_router,           prefix="/api/v1")
+app.include_router(sync_router,          prefix="/api/v1")
+app.include_router(cp_router,            prefix="/api/v1")
 
 
 # --- DEFINE /analysis/query ENDPOINT DIRECTLY HERE ---

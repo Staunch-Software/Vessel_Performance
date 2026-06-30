@@ -15,8 +15,10 @@ numpy==1.26.4
 openpyxl==3.1.5
 pandas==2.2.3
 pathlib==1.0.1
+pdfplumber                  # root-level PDF extraction scripts (extract_*.py, verify_am_kirti.py) — version unpinned, not in lockfile
 playwright==1.58.0
 psycopg2==2.9.11
+tb-rest-client               # Eyegauge / Sea Vision SDK (backend/eyegauge EyegaugePipeline) — version unpinned, not in lockfile
 pydantic==2.13.4
 pydantic_core==2.46.4
 pyee==13.0.0

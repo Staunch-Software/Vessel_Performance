@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Columns, Plus, X, Check, Loader2 } from 'lucide-react'
 import { fetchVessels, fetchVoyages, addVessel } from '../api/vesselApi'
 import './TopFilterBar.css'
@@ -8,6 +9,10 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 function formatMonthLabel(date) {
   return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`
 }
+
+const pad2 = n => String(n).padStart(2, '0')
+// Local YYYY-MM-DD (never via toISOString — that shifts to UTC, see note below)
+const fmtDate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 
 function monthBounds(date) {
   const y = date.getFullYear(), m = date.getMonth()
@@ -21,6 +26,17 @@ function monthBounds(date) {
     fromDate: `${y}-${pad(m + 1)}-01`,
     toDate:   `${y}-${pad(m + 1)}-${pad(lastDay)}`,
   }
+}
+
+// Preset period → {fromDate, toDate} ending today, going back the chosen span.
+function presetBounds(preset) {
+  const to   = new Date()
+  const from = new Date(to)
+  if      (preset === '1m') from.setMonth(from.getMonth() - 1)
+  else if (preset === '3m') from.setMonth(from.getMonth() - 3)
+  else if (preset === '6m') from.setMonth(from.getMonth() - 6)
+  else if (preset === '1y') from.setFullYear(from.getFullYear() - 1)
+  return { fromDate: fmtDate(from), toDate: fmtDate(to) }
 }
 
 // ── Add Vessel Modal ──────────────────────────────────────────────────────────
@@ -106,16 +122,24 @@ function AddVesselModal({ onClose, onAdded }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function TopFilterBar({ graphType, onGraphTypeChange, onFiltersChange, defaultVesselImo, onColumnsClick }) {
+export default function TopFilterBar({ graphType, onGraphTypeChange, fuelMode, onFuelModeChange, source, onSourceChange, onFiltersChange, defaultVesselImo, onColumnsClick }) {
   const [vessels, setVessels]         = useState([])
   const [selectedVessel, setVessel]   = useState('')
   const [displayType, setDisplayType] = useState('month')
   const [currentMonth, setMonth]      = useState(new Date())
   const [voyages, setVoyages]         = useState([])
-  const [selectedVoyage, setVoyage]   = useState('')
-  const [source, setSource]           = useState('mari_apps')
+  const [selectedVoyages, setSelVoyages] = useState([])   // multi-select
+  const [voyageOpen, setVoyageOpen]   = useState(false)
+  const [voyagePos, setVoyagePos]     = useState({ top: 0, left: 0, width: 220 })
+  const voyageBoxRef   = useRef(null)   // trigger wrapper
+  const voyagePanelRef = useRef(null)   // portal panel
   const [showAddModal, setShowModal]  = useState(false)
   const [loadingCond, setLoadingCond] = useState('all')   // all | Laden | Ballast
+  // Period mode (replaces old "All Period")
+  const [periodType, setPeriodType]   = useState('preset') // preset | custom
+  const [periodPreset, setPreset]     = useState('3m')     // 1m | 3m | 6m | 1y
+  const [customFrom, setCustomFrom]   = useState('')
+  const [customTo, setCustomTo]       = useState('')
 
   // Load vessel list on mount
   useEffect(() => {
@@ -139,9 +163,33 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, onFiltersCh
   useEffect(() => {
     if (!selectedVessel) return
     fetchVoyages(selectedVessel, source)
-      .then(list => { setVoyages(list); setVoyage(list[0] ?? '') })
+      .then(list => {
+        setVoyages(list)
+        setSelVoyages(list.length ? [String(list[0])] : [])   // default to first voyage
+      })
       .catch(console.error)
   }, [selectedVessel, source])
+
+  // Close the voyage multi-select when clicking outside the trigger AND the portal panel
+  useEffect(() => {
+    if (!voyageOpen) return
+    function onDocClick(e) {
+      const inTrigger = voyageBoxRef.current?.contains(e.target)
+      const inPanel   = voyagePanelRef.current?.contains(e.target)
+      if (!inTrigger && !inPanel) setVoyageOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [voyageOpen])
+
+  // Open the voyage dropdown, anchoring the portal panel under the trigger
+  function toggleVoyageOpen() {
+    if (!voyageOpen) {
+      const r = voyageBoxRef.current?.getBoundingClientRect()
+      if (r) setVoyagePos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 220) })
+    }
+    setVoyageOpen(o => !o)
+  }
 
   // Reset loading condition when switching away from voyage mode
   useEffect(() => {
@@ -155,17 +203,28 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, onFiltersCh
 
     if (displayType === 'month') {
       Object.assign(filters, monthBounds(currentMonth))
-    } else if (displayType === 'voyage' && selectedVoyage) {
-      filters.voyageNo = String(selectedVoyage)
+    } else if (displayType === 'voyage' && selectedVoyages.length) {
+      filters.voyageNos = selectedVoyages.map(String)
       if (loadingCond !== 'all') {
         filters.loadingCond = loadingCond
         filters.loadingConditions = [loadingCond]
+      }
+    } else if (displayType === 'period') {
+      if (periodType === 'preset') {
+        Object.assign(filters, presetBounds(periodPreset))
+      } else if (customFrom && customTo) {
+        filters.fromDate = customFrom
+        filters.toDate   = customTo
+      } else {
+        // Custom range chosen but incomplete — don't fire a half-filter
+        return
       }
     }
 
     if (source !== 'all') filters.source_id = source
     onFiltersChange(filters)
-  }, [selectedVessel, displayType, currentMonth, selectedVoyage, source, loadingCond])
+  }, [selectedVessel, displayType, currentMonth, selectedVoyages, source, loadingCond,
+      periodType, periodPreset, customFrom, customTo])
 
   // Called when a new vessel is successfully added
   function handleVesselAdded(newVessel) {
@@ -200,7 +259,7 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, onFiltersCh
         <div className="filter-group">
           <span className="filter-label">Display Type</span>
           <div className="radio-group">
-            {[['month','Month'], ['voyage','Voyage Number'], ['all','All Period']].map(([val, label]) => (
+            {[['month','Month'], ['voyage','Voyage Number'], ['period','Period']].map(([val, label]) => (
               <label key={val} className="radio-option">
                 <input type="radio" name="displayType" value={val}
                   checked={displayType === val} onChange={() => setDisplayType(val)} />
@@ -222,13 +281,91 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, onFiltersCh
           </div>
         )}
 
-        {/* Voyage selector */}
+        {/* Period selector — preset span or custom date range */}
+        {displayType === 'period' && (
+          <div className="filter-group">
+            <span className="filter-label">Period</span>
+            <div className="period-controls">
+              <div className="radio-group">
+                {[['preset','Preset'], ['custom','Custom Range']].map(([val, label]) => (
+                  <label key={val} className={`radio-option source-pill${periodType === val ? ' active' : ''}`}>
+                    <input type="radio" name="periodType" value={val}
+                      checked={periodType === val} onChange={() => setPeriodType(val)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {periodType === 'preset' ? (
+                <select className="filter-select period-preset-select" value={periodPreset}
+                  onChange={e => setPreset(e.target.value)}>
+                  <option value="1m">Last 1 Month</option>
+                  <option value="3m">Last 3 Months</option>
+                  <option value="6m">Last 6 Months</option>
+                  <option value="1y">Last 1 Year</option>
+                </select>
+              ) : (
+                <div className="date-range">
+                  <input type="date" className="date-input" value={customFrom}
+                    max={customTo || undefined}
+                    onChange={e => setCustomFrom(e.target.value)} />
+                  <span className="date-range-sep">→</span>
+                  <input type="date" className="date-input" value={customTo}
+                    min={customFrom || undefined}
+                    onChange={e => setCustomTo(e.target.value)} />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Voyage selector — multi-select with checkboxes */}
         {displayType === 'voyage' && (
           <div className="filter-group">
             <span className="filter-label">Voyage No</span>
-            <select className="filter-select" value={selectedVoyage} onChange={e => setVoyage(e.target.value)}>
-              {voyages.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
+            <div className="voyage-multi" ref={voyageBoxRef}>
+              <button
+                type="button"
+                className="filter-select voyage-multi-trigger"
+                onClick={toggleVoyageOpen}
+                title="Select one or more voyages"
+              >
+                {selectedVoyages.length === 0
+                  ? 'Select voyages…'
+                  : selectedVoyages.length === 1
+                    ? selectedVoyages[0]
+                    : `${selectedVoyages.length} voyages selected`}
+              </button>
+              {voyageOpen && createPortal(
+                <div
+                  className="voyage-multi-panel"
+                  ref={voyagePanelRef}
+                  style={{ position: 'fixed', top: voyagePos.top, left: voyagePos.left, minWidth: voyagePos.width, zIndex: 1300 }}
+                >
+                  <div className="voyage-multi-actions">
+                    <button type="button" onClick={() => setSelVoyages(voyages.map(String))}>All</button>
+                    <button type="button" onClick={() => setSelVoyages([])}>None</button>
+                  </div>
+                  {voyages.length === 0 && <div className="voyage-multi-empty">No voyages</div>}
+                  {voyages.map(v => {
+                    const val = String(v)
+                    const checked = selectedVoyages.includes(val)
+                    return (
+                      <label key={val} className="voyage-multi-item">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setSelVoyages(prev =>
+                            prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]
+                          )}
+                        />
+                        {val}
+                      </label>
+                    )
+                  })}
+                </div>,
+                document.body
+              )}
+            </div>
           </div>
         )}
 
@@ -257,7 +394,7 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, onFiltersCh
             {[['all','All'], ['wni','WNI'], ['mari_apps','MariApps']].map(([val, label]) => (
               <label key={val} className={`radio-option source-pill${source === val ? ' active' : ''}`}>
                 <input type="radio" name="source" value={val}
-                  checked={source === val} onChange={() => setSource(val)} />
+                  checked={source === val} onChange={() => onSourceChange(val)} />
                 {label}
               </label>
             ))}
@@ -276,6 +413,19 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, onFiltersCh
             <option value="speed_loss">Speed Loss %</option>
           </select>
         </div>
+
+        {/* Fuel granularity — only for Total Fuel */}
+        {graphType === 'fuel' && onFuelModeChange && (
+          <div className="filter-group">
+            <span className="filter-label">Fuel Data</span>
+            <select className="filter-select graph-type-select" value={fuelMode}
+              onChange={e => onFuelModeChange(e.target.value)}>
+              <option value="daily">Daily Data</option>
+              <option value="event">Event-wise Data</option>
+              <option value="underway">Underway Data</option>
+            </select>
+          </div>
+        )}
 
         <div className="filter-divider" />
 

@@ -1,0 +1,88 @@
+/* NOTE: root class is .cpp-panel (Charter-Party Performance) — NOT .cp-panel,
+   which is already used by ColumnPicker's slide-in drawer and would collide. */
+.cpp-panel {
+  border-top: 1px solid var(--border, #2d4a6a);
+  background: var(--bg-secondary, #0f1d2e);
+  padding: 6px 12px 8px;
+  /* Replaces the data table: fill the full table-section box (width + height) */
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.cp-panel-head {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary, #e2e8f0);
+  margin-bottom: 5px;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+.cp-panel-sub { font-weight: 400; color: #64748b; font-size: 11px; }
+.cp-tot { margin-left: auto; font-weight: 400; font-size: 11px; color: #94a3b8; }
+.cp-panel-msg { font-size: 11px; color: #94a3b8; padding: 3px 0; }
+.cp-panel-msg.cp-err  { color: #f87171; }
+.cp-panel-msg.cp-warn { color: #fbbf24; }
+
+/* Fill the panel (full width + remaining height) and scroll internally (both axes) */
+.cp-table-wrap { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 0; overflow: auto; }
+
+.cp-table {
+  border-collapse: collapse;
+  font-size: 10.5px;
+  white-space: nowrap;
+  /* Fill the full wrap width; stretch columns to occupy empty space,
+     but never compress below content (scroll horizontally instead). */
+  width: 100%;
+  min-width: max-content;
+}
+
+/* group header row */
+.cp-grp th {
+  text-align: center;
+  color: #cbd5e1;
+  font-weight: 700;
+  padding: 3px 8px;
+  background: #14283e;
+  border: 1px solid rgba(45, 74, 106, .6);
+  position: sticky; top: 0; z-index: 2;
+}
+.cp-grp-tva { color: #34d399 !important; }
+
+/* sub header row */
+.cp-sub th {
+  text-align: right;
+  color: #64748b;
+  font-weight: 600;
+  padding: 2px 8px;
+  background: #0f1d2e;
+  border-bottom: 1px solid rgba(45, 74, 106, .6);
+  position: sticky; top: 23px; z-index: 1;
+}
+
+.cp-table td {
+  text-align: right;
+  padding: 2px 8px;
+  color: #cbd5e1;
+  border-bottom: 1px solid rgba(45, 74, 106, .22);
+  border-right: 1px solid rgba(45, 74, 106, .12);
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+.cp-table tr:hover td { background: rgba(96, 165, 250, .06); }
+
+.cp-voyage { font-weight: 700; color: #e2e8f0; text-align: left; }
+.cp-port { text-align: left; color: #cbd5e1; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.cp-dt   { text-align: left; color: #94a3b8; font-size: 10px; }
+
+/* dual good/entire cell */
+.cp-ge { display: flex; flex-direction: column; line-height: 1.25; align-items: flex-end; }
+.cp-ge-good { color: #34d399; font-weight: 700; }
+.cp-ge-ent  { color: #94a3b8; }
+
+/* loss(+) red / saving(-) green */
+.cp-loss { color: #f87171; font-weight: 700; }
+.cp-save { color: #34d399; font-weight: 700; }

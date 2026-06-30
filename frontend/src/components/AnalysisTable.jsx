@@ -58,7 +58,7 @@ function CellValue({ val }) {
 
 // ── Column builder ────────────────────────────────────────────────────────────
 // Columns that are identity but should never appear in the table
-const HIDDEN_COLS = new Set(['raw_log_id', 'source_id'])
+const HIDDEN_COLS = new Set(['raw_log_id', 'raw_report_id', 'source_id'])
 
 // Identity sticky columns — vessel_imo always first, then log metadata
 const STICKY_ORDER = ['vessel_imo', 'log_type', 'event_type', 'log_date', 'date', 'log_number', 'voyage_no']
@@ -105,30 +105,41 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
   const stickySet   = new Set(STICKY_ORDER)
   const stickySlots = STICKY_ORDER.map(k => visible.find(m => m.db_column === k)).filter(Boolean)
 
-  // Non-sticky columns: sort Vessel General Data first (VGD_PRIORITY order),
-  // then rest of Vessel General Data, then other categories alphabetically
+  // Non-sticky columns
   const nonSticky = visible.filter(m => !stickySet.has(m.db_column))
 
-  const vgdPrioritySet = new Set(VGD_PRIORITY)
-  const vgdPriority = VGD_PRIORITY.map(k => nonSticky.find(m => m.db_column === k)).filter(Boolean)
-  const vgdRest     = nonSticky.filter(m =>
-    (m.category === 'Vessel General Data') && !vgdPrioritySet.has(m.db_column)
-  )
-  const others = nonSticky.filter(m =>
-    m.category !== 'Vessel General Data' || vgdPrioritySet.has(m.db_column)
-      ? m.category !== 'Vessel General Data'
-      : false
-  )
+  // If the user has arranged columns in the picker (any user_sort_order set),
+  // honor that order verbatim — columnsMeta already arrives in user order from
+  // the backend. Otherwise fall back to the curated default layout.
+  const hasUserOrder = columnsMeta.some(m => m.user_sort_order != null)
 
-  // Sort "others" by category alphabetically, then sort_order within category
-  others.sort((a, b) => {
-    const catA = a.category || 'ZZZ'
-    const catB = b.category || 'ZZZ'
-    if (catA !== catB) return catA.localeCompare(catB)
-    return (a.sort_order ?? 0) - (b.sort_order ?? 0)
-  })
+  let sorted
+  if (hasUserOrder) {
+    sorted = [...stickySlots, ...nonSticky]
+  } else {
+    const vgdPrioritySet = new Set(VGD_PRIORITY)
+    const vgdPriority = VGD_PRIORITY.map(k => nonSticky.find(m => m.db_column === k)).filter(Boolean)
+    const vgdRest     = nonSticky.filter(m =>
+      (m.category === 'Vessel General Data') && !vgdPrioritySet.has(m.db_column)
+    )
+    // Everything else: non-VGD columns that are NOT already placed in vgdPriority.
+    // (Priority columns can belong to other categories — e.g. loading_condition is
+    //  'Identity', destination port is 'Voyage Metadata' — so excluding only the
+    //  VGD-category ones previously let them render twice.)
+    const others = nonSticky.filter(m =>
+      m.category !== 'Vessel General Data' && !vgdPrioritySet.has(m.db_column)
+    )
 
-  const sorted = [...stickySlots, ...vgdPriority, ...vgdRest, ...others]
+    // Sort "others" by category alphabetically, then sort_order within category
+    others.sort((a, b) => {
+      const catA = a.category || 'ZZZ'
+      const catB = b.category || 'ZZZ'
+      if (catA !== catB) return catA.localeCompare(catB)
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    })
+
+    sorted = [...stickySlots, ...vgdPriority, ...vgdRest, ...others]
+  }
 
   // Error count column (always first, computed)
   const errCol = {

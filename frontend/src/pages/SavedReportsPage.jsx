@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { RefreshCw, ExternalLink, Download, Search, Loader2, FileText,
-         Pencil, Trash2, Check, X } from 'lucide-react'
+         Pencil, Trash2, Check, X, Activity } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { fetchVesselReport, fetchShipGroups, runScan } from '../api/vesselApi'
+import { fetchVesselReport, fetchShipGroups, runScan, fetchSyncStatus } from '../api/vesselApi'
 import { getSavedReports, deleteReport, renameReport } from '../utils/savedReports'
 import { condSummary } from '../constants/scanFields'
 import './SavedReportsPage.css'
@@ -43,6 +43,145 @@ function DonutTooltip({ active, payload }) {
   )
 }
 
+// ── Sync status helpers ─────────────────────────────────────────────────────
+function fmtSyncDateTime(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d)) return '—'
+  return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+function fmtSyncDate(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d)) return '—'
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+// 0–1 days = fresh, 2–3 = warn, >3 = stale, null = no data
+function staleClass(days) {
+  if (days == null) return 'none'
+  if (days <= 1) return 'fresh'
+  if (days <= 3) return 'warn'
+  return 'stale'
+}
+function staleLabel(days) {
+  if (days == null) return 'no data'
+  if (days === 0) return 'today'
+  if (days === 1) return '1 day ago'
+  return `${days} days ago`
+}
+
+function SyncSourceCell({ block }) {
+  return (
+    <td className="sync-cell">
+      <div className="sync-cell-line">
+        <span className="sync-cell-key">Synced</span>
+        <span>{fmtSyncDateTime(block.last_synced)}</span>
+      </div>
+      <div className="sync-cell-line">
+        <span className="sync-cell-key">Latest</span>
+        <span>{fmtSyncDate(block.latest_report_date)}</span>
+        <span className={`sync-stale ${staleClass(block.stale_days)}`}>{staleLabel(block.stale_days)}</span>
+      </div>
+      <div className="sync-cell-line muted">
+        <span className="sync-cell-key">Rows</span>
+        <span>{block.analysis_count ?? 0}</span>
+      </div>
+    </td>
+  )
+}
+
+function SyncStatusModal({ onClose }) {
+  const [data,    setData]    = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
+  const [search,  setSearch]  = useState('')
+
+  const load = () => {
+    setLoading(true)
+    setError(null)
+    fetchSyncStatus()
+      .then(setData)
+      .catch(e => setError(e?.response?.data?.detail ?? e.message ?? 'Failed to load sync status'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [])
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const rows = useMemo(() => {
+    const list = data?.vessels ?? []
+    const q = search.trim().toLowerCase()
+    return q ? list.filter(v => v.vessel_name.toLowerCase().includes(q) || v.imo_number.includes(q)) : list
+  }, [data, search])
+
+  return (
+    <div className="manage-modal-backdrop" onClick={onClose}>
+      <div className="manage-modal sync-modal" onClick={e => e.stopPropagation()}>
+        <div className="manage-modal-header">
+          <div className="manage-modal-title">
+            <Activity size={14} />
+            Data Sync Status
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button className="manage-icon-btn" onClick={load} title="Refresh">
+              <RefreshCw size={13} className={loading ? 'icon-spin' : ''} />
+            </button>
+            <button className="manage-modal-close" onClick={onClose}><X size={16} /></button>
+          </div>
+        </div>
+
+        <div className="sync-modal-subbar">
+          <div className="vr2-search-wrap">
+            <Search size={13} />
+            <input placeholder="Search vessel name or IMO…" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <span className="sync-legend">
+            <span className="sync-stale fresh">fresh</span>
+            <span className="sync-stale warn">2–3d</span>
+            <span className="sync-stale stale">&gt;3d</span>
+            <span className="sync-stale none">no data</span>
+          </span>
+        </div>
+
+        <div className="manage-modal-body">
+          {loading ? (
+            <div className="manage-empty"><Loader2 size={16} className="icon-spin" /> Loading sync status…</div>
+          ) : error ? (
+            <div className="vr2-error">⚠ {error}</div>
+          ) : rows.length === 0 ? (
+            <div className="manage-empty">No vessels found.</div>
+          ) : (
+            <table className="manage-table sync-table">
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 160 }}>Vessel</th>
+                  <th style={{ minWidth: 110 }}>IMO</th>
+                  <th style={{ minWidth: 220 }}>MariApps</th>
+                  <th style={{ minWidth: 220 }}>WNI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(v => (
+                  <tr key={v.imo_number}>
+                    <td className="manage-name">{v.vessel_name}</td>
+                    <td>{v.imo_number}</td>
+                    <SyncSourceCell block={v.mari_apps} />
+                    <SyncSourceCell block={v.wni} />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanForEdit, onNavigateToLogbook }) {
   const [year,       setYear]       = useState(String(currentYear))
@@ -62,6 +201,7 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
 
   // Manage panel state
   const [manageOpen,   setManageOpen]   = useState(false)
+  const [syncOpen,     setSyncOpen]     = useState(false)
   const [editingId,    setEditingId]    = useState(null)   // which row is being renamed
   const [editingName,  setEditingName]  = useState('')
   const renameInputRef = useRef(null)
@@ -221,6 +361,10 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
           <FileText size={13} />
           Manage Scans
           <span className="manage-count-pill">{savedReports.length}</span>
+        </button>
+        <button className="sync-status-btn" onClick={() => setSyncOpen(true)} title="View last-sync status for each vessel">
+          <Activity size={13} />
+          Sync Status
         </button>
       </div>
 
@@ -384,6 +528,9 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
 
         </div>
       </div>
+
+      {/* ── Sync Status modal ── */}
+      {syncOpen && <SyncStatusModal onClose={() => setSyncOpen(false)} />}
 
       {/* ── Manage Scans modal ── */}
       {manageOpen && (

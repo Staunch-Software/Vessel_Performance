@@ -10,6 +10,7 @@ import {
   fetchBaselineCurves, saveBaselineCurve, deleteMaintenanceEvent,
   fetchMaintenanceEvents, addMaintenanceEvent,
   fetchISOKPIs, runISO19030, fetchISOSpeedLoss,
+  fetchCPConfig, saveCPConfig,
 } from '../api/vesselApi'
 import './ISO19030Page.css'
 
@@ -267,6 +268,7 @@ export default function ISO19030Page() {
   const [dataSource, setDataSource] = useState('wni')    // 'wni' | 'mariapps'
   const [tab,        setTab]       = useState('config')  // 'config' | 'kpis'
   const [config,    setConfig]    = useState({})
+  const [cpConfig,  setCpConfig]  = useState({ Laden: {}, Ballast: {} })   // CP warranties per condition
   const [curves,    setCurves]    = useState([])
   const [events,    setEvents]    = useState([])
   const [kpis,          setKpis]      = useState(null)
@@ -292,8 +294,10 @@ export default function ISO19030Page() {
       fetchISOConfig(imo).catch(() => ({})),
       fetchBaselineCurves(imo).catch(() => []),
       fetchMaintenanceEvents(imo).catch(() => []),
-    ]).then(([cfg, crv, evts]) => {
+      fetchCPConfig(imo).catch(() => ({ configs: {} })),
+    ]).then(([cfg, crv, evts, cp]) => {
       setConfig(cfg._empty ? {} : cfg)
+      setCpConfig({ Laden: cp?.configs?.Laden || {}, Ballast: cp?.configs?.Ballast || {} })
       // Ensure all 4 curves exist as stubs if not in DB
       const COMBOS = [
         { generation: 'B1', condition: 'Laden' },
@@ -334,6 +338,28 @@ export default function ISO19030Page() {
       showToast('success', 'Configuration saved.')
     } catch (e) {
       showToast('error', e?.response?.data?.detail ?? 'Save failed.')
+    }
+  }
+
+  // CP warranty config — value getter/setter per loading condition
+  const cpVal = (cond, k, def = '') =>
+    cpConfig[cond]?.[k] !== undefined && cpConfig[cond]?.[k] !== null ? cpConfig[cond][k] : def
+  const setCp = (cond, k, v) =>
+    setCpConfig(p => ({ ...p, [cond]: { ...p[cond], [k]: v === '' ? null : v } }))
+
+  const handleSaveCPConfig = async () => {
+    try {
+      // Persist a row only for the condition(s) the user has actually filled in.
+      for (const cond of ['Laden', 'Ballast']) {
+        const row = cpConfig[cond] || {}
+        const hasValues = Object.entries(row).some(
+          ([k, v]) => k !== 'vessel_imo' && k !== 'loading_cond' && v !== null && v !== '' && v !== undefined
+        )
+        if (hasValues) await saveCPConfig(imo, { ...row, loading_cond: cond })
+      }
+      showToast('success', 'CP warranties saved.')
+    } catch (e) {
+      showToast('error', e?.response?.data?.detail ?? 'CP save failed.')
     }
   }
 
@@ -543,6 +569,52 @@ export default function ISO19030Page() {
                     value={cfgVal(k)} onChange={e => setCfg(k, e.target.value)} />
                 </div>
               ))}
+            </div>
+          </section>
+
+          {/* Section 4b: Charter-Party (CP) Warranties */}
+          <section className="iso-section">
+            <h3 className="iso-section-title">Charter-Party Warranties
+              <span className="iso-src"> (per loading condition · used by CP compliance monitor)</span>
+            </h3>
+            <table className="bl-table">
+              <thead>
+                <tr>
+                  <th>Condition</th>
+                  <th>Warranted speed (kn)</th>
+                  <th>Warranted FO (MT/day)</th>
+                  <th>Warranted DO/GO (MT/day)</th>
+                  <th>Speed tol. ± (kn)</th>
+                  <th>Cons. tol. ± (%)</th>
+                  <th>Fuel price (USD/MT)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {['Laden', 'Ballast'].map(cond => (
+                  <tr key={cond}>
+                    <td className="bl-label">{cond}</td>
+                    {[
+                      ['warranted_speed_kn',  ''],
+                      ['warranted_fo_mtpd',   ''],
+                      ['warranted_dogo_mtpd', ''],
+                      ['speed_tol_kn',        0.5],
+                      ['cons_tol_pct',        5],
+                      ['fuel_price_usd_mt',   ''],
+                    ].map(([k, def]) => (
+                      <td key={k}>
+                        <input className="bl-input" type="number" step="any"
+                          placeholder={def === '' ? '' : String(def)}
+                          value={cpVal(cond, k)} onChange={e => setCp(cond, k, e.target.value)} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="iso-save-bar" style={{ marginTop: 8 }}>
+              <button className="iso-save-btn" onClick={handleSaveCPConfig}>
+                <Save size={13} /> Save CP Warranties
+              </button>
             </div>
           </section>
 
