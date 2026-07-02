@@ -45,8 +45,9 @@ VESSEL_LIST = [
 # --- Previous ranges (uncomment to reuse) ---
 # FROM_DATE = "31-JAN-2026"; TO_DATE = "01-MAR-2026"
 # FROM_DATE = "01-APR-2026"; TO_DATE = datetime.now().strftime("%d-%b-%Y")
-FROM_DATE = "01-JAN-2026"
-TO_DATE = "01-APR-2026"
+# FROM_DATE = "01-JAN-2026"; TO_DATE = "01-APR-2026"
+FROM_DATE = "01-JUN-2026"
+TO_DATE = datetime.now().strftime("%d-%b-%Y")   # today (dynamic)
 
 # ---------------------------------------------------------------------------
 # HELPERS
