@@ -137,6 +137,35 @@
 .av-input:focus { border-color: var(--accent-2); }
 .av-input::placeholder { color: var(--text-muted); }
 
+.av-sources {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.av-source-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.av-source-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent-2);
+  cursor: pointer;
+}
+.av-hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .av-error {
   font-size: 11px;
   color: #f87171;

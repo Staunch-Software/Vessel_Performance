@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Columns, Plus, X, Check, Loader2 } from 'lucide-react'
-import { fetchVessels, fetchVoyages, addVessel } from '../api/vesselApi'
+import { fetchVessels, fetchVoyages, addVessel, updateVesselSources } from '../api/vesselApi'
 import './TopFilterBar.css'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -43,6 +43,8 @@ function presetBounds(preset) {
 function AddVesselModal({ onClose, onAdded }) {
   const [imo,     setImo]     = useState('')
   const [name,    setName]    = useState('')
+  const [wni,     setWni]     = useState(true)   // include in WNI scrape
+  const [mari,    setMari]    = useState(true)   // include in MariApps scrape
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
   const imoRef = useRef(null)
@@ -64,7 +66,12 @@ function AddVesselModal({ onClose, onAdded }) {
     setError('')
     try {
       const vessel = await addVessel(trimImo, trimName)
-      onAdded(vessel)
+      // Apply the chosen pipeline flags to the freshly created vessel
+      const withSources = await updateVesselSources(vessel.imo_number, {
+        wni_enabled: wni,
+        mari_enabled: mari,
+      })
+      onAdded(withSources)
       onClose()
     } catch (err) {
       setError(err?.response?.data?.detail ?? err.message ?? 'Failed to create vessel.')
@@ -102,6 +109,21 @@ function AddVesselModal({ onClose, onAdded }) {
               onChange={e => { setName(e.target.value); setError('') }}
               maxLength={120}
             />
+          </div>
+
+          <div className="av-field">
+            <label className="av-label">Data Pipelines</label>
+            <div className="av-sources">
+              <label className="av-source-toggle">
+                <input type="checkbox" checked={wni} onChange={e => setWni(e.target.checked)} />
+                <span>WNI (Weathernews)</span>
+              </label>
+              <label className="av-source-toggle">
+                <input type="checkbox" checked={mari} onChange={e => setMari(e.target.checked)} />
+                <span>MariApps</span>
+              </label>
+            </div>
+            <span className="av-hint">Which scrapers should include this vessel.</span>
           </div>
 
           {error && <div className="av-error">{error}</div>}
