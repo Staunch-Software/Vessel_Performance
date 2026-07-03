@@ -40,6 +40,17 @@ async def lifespan(app: FastAPI):
         log.error(f"Failed to initialize core database: {e}")
         # In a real app, you might raise an exception here to stop startup
 
+    # 1b. Ensure per-source scrape flags exist on `vessels` (wni_enabled /
+    #     mari_enabled) so the ORM model matches the DB. Idempotent — adds the
+    #     columns if missing and seeds only NULLs. Prevents "column does not
+    #     exist" errors on existing databases after deploy.
+    try:
+        from backend.database import _ensure_scrape_flags
+        _ensure_scrape_flags()
+        log.info("✅ Vessel scrape flags (wni_enabled/mari_enabled) ensured.")
+    except Exception as e:
+        log.error(f"Failed to ensure vessel scrape flags: {e}")
+
     # 2. Initialize MariApps specific schema changes
     try:
         init_mariapps_database()
