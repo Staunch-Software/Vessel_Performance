@@ -15,6 +15,12 @@ export async function addVessel(imoNumber, vesselName) {
   return data
 }
 
+// Toggle which pipelines include a vessel. payload: { wni_enabled?, mari_enabled? }
+export async function updateVesselSources(imo, payload) {
+  const { data } = await api.patch(`/vessels/${imo}/sources`, payload)
+  return data
+}
+
 export async function fetchVoyages(vesselImo, sourceId) {
   const params = { vessel_imo: vesselImo }
   if (sourceId && sourceId !== 'all') params.source_id = sourceId

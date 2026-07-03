@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 
 
 # Import your existing database session utility
-from backend.database import SessionLocal
+from backend.database import SessionLocal, _ensure_scrape_flags
 
 # Import your models
 from sqlalchemy import func, extract, and_, or_, not_, literal, literal_column
@@ -32,10 +32,51 @@ router = APIRouter(prefix="")
 @router.get("/vessels")
 def read_vessels(db: Session = Depends(get_db)):
     try:
+        _ensure_scrape_flags()  # make sure wni_enabled / mari_enabled exist + seeded
         vessels = db.query(Vessel).order_by(Vessel.vessel_name).all()
-        return [{"imo_number": v.imo_number, "vessel_name": v.vessel_name} for v in vessels]
+        return [
+            {
+                "imo_number": v.imo_number,
+                "vessel_name": v.vessel_name,
+                "wni_enabled": bool(v.wni_enabled),
+                "mari_enabled": bool(v.mari_enabled),
+            }
+            for v in vessels
+        ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error fetching vessels: {e}")
+
+
+# --- ENDPOINT 1c: Toggle a vessel's per-source scrape flags ---
+@router.patch("/vessels/{imo}/sources")
+def update_vessel_sources(imo: str, body: dict, db: Session = Depends(get_db)):
+    """Enable/disable a vessel in the WNI and/or MariApps scrape.
+
+    Body accepts either or both of: {"wni_enabled": bool, "mari_enabled": bool}.
+    Takes effect on the next pipeline run — no restart needed.
+    """
+    _ensure_scrape_flags()
+    vessel = db.query(Vessel).filter(Vessel.imo_number == str(imo)).first()
+    if not vessel:
+        raise HTTPException(status_code=404, detail=f"Vessel {imo} not found.")
+
+    if "wni_enabled" in body:
+        vessel.wni_enabled = bool(body["wni_enabled"])
+    if "mari_enabled" in body:
+        vessel.mari_enabled = bool(body["mari_enabled"])
+
+    try:
+        db.commit()
+        db.refresh(vessel)
+        return {
+            "imo_number": vessel.imo_number,
+            "vessel_name": vessel.vessel_name,
+            "wni_enabled": bool(vessel.wni_enabled),
+            "mari_enabled": bool(vessel.mari_enabled),
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update vessel sources: {e}")
 
 
 # --- ENDPOINT 1b: Create a new vessel ---

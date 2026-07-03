@@ -32,6 +32,10 @@ class Vessel(Base):
     imo_number = Column(String(20), primary_key=True)
     vessel_id = Column(Integer, nullable=True)
     vessel_name = Column(String(255), nullable=False)
+    # Per-source scrape flags — which pipelines include this vessel.
+    # Seeded/backfilled by database._ensure_scrape_flags() on existing DBs.
+    wni_enabled = Column(Boolean, nullable=True)
+    mari_enabled = Column(Boolean, nullable=True)
 
 # ============================================================
 # TABLE 2: DATA SOURCE REFERENCE

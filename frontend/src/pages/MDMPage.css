@@ -92,6 +92,46 @@
 .mdm-cat-pill:hover  { background: #1a3050; color: #c8d8eb; }
 .mdm-cat-pill.active { background: #1a6bb5; border-color: #1a6bb5; color: #fff; font-weight: 600; }
 
+/* ── Pipeline source toggles ─────────────────────────────────────────────── */
+.mdm-source-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 8px 18px;
+  background: #0c1826;
+  border-bottom: 1px solid #1e3a5f;
+  flex-shrink: 0;
+}
+.mdm-source-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7fa8cc;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.mdm-source-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #c8d8eb;
+  cursor: pointer;
+  user-select: none;
+}
+.mdm-source-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: #1a6bb5;
+  cursor: pointer;
+}
+.mdm-source-hint {
+  font-size: 10.5px;
+  color: #5a789c;
+  font-style: italic;
+  margin-left: auto;
+}
+
 /* ── Search bar ──────────────────────────────────────────────────────────── */
 .mdm-search-bar {
   position: relative;

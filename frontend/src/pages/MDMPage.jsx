@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Save, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
-import { fetchVessels } from '../api/vesselApi'
+import { fetchVessels, updateVesselSources } from '../api/vesselApi'
 import { fetchDesignData, saveDesignData } from '../api/vesselApi'
 import { MDM_FIELDS, MDM_CATEGORIES } from '../utils/mdmFields'
 import './MDMPage.css'
@@ -93,6 +93,28 @@ export default function MDMPage() {
       .catch(console.error)
   }, [])
 
+  // Currently selected vessel's source flags
+  const selectedVessel = vessels.find(v => v.imo_number === selectedImo)
+
+  const handleToggleSource = async (key) => {
+    if (!selectedVessel) return
+    const next = !selectedVessel[key]
+    // Optimistic update
+    setVessels(prev => prev.map(v =>
+      v.imo_number === selectedImo ? { ...v, [key]: next } : v
+    ))
+    try {
+      await updateVesselSources(selectedImo, { [key]: next })
+      showToast('success', `${key === 'wni_enabled' ? 'WNI' : 'MariApps'} ${next ? 'enabled' : 'disabled'} for ${selectedVessel.vessel_name}.`)
+    } catch (e) {
+      // Revert on failure
+      setVessels(prev => prev.map(v =>
+        v.imo_number === selectedImo ? { ...v, [key]: !next } : v
+      ))
+      showToast('error', e?.response?.data?.detail ?? 'Failed to update source.')
+    }
+  }
+
   // Load design data when vessel changes
   useEffect(() => {
     if (!selectedImo) return
@@ -179,6 +201,30 @@ export default function MDMPage() {
           }
         </button>
       </div>
+
+      {/* ── Pipeline source toggles (per selected vessel) ───────── */}
+      {selectedVessel && (
+        <div className="mdm-source-bar">
+          <span className="mdm-source-label">Data pipelines:</span>
+          <label className="mdm-source-toggle">
+            <input
+              type="checkbox"
+              checked={!!selectedVessel.wni_enabled}
+              onChange={() => handleToggleSource('wni_enabled')}
+            />
+            <span>WNI (Weathernews)</span>
+          </label>
+          <label className="mdm-source-toggle">
+            <input
+              type="checkbox"
+              checked={!!selectedVessel.mari_enabled}
+              onChange={() => handleToggleSource('mari_enabled')}
+            />
+            <span>MariApps</span>
+          </label>
+          <span className="mdm-source-hint">Controls which scrapers include this vessel. Applies on the next pipeline run.</span>
+        </div>
+      )}
 
       {/* ── Category filter pills ───────────────────────────────── */}
       <div className="mdm-cat-bar">
