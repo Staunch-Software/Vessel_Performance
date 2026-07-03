@@ -30,6 +30,8 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------------------------
+# Fallback list only — the vessel list is normally DB-driven (vessels table,
+# mari_enabled flag). See get_scrape_vessels("mari_apps"); resolved in run().
 VESSEL_LIST = [
     "AM KIRTI",
     "AM TARANG", "AM UMANG",
@@ -39,7 +41,7 @@ VESSEL_LIST = [
     "GCL TAPI",
     "GCL NARMADA",
     "GCL SABARMATI", "GCL SARASWATI",
-    "AMNSI MAXIMUS", "OZELLAR OFFICE", "GCL YAMUNA",
+    "AMNSI MAXIMUS", "GCL YAMUNA",
 ]
 
 # --- Previous ranges (uncomment to reuse) ---
@@ -83,11 +85,16 @@ def _build_excel_index(excel_data_list: list) -> dict:
 def run():
     pipeline_start = datetime.now()
 
+    # Vessel list is DB-driven (vessels table, mari_enabled flag). Falls back to
+    # the module-level VESSEL_LIST only if the DB returns nothing.
+    from ..database import get_scrape_vessels
+    VESSEL_LIST = get_scrape_vessels("mari_apps") or globals()["VESSEL_LIST"]
+
     log.info("=" * 60)
     log.info("  MariApps Data Ingestion Pipeline — Starting")
     log.info("=" * 60)
     log.info(f"[CONFIG]   Date range   : {FROM_DATE}  →  {TO_DATE}")
-    log.info(f"[CONFIG]   Vessels      : {len(VESSEL_LIST)}")
+    log.info(f"[CONFIG]   Vessels      : {len(VESSEL_LIST)} — {', '.join(VESSEL_LIST)}")
 
     # Database initialization (Uncomment if you have an init_db function)
     # from ..database import init_db

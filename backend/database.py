@@ -5,7 +5,7 @@
 # Creates all tables and seeds initial data sources
 # ============================================================
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from .config import config
 from .models import Base, DataSource
@@ -68,6 +68,63 @@ def init_db():
     finally:
         # Always close the session
         db.close()
+
+
+# ============================================================
+# SCRAPE VESSEL LIST (per-source, DB-driven)
+# ============================================================
+
+# Vessels covered by the WNI (Weathernews) portal. Used only to SEED the
+# wni_enabled flag the first time the column is created — after that the DB
+# column is the source of truth and can be edited freely (the backfill below
+# only touches NULLs). MariApps covers all vessels, so mari_enabled defaults TRUE.
+_WNI_DEFAULT_VESSELS = {
+    "AM KIRTI", "AM TARANG", "AM UMANG",
+    "GCL GANGA", "GCL NARMADA", "GCL SABARMATI",
+    "GCL SARASWATI", "GCL TAPI", "GCL YAMUNA",
+}
+
+
+def _ensure_scrape_flags():
+    """Idempotently add + seed the per-source scrape flags on `vessels`.
+
+    - Adds nullable BOOLEAN columns wni_enabled / mari_enabled if missing.
+    - Seeds only rows where the flag is still NULL (never overwrites edits):
+        * mari_enabled -> TRUE for all vessels (MariApps covers everything)
+        * wni_enabled  -> TRUE only for the known WNI portal vessels, else FALSE
+    Safe to call on every pipeline run.
+    """
+    with engine.begin() as conn:
+        conn.execute(text(
+            'ALTER TABLE vessels ADD COLUMN IF NOT EXISTS wni_enabled BOOLEAN'))
+        conn.execute(text(
+            'ALTER TABLE vessels ADD COLUMN IF NOT EXISTS mari_enabled BOOLEAN'))
+        conn.execute(text(
+            'UPDATE vessels SET mari_enabled = TRUE WHERE mari_enabled IS NULL'))
+        # Seed wni_enabled by membership in the known WNI vessel set.
+        conn.execute(
+            text('UPDATE vessels SET wni_enabled = (vessel_name = ANY(:names)) '
+                 'WHERE wni_enabled IS NULL'),
+            {"names": list(_WNI_DEFAULT_VESSELS)},
+        )
+
+
+def get_scrape_vessels(source: str):
+    """Return the list of vessel names to scrape for a given source.
+
+    source: "wni" or "mari_apps". Reads the DB flag column so the vessel list
+    is fully data-driven (no hardcoded names in the pipelines).
+    """
+    _ensure_scrape_flags()
+    col = {"wni": "wni_enabled", "mari_apps": "mari_enabled"}.get(source)
+    if col is None:
+        raise ValueError(f"Unknown scrape source: {source!r}")
+    with engine.connect() as conn:
+        rows = conn.execute(text(
+            f'SELECT vessel_name FROM vessels WHERE {col} = TRUE '
+            'ORDER BY vessel_name'
+        )).fetchall()
+    return [r[0] for r in rows]
 
 
 # ============================================================

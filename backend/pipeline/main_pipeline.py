@@ -305,9 +305,15 @@ def run():
         # LOAD VESSEL LIST
         # ============================================================
         
-        vessels_file = os.path.join(config.BASE_DIR, "vessels.txt")
-        with open(vessels_file, "r", encoding="utf-8") as f:
-            vessels = [v.strip() for v in f.readlines() if v.strip()]
+        # Vessel list is DB-driven (vessels table, wni_enabled flag) — no
+        # more vessels.txt. Falls back to the file only if the DB returns none.
+        from ..database import get_scrape_vessels
+        vessels = get_scrape_vessels("wni")
+        if not vessels:
+            vessels_file = os.path.join(config.BASE_DIR, "vessels.txt")
+            with open(vessels_file, "r", encoding="utf-8") as f:
+                vessels = [v.strip() for v in f.readlines() if v.strip()]
+        log.info("Loaded %d WNI vessels from DB: %s", len(vessels), ", ".join(vessels))
 
         # ============================================================
         # --- DATE ITERATION LOGIC (Vessel-first, Month by Month) ---
