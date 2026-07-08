@@ -18,6 +18,7 @@ from .header_form_scanner import MariAppsHeaderScanner
 from .detail_extractor import MariAppsDetailExtractor
 from .mariapps_persistence import MariAppsPersistenceHandler
 from .mariapps_exporter import export_analysis_data
+from .generate_auth import run_automated_login
 
 # --- NEAT LOGGER CONFIGURATION ---
 logging.basicConfig(
@@ -83,7 +84,14 @@ def _build_excel_index(excel_data_list: list) -> dict:
 # ---------------------------------------------------------------------------
 
 def run():
+    auth_file = str(config.MARIAPPS_AUTH_JSON)
+    if not os.path.exists(auth_file):
+        log.warning("auth.json not found! Running login first...")
+    run_automated_login() 
     pipeline_start = datetime.now()
+    
+    log.info("=" * 60)
+    log.info("  MariApps Data Ingestion Pipeline — Starting")
 
     # Vessel list is DB-driven (vessels table, mari_enabled flag). Falls back to
     # the module-level VESSEL_LIST only if the DB returns nothing.
@@ -101,7 +109,7 @@ def run():
     # init_db()
     # log.info("[DB]       Database ready.")
 
-    auth_file = str(config.MARIAPPS_AUTH_JSON)
+    auth_file = str(config.ROOT_DIR / "backend" / "mariapps_pipeline" / "auth.json")
 
     # --- LOCAL (original — uncomment to always show the browser window) ---
     # headless = False

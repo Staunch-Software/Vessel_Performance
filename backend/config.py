@@ -3,7 +3,7 @@ import urllib.parse
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 
 class Config:
@@ -61,8 +61,9 @@ class Config:
     # MARIAPPS
     # =========================================================
 
-    MARIAPPS_URL       = os.getenv("MARIAPPS_URL")
-    MARIAPPS_AUTH_JSON = BASE_DIR / "mariapps_pipeline" / "auth.json"
+    # Add the fallback URL directly inside the Config class
+    MARIAPPS_URL = os.getenv("MARIAPPS_URL", "https://smartpal.ozellar.com/PerformancePALApp/Performance/LogApproval")
+    MARIAPPS_AUTH_JSON = ROOT_DIR / "backend" / "mariapps_pipeline" / "auth.json"
 
     # =========================================================
     # EYEGAUGE  (Sea Vision  —  tb-rest-client SDK, Option 2)
