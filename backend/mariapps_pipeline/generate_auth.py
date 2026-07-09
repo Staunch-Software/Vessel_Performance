@@ -17,6 +17,17 @@ log = logging.getLogger(__name__)
 
 def run_automated_login():
     log.info("Starting background automated secure Microsoft SSO login...")
+
+    # Credentials come from .env (never hardcode). The account must have MFA
+    # disabled so this can complete without human interaction.
+    username = config.MARIAPPS_USERNAME
+    password = config.MARIAPPS_PASSWORD
+    if not username or not password:
+        raise RuntimeError(
+            "MARIAPPS_USERNAME / MARIAPPS_PASSWORD are not set in .env — "
+            "cannot run automated MariApps login."
+        )
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True) # Keep False until login is 100% stable
         context = browser.new_context(
@@ -47,7 +58,7 @@ def run_automated_login():
         log.info("Waiting for Microsoft email input...")
         try:
             page.wait_for_selector("input[name='loginfmt'], #i0116", timeout=20000)
-            page.locator("input[name='loginfmt'], #i0116").fill("pms@ozellar.com")
+            page.locator("input[name='loginfmt'], #i0116").fill(username)
             page.locator("#idSIButton9").click()
             time.sleep(2)
         except Exception as e:
@@ -58,7 +69,7 @@ def run_automated_login():
         log.info("Entering password...")
         try:
             page.wait_for_selector("input[name='passwd'], #i0118", timeout=10000)
-            page.locator("input[name='passwd'], #i0118").fill("T%482550371780as")
+            page.locator("input[name='passwd'], #i0118").fill(password)
             page.locator("#idSIButton9").click()
             time.sleep(2)
         except Exception as e:

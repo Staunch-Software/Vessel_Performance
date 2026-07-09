@@ -65,6 +65,12 @@ class Config:
     MARIAPPS_URL = os.getenv("MARIAPPS_URL", "https://smartpal.ozellar.com/PerformancePALApp/Performance/LogApproval")
     MARIAPPS_AUTH_JSON = ROOT_DIR / "backend" / "mariapps_pipeline" / "auth.json"
 
+    # Microsoft SSO login credentials for the automated MariApps login.
+    # The account must have MFA disabled so the login can run headless.
+    # NEVER hardcode these — set them in .env.
+    MARIAPPS_USERNAME = os.getenv("MARIAPPS_USERNAME")
+    MARIAPPS_PASSWORD = os.getenv("MARIAPPS_PASSWORD")
+
     # =========================================================
     # EYEGAUGE  (Sea Vision  —  tb-rest-client SDK, Option 2)
     # =========================================================

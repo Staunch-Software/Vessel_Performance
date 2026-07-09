@@ -5,6 +5,7 @@
 import logging
 import time
 import os
+import sys
 from datetime import datetime
 from playwright.sync_api import sync_playwright
 
@@ -137,19 +138,30 @@ def run():
             navigator.navigate_to_log_validation()
             log.info("[NAV]      Page loaded — login verified successfully.")
         except Exception:
-            log.warning("[NAV]      Session expired. Please login manually in the browser window.")
-            print("\n==================================================")
-            print("ACTION REQUIRED:")
-            print("1. Log in to MariApps manually in the open browser.")
-            print("2. Once Dashboard is visible, press ENTER.")
-            print("==================================================\n")
-            input("Press ENTER after successful login...")
-            main_page.context.storage_state(path=auth_file)
-            log.info("[AUTH]     New session saved.")
-            try:
-                navigator.navigate_to_log_validation()
-            except Exception as e2:
-                log.error(f"[NAV]      Login failed again: {e2}")
+            # run_automated_login() already ran and wrote a fresh auth.json above,
+            # so reaching here means the session is still invalid. Only offer the
+            # interactive manual login when a real terminal is attached (local dev).
+            # Under cron/systemd there is no TTY — never block on input().
+            if sys.stdin and sys.stdin.isatty():
+                log.warning("[NAV]      Session invalid. Please login manually in the browser window.")
+                print("\n==================================================")
+                print("ACTION REQUIRED:")
+                print("1. Log in to MariApps manually in the open browser.")
+                print("2. Once Dashboard is visible, press ENTER.")
+                print("==================================================\n")
+                input("Press ENTER after successful login...")
+                main_page.context.storage_state(path=auth_file)
+                log.info("[AUTH]     New session saved.")
+                try:
+                    navigator.navigate_to_log_validation()
+                except Exception as e2:
+                    log.error(f"[NAV]      Login failed again: {e2}")
+                    browser.close()
+                    return
+            else:
+                log.error("[NAV]      MariApps session invalid and no terminal available "
+                          "for manual login — aborting run. Check MARIAPPS_USERNAME/"
+                          "MARIAPPS_PASSWORD and that MFA is disabled.")
                 browser.close()
                 return
 
