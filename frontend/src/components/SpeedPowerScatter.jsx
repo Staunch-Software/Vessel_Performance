@@ -131,7 +131,7 @@ export default function SpeedPowerScatter({ vesselImo }) {
   const yLabel = isISO ? 'P_corr (kW)'   : 'ME Power (kW)'
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', minHeight: 260 }}>
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px 2px', flexShrink: 0 }}>

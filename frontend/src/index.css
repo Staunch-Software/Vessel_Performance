@@ -1,4 +1,10 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { 
+  box-sizing: border-box; 
+  margin: 0; 
+  padding: 0; 
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
 
 body {
   background: #0d1b2a;
@@ -8,7 +14,26 @@ body {
   min-height: 100vh;
 }
 
-#root { min-height: 100vh; display: flex; flex-direction: column; }
+#root { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
 button { cursor: pointer; }
 select { cursor: pointer; }
+
+/* Custom Global Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

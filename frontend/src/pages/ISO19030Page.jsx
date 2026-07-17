@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
+import { memoryStore } from '../utils/memoryStore'
+
 import { Play, Save, Plus, Trash2, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import {
   ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid,
@@ -265,9 +267,12 @@ function SFOCEditor({ curve, onChange }) {
 export default function ISO19030Page() {
   const [vessels,    setVessels]   = useState([])
   const [imo,        setImo]       = useState('')
-  const [dataSource, setDataSource] = useState('wni')    // 'wni' | 'mariapps'
-  const [tab,        setTab]       = useState('config')  // 'config' | 'kpis'
+  const [dataSource, setDataSource] = useState(() => memoryStore.getItem('vp_iso_source') || 'wni')
+  const [tab,        setTab]       = useState(() => memoryStore.getItem('vp_iso_tab') || 'config')
   const [config,    setConfig]    = useState({})
+
+  useEffect(() => { memoryStore.setItem('vp_iso_source', dataSource) }, [dataSource])
+  useEffect(() => { memoryStore.setItem('vp_iso_tab', tab) }, [tab])
   const [cpConfig,  setCpConfig]  = useState({ Laden: {}, Ballast: {} })   // CP warranties per condition
   const [curves,    setCurves]    = useState([])
   const [events,    setEvents]    = useState([])
@@ -282,7 +287,14 @@ export default function ISO19030Page() {
   useEffect(() => {
     fetchVessels().then(list => {
       setVessels(list)
-      if (list.length > 0) setImo(list[0].imo_number)
+      if (list.length > 0) {
+        const saved = memoryStore.getItem('vp_last_vessel_iso');
+        if (saved && list.find(v => v.imo_number === saved)) {
+          setImo(saved);
+        } else {
+          setImo(list[0].imo_number);
+        }
+      }
     }).catch(console.error)
   }, [])
 
@@ -422,7 +434,10 @@ export default function ISO19030Page() {
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="iso-topbar">
         <span className="iso-title">ISO 19030 <span className="iso-sub">Performance Analysis</span></span>
-        <select className="iso-vessel-sel" value={imo} onChange={e => setImo(e.target.value)}>
+        <select className="iso-vessel-sel" value={imo} onChange={e => {
+          setImo(e.target.value);
+          memoryStore.setItem('vp_last_vessel_iso', e.target.value);
+        }}>
           {vessels.map(v => <option key={v.imo_number} value={v.imo_number}>{v.vessel_name}</option>)}
         </select>
         <div className="iso-tabs">

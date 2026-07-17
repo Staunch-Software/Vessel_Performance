@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, memo, useRef, useCallback } from 'react'
 import { useReactTable, getCoreRowModel, flexRender } from '@tanstack/react-table'
 import { getSavedReports } from '../utils/savedReports'
 import './AnalysisTable.css'
@@ -37,7 +37,7 @@ function rowScanResult(row, reports) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtCell(val) {
-  if (val == null || val === '' || val === 'None' || val === 'nan' || val === 'NaN') return null
+  if (val == null || val === '' || val === 'None' || val === 'nan' || val === 'NaN' || String(val).toLowerCase() === 'null') return null
   // Strings containing letters, dashes, slashes, colons are dates/text — show as-is
   if (typeof val === 'string' && /[a-zA-Z\-\/:]/.test(val)) return val
   const n = parseFloat(val)
@@ -95,10 +95,10 @@ const VGD_PRIORITY = [
 ]
 
 function buildColumns(columnsMeta, visibleExtras, scanResults) {
-  // Which columns to show: identity (except hidden ones) + active (yellow) + user-toggled (pink)
+  // Which columns to show: identity (except hidden ones) + user-toggled (pink)
   const visible = columnsMeta.filter(m => {
     if (HIDDEN_COLS.has(m.db_column)) return false
-    return m.is_identity || m.is_active || visibleExtras?.has(m.db_column)
+    return m.is_identity || visibleExtras?.has(m.db_column)
   })
 
   // Sticky identity columns (fixed 3 slots after Errors)
@@ -155,33 +155,132 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
     },
   }
 
-  const dataCols = sorted.map(m => ({
-    id:          m.db_column,
-    accessorKey: m.db_column,
-    header:      m.display_name,
-    size:        m.is_identity ? 110 : 140,
-    cell:        ({ getValue }) => <CellValue val={getValue()} />,
-  }))
+  const dataCols = sorted.map(m => {
+    const headerText = (m.display_name && String(m.display_name).trim() !== '') 
+      ? String(m.display_name) 
+      : (m.db_column ? String(m.db_column) : 'NO_COL');
+
+    return {
+      id:          m.db_column,
+      accessorKey: m.db_column,
+      header:      headerText,
+      size:        m.is_identity ? 110 : 140,
+      cell:        ({ getValue }) => <CellValue val={getValue()} />,
+    }
+  })
 
   return [errCol, ...dataCols]
 }
 
+
+// ── Memoized Row ───────────────────────────────────────────────────────────────
+// colCount is passed so that React.memo re-renders rows when the column layout
+// changes (e.g. a category filter tab is selected). Without this, TanStack
+// Table's cached row references would fool memo into skipping re-render and the
+// body would show stale cells while the header already reflects the new columns.
+const TableRow = memo(({ row, idx, isSelected, sr, onClick, colCount: _colCount }) => {
+  return (
+    <tr
+      className={isSelected ? 'selected' : ''}
+      onClick={(e) => onClick(e, row, idx)}
+    >
+      {row.getVisibleCells().map(cell => (
+        <td
+          key={cell.id}
+          className={sr?.triggered.has(cell.column.id) ? 'cell-triggered' : undefined}
+        >
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        </td>
+      ))}
+    </tr>
+  )
+})
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filtersApplied }) {
-  const [selectedId, setSelectedId] = useState(null)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const lastSelectedIdx = useRef(null)
+
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      // 1. Primary sort: local calendar date (log_date is the source-of-truth display date)
+      const dateA = (a.log_date || a.date || '').substring(0, 10)
+      const dateB = (b.log_date || b.date || '').substring(0, 10)
+      if (dateA !== dateB) return dateA.localeCompare(dateB)
+
+      // 2. Secondary sort: actual UTC datetime from the analysis record.
+      //    `Date` on AnalysisData rows contains the full ISO datetime (e.g. "2026-03-21T03:12:00").
+      //    This gives the real recorded chronological order regardless of event type.
+      const tsA = a.Date ? new Date(a.Date).getTime() : NaN
+      const tsB = b.Date ? new Date(b.Date).getTime() : NaN
+      const bothHaveTs = !isNaN(tsA) && !isNaN(tsB)
+      if (bothHaveTs && tsA !== tsB) return tsA - tsB
+
+      // 3. If UTC datetime is identical or missing, fall back to Time_UTC string comparison
+      const timeA = String(a.Time_UTC || a.time_utc || '')
+      const timeB = String(b.Time_UTC || b.time_utc || '')
+      if (timeA && timeB && timeA !== timeB) return timeA.localeCompare(timeB)
+
+      // 4. Last resort: log_number / voyage_no (alphanumeric — later leg numbers sort later)
+      const numA = String(a.log_number || a.voyage_no || a.Voyage_No || '')
+      const numB = String(b.log_number || b.voyage_no || b.Voyage_No || '')
+      return numA.localeCompare(numB)
+    })
+  }, [rows])
+
 
   const scanResults = useMemo(() => {
     const reports = getSavedReports()
     if (!reports.length) return null
-    return rows.map(row => rowScanResult(row, reports))
-  }, [rows])
+    return sortedRows.map(row => rowScanResult(row, reports))
+  }, [sortedRows])
 
   const columns = useMemo(
     () => buildColumns(columnsMeta || [], visibleExtras, scanResults),
     [columnsMeta, visibleExtras, scanResults]
   )
 
-  const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({ data: sortedRows, columns, getCoreRowModel: getCoreRowModel() })
+
+  const handleRowClick = useCallback((e, row, idx) => {
+    const isCtrl = e.ctrlKey || e.metaKey
+    const isShift = e.shiftKey
+    const rowId = row.id
+
+    if (isShift && lastSelectedIdx.current !== null) {
+      const allRows = table.getRowModel().rows
+      const start = Math.min(lastSelectedIdx.current, idx)
+      const end = Math.max(lastSelectedIdx.current, idx)
+      
+      setSelectedIds(prev => {
+        const next = isCtrl ? new Set(prev) : new Set()
+        for (let i = start; i <= end; i++) {
+          next.add(allRows[i].id)
+        }
+        return next
+      })
+    } else if (isCtrl) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(rowId)) next.delete(rowId)
+        else next.add(rowId)
+        return next
+      })
+      lastSelectedIdx.current = idx
+    } else {
+      setSelectedIds(prev => {
+        if (prev.has(rowId) && prev.size === 1) {
+          return new Set()
+        }
+        return new Set([rowId])
+      })
+      lastSelectedIdx.current = idx
+    }
+
+    if (isShift) {
+      window.getSelection()?.removeAllRanges()
+    }
+  }, [table])
 
   if (!rows.length) {
     return (
@@ -193,6 +292,8 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
     )
   }
 
+  const colCount = columns.length
+
   return (
     <div className="table-container">
       <table className="analysis-table">
@@ -200,31 +301,26 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
           {table.getHeaderGroups().map(hg => (
             <tr key={hg.id}>
               {hg.headers.map(h => (
-                <th key={h.id} style={{ minWidth: h.column.getSize() }}>
-                  {flexRender(h.column.columnDef.header, h.getContext())}
+                <th key={h.id} style={{ minWidth: h.column.columnDef.size ?? 140 }}>
+                  {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
                 </th>
               ))}
             </tr>
           ))}
         </thead>
         <tbody>
-          {table.getRowModel().rows.map(row => {
+          {table.getRowModel().rows.map((row, idx) => {
             const sr = scanResults?.[row.index]
             return (
-              <tr
+              <TableRow
                 key={row.id}
-                className={selectedId === row.original.id ? 'selected' : ''}
-                onClick={() => setSelectedId(row.original.id)}
-              >
-                {row.getVisibleCells().map(cell => (
-                  <td
-                    key={cell.id}
-                    className={sr?.triggered.has(cell.column.id) ? 'cell-triggered' : undefined}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
+                row={row}
+                idx={idx}
+                isSelected={selectedIds.has(row.id)}
+                sr={sr}
+                onClick={handleRowClick}
+                colCount={colCount}
+              />
             )
           })}
         </tbody>

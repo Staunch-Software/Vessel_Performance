@@ -1,9 +1,17 @@
 import axios from 'axios'
 
 // --- LOCAL (original hardcoded dev URL — uncomment to use against a local backend) ---
-// const api = axios.create({ baseURL: 'http://localhost:8000/api/v1' })
+const api = axios.create({ baseURL: 'http://127.0.0.1:8000/api/v1' })
 // --- VM / PRODUCTION: relative path (same origin via nginx); override with VITE_API_BASE_URL ---
-const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1' })
+// const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1' })
+
+// ── Auth token interceptor ────────────────────────────────────────────
+// Automatically attaches the JWT token (stored in localStorage) to every request.
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('vp_auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
 
 export async function fetchVessels() {
   const { data } = await api.get('/vessels')
@@ -21,9 +29,10 @@ export async function updateVesselSources(imo, payload) {
   return data
 }
 
-export async function fetchVoyages(vesselImo, sourceId) {
+export async function fetchVoyages(vesselImo, sourceId, loadingCond) {
   const params = { vessel_imo: vesselImo }
   if (sourceId && sourceId !== 'all') params.source_id = sourceId
+  if (loadingCond && loadingCond !== 'all') params.loading_cond = loadingCond
   const { data } = await api.get('/voyages', { params })
   return Array.isArray(data) ? data : []
 }
@@ -186,10 +195,69 @@ export async function saveCPConfig(imo, payload) {
 
 // Per-voyage CP performance (all-weather vs fair-weather, compliance, time, fuel).
 // voyages: array of Voyage_No; source: 'wni' | 'mari_apps' | undefined (both)
-export async function fetchCPPerformance(imo, voyages, source) {
+export async function fetchCPPerformance(imo, voyages, source, loadingCond) {
   const params = {}
   if (Array.isArray(voyages) && voyages.length) params.voyages = voyages.join(',')
   if (source && source !== 'all') params.source = source
+  if (loadingCond && loadingCond !== 'all') params.loading_cond = loadingCond
   const { data } = await api.get(`/cp/${imo}/performance`, { params })
+  return data
+}
+
+// ── Auth API ─────────────────────────────────────────────────────────────
+
+export async function loginUser(username, password) {
+  const { data } = await api.post('/auth/login', { username, password })
+  return data   // { access_token, role, username, user_id }
+}
+
+export async function fetchCurrentUser() {
+  const { data } = await api.get('/auth/me')
+  return data
+}
+
+export async function fetchUsers() {
+  const { data } = await api.get('/auth/users')
+  return Array.isArray(data) ? data : []
+}
+
+export async function createUser(payload) {
+  const { data } = await api.post('/auth/users', payload)
+  return data
+}
+
+export async function updateUser(userId, payload) {
+  const { data } = await api.patch(`/auth/users/${userId}`, payload)
+  return data
+}
+
+export async function deleteUser(userId) {
+  await api.delete(`/auth/users/${userId}`)
+}
+
+// ── Column Preferences ───────────────────────────────────────────────────────
+
+export async function fetchUserColumnPrefs(source, vesselImo = null) {
+  const params = { source }
+  if (vesselImo) params.vessel_imo = vesselImo
+  const { data } = await api.get('/column-prefs', { params })
+  return data // returns { visible: [...], order: [...] } or {}
+}
+
+export async function saveUserColumnPrefs(source, vesselImo = null, columnPrefs) {
+  const payload = { source, column_prefs: columnPrefs }
+  if (vesselImo) payload.vessel_imo = vesselImo
+  const { data } = await api.put('/column-prefs', payload)
+  return data
+}
+
+export async function fetchVesselColumnDefaults(source, vesselImo) {
+  const { data } = await api.get('/vessel-column-defaults', { params: { source, vessel_imo: vesselImo } })
+  return data
+}
+
+export async function saveVesselColumnDefaults(source, vesselImo, columnPrefs) {
+  const payload = { source, vessel_imo: vesselImo, column_prefs: columnPrefs }
+  const { data } = await api.put('/vessel-column-defaults', payload)
   return data
 }

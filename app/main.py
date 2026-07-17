@@ -9,6 +9,8 @@ from api.routes.vessel_design_routes import router as vessel_design_router
 from api.routes.iso_routes import router as iso_router
 from api.routes.sync_routes import router as sync_router
 from api.routes.cp_routes import router as cp_router
+from api.routes.auth_routes import router as auth_router
+from api.routes.column_pref_routes import router as column_pref_router
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
@@ -81,7 +83,7 @@ async def lifespan(app: FastAPI):
                   AND  TRIM(COALESCE(
                          r.raw_json->'Excel_Data'->>'Auxilary Engine Consumption (MT) - AE Total Cons',
                          ''
-                       )) ~ '^[0-9]+\.?[0-9]*$'
+                       )) ~ '^[0-9]+\\.?[0-9]*$'
             """))
             _conn.commit()
             log.info(f"✅ AE_FOC_MT MariApps backfill: {result.rowcount} rows updated.")
@@ -137,7 +139,7 @@ async def lifespan(app: FastAPI):
                   AND  a.source_id   = 'mari_apps'
                   AND  TRIM(COALESCE(
                          r.raw_json->'Excel_Data'->>'True Wind Force (Bft)', ''
-                       )) ~ '^[0-9]+\.?[0-9]*$'
+                       )) ~ '^[0-9]+\\.?[0-9]*$'
             """))
             _conn.commit()
             log.info(f"✅ BF_Wind backfill: {wni_res.rowcount} WNI, {mari_res.rowcount} MariApps rows updated.")
@@ -257,6 +259,8 @@ app.include_router(vessel_design_router, prefix="/api/v1")
 app.include_router(iso_router,           prefix="/api/v1")
 app.include_router(sync_router,          prefix="/api/v1")
 app.include_router(cp_router,            prefix="/api/v1")
+app.include_router(auth_router,          prefix="/api/v1")
+app.include_router(column_pref_router,   prefix="/api/v1")
 
 
 # --- DEFINE /analysis/query ENDPOINT DIRECTLY HERE ---

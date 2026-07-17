@@ -10,12 +10,13 @@
   --text-muted:    #94a3b8;
   --border:        #2d4a6a;
   --row-hover:     rgba(30, 58, 95, 0.4);
-  --row-selected:  rgba(30, 58, 95, 0.7);
+  --row-selected:  #2c5282;
 }
 
 /* ── Page tab bar (shared across all pages) ── */
 .page-tabs {
   display: flex;
+  align-items: center;
   background: #08111a;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -44,7 +45,208 @@
   font-weight: 600;
 }
 
+
 .page-tab-icon { font-size: 15px; }
+
+/* Pushes avatar to the right */
+.page-tab-spacer { flex: 1; }
+
+/* ── Avatar dropdown ──────────────────────────────── */
+.av-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+
+.av-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 5px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.av-btn:hover,
+.av-btn.open {
+  background: rgba(56, 189, 248, 0.07);
+  border-color: rgba(56, 189, 248, 0.2);
+  color: var(--text-primary);
+}
+
+/* Avatar circle with initials */
+.av-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+}
+
+.av-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.av-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.av-chevron.rotated { transform: rotate(180deg); }
+
+/* Dropdown panel */
+.av-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 12px;
+  min-width: 190px;
+  background: #1a2a3a;
+  border: 1px solid #2d4a6a;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  overflow: hidden;
+  animation: avDropIn 0.15s ease;
+}
+@keyframes avDropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+.av-dropdown-header {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.av-dropdown-username {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+.av-dropdown-role {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.av-dropdown-role.admin {
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+}
+.av-dropdown-role.user {
+  background: rgba(56, 189, 248, 0.1);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.av-dropdown-divider {
+  height: 1px;
+  background: #1e3a5f;
+  margin: 0;
+}
+
+.av-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 11px 14px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.av-dropdown-item:hover {
+  background: rgba(56, 189, 248, 0.07);
+  color: #e2e8f0;
+}
+.av-dropdown-item.danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+}
+
+/* ── Admin full page ─────────────────────────── */
+.admin-overlay {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0a1520;
+}
+
+.admin-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 52px;
+  background: #08111a;
+  border-bottom: 1px solid #1e3a5f;
+  flex-shrink: 0;
+}
+
+.admin-overlay-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+/* Less prominent back button — left side */
+.admin-overlay-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #2d4a6a;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.1px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.admin-overlay-back:hover {
+  color: #e2e8f0;
+  border-color: #475569;
+  background: rgba(255, 255, 255, 0.05);
+}
+
 
 /* ── Logbook app wrapper ── */
 .app-wrapper {
@@ -67,7 +269,7 @@
 
 .chart-panel {
   background: var(--bg-panel);
-  padding: 10px 14px;
+  padding: 6px 14px;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -92,6 +294,7 @@
   color: var(--text-muted);
   font-size: 12px;
   gap: 8px;
+  min-height: 260px;
 }
 
 /* ── Drag handle ── */

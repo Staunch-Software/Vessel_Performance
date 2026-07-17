@@ -153,7 +153,7 @@ export default function SpeedLossChart({ rows }) {
   const totalPts = pts.length
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', minHeight: 260 }}>
 
       {/* ── Header ── */}
       <div style={{

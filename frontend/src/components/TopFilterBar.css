@@ -373,6 +373,20 @@
   padding: 6px;
 }
 
+.voyage-multi-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.voyage-multi-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.voyage-multi-panel::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+.voyage-multi-panel::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 .voyage-multi-actions {
   display: flex;
   gap: 6px;
@@ -462,3 +476,6 @@
   white-space: nowrap;
 }
 .columns-btn:hover { background: rgba(217,70,239,0.16); }
+
+.filter-select.admin-active { border: 1px solid #f59e0b !important; color: #f59e0b !important; background-color: rgba(245, 158, 11, 0.1) !important; font-weight: bold; transition: all 0.2s ease; }
+.filter-select.admin-active:focus { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2) !important; }

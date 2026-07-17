@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { fetchCPPerformance } from '../api/vesselApi'
 import './CPSummaryPanel.css'
 
@@ -22,10 +22,50 @@ function GE({ g, e, d = 2 }) {
   )
 }
 
-export default function CPSummaryPanel({ imo, source, voyages }) {
+export default function CPSummaryPanel({ imo, source, voyages, loadingCond }) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState(null)
+
+  const rows = data?.results || []
+
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const lastSelectedIdx = useRef(null)
+
+  const handleRowClick = useCallback((e, rowKey, idx) => {
+    const isCtrl = e.ctrlKey || e.metaKey
+    const isShift = e.shiftKey
+
+    if (isShift && lastSelectedIdx.current !== null) {
+      const start = Math.min(lastSelectedIdx.current, idx)
+      const end = Math.max(lastSelectedIdx.current, idx)
+      
+      setSelectedIds(prev => {
+        const next = isCtrl ? new Set(prev) : new Set()
+        for (let i = start; i <= end; i++) {
+          const r = rows[i]
+          next.add(`${r.voyage_no}-${r.segment_no}-${i}`)
+        }
+        return next
+      })
+    } else if (isCtrl) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(rowKey)) next.delete(rowKey)
+        else next.add(rowKey)
+        return next
+      })
+      lastSelectedIdx.current = idx
+    } else {
+      setSelectedIds(prev => {
+        if (prev.has(rowKey) && prev.size === 1) {
+          return new Set()
+        }
+        return new Set([rowKey])
+      })
+      lastSelectedIdx.current = idx
+    }
+  }, [rows])
 
   const voyageKey = (voyages || []).join(',')
 
@@ -33,16 +73,14 @@ export default function CPSummaryPanel({ imo, source, voyages }) {
     if (!imo || !voyages || voyages.length === 0) return
     let cancelled = false
     setLoading(true); setError(null)
-    fetchCPPerformance(imo, voyages, source)
+    fetchCPPerformance(imo, voyages, source, loadingCond)
       .then(d => { if (!cancelled) setData(d) })
       .catch(e => { if (!cancelled) setError(e?.response?.data?.detail ?? 'CP load failed') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [imo, source, voyageKey])   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [imo, source, voyageKey, loadingCond])   // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!imo || !voyages || voyages.length === 0) return null
-
-  const rows = data?.results || []
 
   // Vessel-level Loss/Saving totals
   const tot = rows.reduce((a, r) => ({
@@ -98,8 +136,13 @@ export default function CPSummaryPanel({ imo, source, voyages }) {
               {rows.map((r, i) => {
                 const g = r.good_wx || {}, e = r.entire || {}, l = r.loss || {}
                 const w = r.warranty || {}, al = r.allowance || {}, gd = r.good_wx_def || {}
+                const rowKey = `${r.voyage_no}-${r.segment_no}-${i}`
                 return (
-                  <tr key={`${r.voyage_no}-${r.segment_no}-${i}`}>
+                  <tr 
+                    key={rowKey}
+                    className={selectedIds.has(rowKey) ? 'selected' : ''}
+                    onClick={(e) => handleRowClick(e, rowKey, i)}
+                  >
                     <td className="cp-voyage">{r.voyage_no}</td>
                     <td>{(r.loading_cond || '')[0] || '—'}</td>
                     <td>{r.speed_instruction || '—'}</td>

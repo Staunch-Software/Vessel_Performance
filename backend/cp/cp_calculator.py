@@ -6,13 +6,13 @@ vessel and the CP warranty config per loading condition, produce a per-voyage
 summary with:
 
   - All-weather aggregate   (every steaming row)
-  - Fair-weather aggregate  (WNI parity: BF_Wind <= 4 AND Sig_Wave_Ht_m <= 2.0)
+  - Fair-weather aggregate  (WNI parity: BF_Wind <= 4 AND Sig_Wave_Ht_m <= 3.0)
   - CP compliance           (fair-weather speed / ME / AE vs warranty ± tolerance)
   - Time lost / gained       (h, over the voyage distance)
   - Fuel over / under         (MT, ME and AE separately)
 
 Fair-weather thresholds are FIXED to match what WNI applies for CP audits
-(good weather = up to Beaufort 4 and significant wave height up to 2.0 m).
+(good weather = up to Beaufort 4 and significant wave height up to 3.0 m).
 
 Each row is expected to expose these analysis_data keys (None-safe):
   Voyage_No, Loading_Cond, Date, Distance_nm, Duration_h, SOG_kn, STW_kn,
@@ -23,7 +23,7 @@ from collections import OrderedDict
 
 # Fixed fair-weather definition (WNI charter-party "good weather day")
 FAIR_BF_MAX        = 4.0     # Beaufort wind force
-FAIR_WAVE_MAX_M    = 2.0     # significant wave height (m)
+FAIR_WAVE_MAX_M    = 3.0     # significant wave height (m)
 GW_MIN_SAMPLE_PCT  = 5.0     # min fair-weather share of steaming time to be representative
 DIST_CHECK_TOL_PCT = 25.0    # flag a row if |distance - SOG*hours| exceeds this % of SOG*hours
 
@@ -60,7 +60,7 @@ def _distance_ok(r):
 
 
 def _is_fair_weather(r):
-    """WNI good-weather: BF <= 4 AND Hs <= 2.0. Missing either criterion → not fair."""
+    """WNI good-weather: BF <= 4 AND Hs <= 3.0. Missing either criterion → not fair."""
     bf = _num(r.get("BF_Wind"))
     hs = _num(r.get("Sig_Wave_Ht_m"))
     if bf is None or hs is None:
@@ -265,14 +265,14 @@ def compute_cp_performance(rows, cp_by_cond):
 # ============================================================================
 # Each row = a voyage segment (a contiguous run of reports with the same
 # destination port). Every analytic cell carries TWO figures:
-#   good_wx  = fair-weather subset (BF<=4 & Hs<=2.0)
+#   good_wx  = fair-weather subset (BF<=4 & Hs<=3.0)
 #   entire   = all steaming rows
 # Consumption is split by fuel TYPE: FO (HFO/LFO) and DO/GO (distillate).
 # Rows are expected to also expose: From_Port, To_Port, fo_mt, dogo_mt,
 # Current_Spd_kn  (in addition to the keys used above).
 
 GW_WIND   = "BF 4"
-GW_SEA    = "Sig.Wave 2.0m"
+GW_SEA    = "Sig.Wave 3.0m"
 GW_CURRENT = "NoAdv"
 GW_RATIO  = 50          # good-weather ratio threshold (%)
 

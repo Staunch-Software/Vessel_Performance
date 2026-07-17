@@ -64,6 +64,24 @@ def init_db():
         
         db.commit()
         print("✅ Database Initialized with Providers.")
+
+        # ── Seed default admin user if no users exist ──────────────────
+        # Imported here to avoid circular imports at module load time.
+        try:
+            from .auth import User, hash_password
+            if db.query(User).count() == 0:
+                admin = User(
+                    username="admin",
+                    email="admin@vesselpref.com",
+                    hashed_password=hash_password("Admin@123"),
+                    role="admin",
+                    is_active=True,
+                )
+                db.add(admin)
+                db.commit()
+                print("✅ Default admin user seeded (admin@vesselpref.com).")
+        except Exception as seed_err:
+            print(f"⚠️  Admin seed skipped: {seed_err}")
         
     finally:
         # Always close the session

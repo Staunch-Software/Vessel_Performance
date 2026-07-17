@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { memoryStore } from '../utils/memoryStore'
+
 import { Search, Loader2, ScanSearch, SearchX, X, Zap, BookmarkPlus, Check, ChevronRight } from 'lucide-react'
 import { fetchVessels, fetchExpandedColumns, runScan } from '../api/vesselApi'
 import { saveReport } from '../utils/savedReports'
@@ -44,8 +46,10 @@ function fmt(v) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function ScanPage({ preload, onPreloadConsumed }) {
   const [vessels,     setVessels]   = useState([])
-  const [vesselImo,   setVesselImo] = useState('')
-  const [source,      setSource]    = useState('wni')   // 'wni' | 'mariapps'
+  const [vesselImo,   setVesselImo] = useState(() => memoryStore.getItem('vp_last_vessel_scan') || '')
+  const [source,      setSource]    = useState(() => memoryStore.getItem('vp_scan_source') || 'wni')   // 'wni' | 'mariapps'
+
+  useEffect(() => { memoryStore.setItem('vp_scan_source', source) }, [source])
   const [columnsMeta, setColsMeta]  = useState([])
   const [colsLoading, setColsLoading] = useState(false)
   const [expression,  setExpression] = useState('')
@@ -187,6 +191,11 @@ export default function ScanPage({ preload, onPreloadConsumed }) {
     setSaveErr(null)
   }
 
+  // Sync vesselImo to memoryStore whenever it changes
+  useEffect(() => {
+    memoryStore.setItem('vp_last_vessel_scan', vesselImo)
+  }, [vesselImo])
+
   // ── Preload from Vessel Reports ───────────────────────────────────────────
   useEffect(() => {
     if (!preload) return
@@ -233,7 +242,9 @@ export default function ScanPage({ preload, onPreloadConsumed }) {
           {/* Top row: filters + actions */}
           <div className="qb-toprow">
             <div className="qb-filters">
-              <select className="scan-select" value={vesselImo} onChange={e => setVesselImo(e.target.value)}>
+              <select className="scan-select" value={vesselImo} onChange={e => {
+                setVesselImo(e.target.value);
+              }}>
                 <option value="">All Vessels</option>
                 {vessels.map(v => (
                   <option key={v.imo_number} value={v.imo_number}>{v.vessel_name}</option>

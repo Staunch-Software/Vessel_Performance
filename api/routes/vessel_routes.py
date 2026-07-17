@@ -10,11 +10,11 @@ from typing import List, Dict, Any
 from backend.database import SessionLocal, _ensure_scrape_flags
 
 # Import your models
-from sqlalchemy import func, extract, and_, or_, not_, literal, literal_column
+from sqlalchemy import func, extract, and_, or_, not_, literal, literal_column, String
 import re
 from backend.models import (
     Vessel, VesselParticulars, AnalysisData, VesselParticularsResponse,
-    NoonReportData, MariAppsReportData, DataQualityLog,
+    NoonReportData, MariAppsReportData, DataQualityLog, RawMariAppsLog,
 )
 
 # --- Dependency to get DB session ---
@@ -167,6 +167,7 @@ def get_detail_data(id: int, db: Session = Depends(get_db)):
 def get_voyages(
     vessel_imo: str = None,
     source_id:  str = None,
+    loading_cond: str = None,
     db: Session = Depends(get_db)
 ):
     try:
@@ -179,6 +180,14 @@ def get_voyages(
         # Only return voyages that belong to the selected source
         if source_id and source_id != "all":
             q = q.filter(AnalysisData.source_id == source_id)
+        if loading_cond and loading_cond.lower() != "all":
+            lc = loading_cond.lower()
+            if lc == "laden":
+                q = q.filter(func.upper(AnalysisData.Loading_Cond).in_(("LADEN", "L", "LD")))
+            elif lc == "ballast":
+                q = q.filter(func.upper(AnalysisData.Loading_Cond).in_(("BALLAST", "B", "BL")))
+            else:
+                q = q.filter(AnalysisData.Loading_Cond.ilike(loading_cond))
 
         voyages = q.order_by(AnalysisData.Voyage_No).all()
         return [v[0] for v in voyages]
@@ -207,9 +216,15 @@ async def query_analysis_data(filters: dict, db: Session = Depends(get_db)):
             NoonReportData.log_type,
             MariAppsReportData.log_type,
         ).label("event_type")
+        
+        log_date_col = func.coalesce(
+            RawMariAppsLog.log_date,
+            func.cast(NoonReportData.log_date, String),
+            func.cast(MariAppsReportData.log_date, String)
+        ).label("log_date")
 
         query = (
-            db.query(AnalysisData, event_type_col)
+            db.query(AnalysisData, event_type_col, log_date_col)
             .outerjoin(
                 NoonReportData,
                 NoonReportData.raw_report_id == AnalysisData.raw_report_id,
@@ -217,6 +232,10 @@ async def query_analysis_data(filters: dict, db: Session = Depends(get_db)):
             .outerjoin(
                 MariAppsReportData,
                 MariAppsReportData.raw_report_id == AnalysisData.raw_mariapps_id,
+            )
+            .outerjoin(
+                RawMariAppsLog,
+                RawMariAppsLog.id == MariAppsReportData.raw_report_id,
             )
         )
 
@@ -254,14 +273,25 @@ async def query_analysis_data(filters: dict, db: Session = Depends(get_db)):
             query = query.filter(AnalysisData.Date <= datetime.strptime(to_date_str, '%Y-%m-%d'))
 
         if loading_conditions:
-            query = query.filter(AnalysisData.Loading_Cond.in_(loading_conditions))
+            conds = []
+            for lc in loading_conditions:
+                l = lc.lower()
+                if l == "laden":
+                    conds.append(func.upper(AnalysisData.Loading_Cond).in_(("LADEN", "L", "LD")))
+                elif l == "ballast":
+                    conds.append(func.upper(AnalysisData.Loading_Cond).in_(("BALLAST", "B", "BL")))
+                else:
+                    conds.append(AnalysisData.Loading_Cond.ilike(lc))
+            if conds:
+                query = query.filter(or_(*conds))
 
         results = query.order_by(AnalysisData.Date.desc()).all()
         logging.info(f"Query returned {len(results)} results.")
 
-        def _row(r, event_type):
+        def _row(r, event_type, log_date):
             return {
                 "event_type": event_type,
+                "log_date": str(log_date) if log_date else None,
                 "id": r.id,
                 "vessel_imo": r.vessel_imo,
                 "source_id": r.source_id,
@@ -324,8 +354,8 @@ async def query_analysis_data(filters: dict, db: Session = Depends(get_db)):
                 "Speed_Loss_pct": r.Speed_Loss_pct,
             }
 
-        # results is a list of (AnalysisData, event_type) tuples
-        return [_row(r, et) for r, et in results]
+        # results is a list of (AnalysisData, event_type, log_date) tuples
+        return [_row(r, et, ld) for r, et, ld in results]
 
     except Exception as e:
         logging.error(f"Error in /query endpoint: {e}")
@@ -503,19 +533,20 @@ def get_fleet_status(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fleet status error: {e}")
 
-
 # ── VESSEL REPORT HEALTH ─────────────────────────────────────────────────────
 @router.get("/vessel-report")
 def get_vessel_report(year: int = None, ship_group: str = None, db: Session = Depends(get_db)):
     """
     Returns per-vessel discrepancy counts for the Vessel Report Health page.
     Discrepancy categories computed from analysis_data null/missing fields:
-      - missing_report  : gaps in daily date sequence
+      - missing_report_wni      : gaps in daily date sequence for WNI
+      - missing_report_mariapps : gaps in daily date sequence for MariApps
       - rob_consumption : null ME_FOC_MT or AE_FOC_MT
       - distance        : null Distance_nm
       - cargo_weight    : null Displacement_MT
       - bunkering       : DUPLICATE_REPORT entries in data_quality_logs
     """
+    from datetime import timedelta, date as _date
     try:
         vessels = db.query(Vessel).order_by(Vessel.vessel_name).all()
         result  = []
@@ -536,15 +567,11 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
 
             records = q.all()
 
-            # 1. Missing report — gaps in daily date sequence.
-            #    Upper bound is "yesterday" (today - 1) when the data belongs to
-            #    the current year / no year filter, so a stale feed (latest report
-            #    older than yesterday) is counted as missing. A vessel that has
-            #    reported through yesterday shows 0 trailing gap; a gap at
-            #    day-before-yesterday or earlier is counted.
-            from datetime import timedelta, date as _date
-            dates = sorted({r.Date for r in records if r.Date})
-            if dates:
+            # Helper to calculate missing reports for a specific subset of records
+            def calc_missing(subset):
+                dates = sorted({r.Date for r in subset if r.Date})
+                if not dates:
+                    return 0
                 first = dates[0]
                 last  = dates[-1]
                 today     = _date.today()
@@ -559,14 +586,23 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
                     year_end = _date(year, 12, 31)
                     if upper > year_end:
                         upper = year_end
+                    
+                    # Force the start of the range to Jan 1 of the selected year
+                    year_start = _date(year, 1, 1)
+                    if first > year_start:
+                        first = year_start
 
                 if upper >= first:
                     expected = (upper - first).days + 1
-                    missing_report = max(0, expected - len(dates))
-                else:
-                    missing_report = 0
-            else:
-                missing_report = 0
+                    return max(0, expected - len(dates))
+                return 0
+
+            # 1. Missing reports per source
+            records_wni = [r for r in records if r.source_id == "wni"]
+            records_mariapps = [r for r in records if r.source_id == "mari_apps"]
+            
+            missing_report_wni = calc_missing(records_wni)
+            missing_report_mariapps = calc_missing(records_mariapps)
 
             # 2. ROB & Consumption — BOTH ME and AE fuel are missing (no fuel data at all)
             rob_consumption = sum(
@@ -599,7 +635,7 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
                 bq = bq.filter(extract("year", DataQualityLog.report_date) == year)
             bunkering = bq.count()
 
-            total_issues = missing_report + rob_consumption + distance + cargo_weight + bunkering
+            total_issues = missing_report_wni + missing_report_mariapps + rob_consumption + distance + cargo_weight + bunkering
 
             result.append({
                 "vessel_name":    v.vessel_name,
@@ -607,7 +643,8 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
                 "ship_group":     vessel_group,
                 "report_count":   len(records),
                 "total_issues":   total_issues,
-                "missing_report": missing_report,
+                "missing_report_wni": missing_report_wni,
+                "missing_report_mariapps": missing_report_mariapps,
                 "rob_consumption":rob_consumption,
                 "distance":       distance,
                 "cargo_weight":   cargo_weight,

@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { memoryStore } from '../utils/memoryStore'
+
 import { RefreshCw, ExternalLink, Download, Search, Loader2, FileText,
          Pencil, Trash2, Check, X, Activity } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
@@ -184,11 +186,15 @@ function SyncStatusModal({ onClose }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanForEdit, onNavigateToLogbook }) {
-  const [year,       setYear]       = useState(String(currentYear))
-  const [shipGroup,  setShipGroup]  = useState('All')
+  const [year,       setYear]       = useState(() => memoryStore.getItem('vp_vr_year') || String(currentYear))
+  const [shipGroup,  setShipGroup]  = useState(() => memoryStore.getItem('vp_vr_shipgroup') || 'All')
   const [groups,     setGroups]     = useState(['All'])
+
+  useEffect(() => { memoryStore.setItem('vp_vr_year', year) }, [year])
+  useEffect(() => { memoryStore.setItem('vp_vr_shipgroup', shipGroup) }, [shipGroup])
   const [vessels,    setVessels]    = useState([])
-  const [missingMap, setMissingMap] = useState({})
+  const [missingMapWni, setMissingMapWni] = useState({})
+  const [missingMapMariapps, setMissingMapMariapps] = useState({})
   const [matrix,     setMatrix]     = useState({})
   const [scanning,   setScanning]   = useState(false)
   const [scanned,    setScanned]    = useState(false)
@@ -211,6 +217,29 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
     fetchShipGroups().then(setGroups).catch(console.error)
   }, [])
 
+  async function loadVessels() {
+    setLoading(true)
+    setError(null)
+    setMatrix({})
+    setScanned(false)
+    try {
+      const reportData = await fetchVesselReport(Number(year), shipGroup)
+      const newMissingWni = {}
+      const newMissingMariapps = {}
+      reportData.forEach(r => { 
+        newMissingWni[r.imo_number] = r.missing_report_wni ?? 0 
+        newMissingMariapps[r.imo_number] = r.missing_report_mariapps ?? 0 
+      })
+      setMissingMapWni(newMissingWni)
+      setMissingMapMariapps(newMissingMariapps)
+      setVessels(reportData.map(r => ({ imo_number: r.imo_number, vessel_name: r.vessel_name })))
+    } catch (e) {
+      setError(e?.response?.data?.detail ?? e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Load vessel + missing-report data whenever year or shipGroup changes
   useEffect(() => {
     loadVessels()
@@ -223,24 +252,6 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [manageOpen])
-
-  async function loadVessels() {
-    setLoading(true)
-    setError(null)
-    setMatrix({})
-    setScanned(false)
-    try {
-      const reportData = await fetchVesselReport(Number(year), shipGroup)
-      const newMissing = {}
-      reportData.forEach(r => { newMissing[r.imo_number] = r.missing_report ?? 0 })
-      setMissingMap(newMissing)
-      setVessels(reportData.map(r => ({ imo_number: r.imo_number, vessel_name: r.vessel_name })))
-    } catch (e) {
-      setError(e?.response?.data?.detail ?? e.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   // ── Manage panel handlers ────────────────────────────────────────────────
   function handleDelete(id) {
@@ -299,7 +310,7 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
   const totalsMap = useMemo(() => {
     const out = {}
     vessels.forEach(v => {
-      const missing = missingMap[v.imo_number] ?? 0
+      const missing = (missingMapWni[v.imo_number] ?? 0) + (missingMapMariapps[v.imo_number] ?? 0)
       const scanSum = savedReports.reduce((s, r) => {
         const c = matrix[`${r.id}_${v.imo_number}`]
         return s + (c ?? 0)
@@ -307,7 +318,7 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
       out[v.imo_number] = missing + scanSum
     })
     return out
-  }, [vessels, missingMap, matrix, savedReports])
+  }, [vessels, missingMapWni, missingMapMariapps, matrix, savedReports])
 
   const donutData = useMemo(() => {
     const none = vessels.filter(v => (totalsMap[v.imo_number] ?? 0) === 0).length
@@ -440,12 +451,16 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
             ) : (
               <table className="vr2-table">
                 <thead>
-                  {/* ── Group header ── */}
                   <tr className="vr2-group-row">
                     <th colSpan={5} />
-                    <th colSpan={savedReports.length + 1} className="vr2-group-label">
-                      Vessel Reports
+                    <th colSpan={3} className="vr2-group-label" style={{ borderBottom: '1px solid #2d4a6a' }}>
+                      Vessel Report (missing report)
                     </th>
+                    {savedReports.length > 0 && (
+                      <th colSpan={savedReports.length} className="vr2-group-label">
+                        Saved Scans
+                      </th>
+                    )}
                   </tr>
                   {/* ── Column header ── */}
                   <tr>
@@ -454,7 +469,9 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
                     <th className="left" style={{ minWidth: 160 }}>Vessel Name</th>
                     <th style={{ minWidth: 110 }}>IMO Number</th>
                     <th style={{ minWidth: 100 }}>Total Issues</th>
-                    <th style={{ minWidth: 120 }}>Missing Report</th>
+                    <th style={{ minWidth: 120, textAlign: 'center' }}>WNI</th>
+                    <th style={{ minWidth: 120, textAlign: 'center' }}>MariApps</th>
+                    <th style={{ minWidth: 100, textAlign: 'center' }}>Total</th>
                     {savedReports.map(r => (
                       <th key={r.id} style={{ minWidth: 130 }}>
                         <div className="col-header-wrap" title={r.name}>
@@ -498,10 +515,24 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
                         {/* Total issues */}
                         <td><IssueBadge n={total} /></td>
 
-                        {/* Missing Report — fixed column, not clickable */}
+                        {/* Missing Report (WNI) — fixed column, not clickable */}
                         <td>
-                          <span className={`disc-count ${(missingMap[v.imo_number] ?? 0) > 0 ? 'nonzero' : 'zero'}`}>
-                            {missingMap[v.imo_number] ?? 0}
+                          <span className={`disc-count ${(missingMapWni[v.imo_number] ?? 0) > 0 ? 'nonzero' : 'zero'}`}>
+                            {missingMapWni[v.imo_number] ?? 0}
+                          </span>
+                        </td>
+
+                        {/* Missing Report (MariApps) — fixed column, not clickable */}
+                        <td>
+                          <span className={`disc-count ${(missingMapMariapps[v.imo_number] ?? 0) > 0 ? 'nonzero' : 'zero'}`}>
+                            {missingMapMariapps[v.imo_number] ?? 0}
+                          </span>
+                        </td>
+
+                        {/* Missing Report (Total) — fixed column, not clickable */}
+                        <td>
+                          <span className={`disc-count ${((missingMapWni[v.imo_number] ?? 0) + (missingMapMariapps[v.imo_number] ?? 0)) > 0 ? 'nonzero' : 'zero'}`}>
+                            {(missingMapWni[v.imo_number] ?? 0) + (missingMapMariapps[v.imo_number] ?? 0)}
                           </span>
                         </td>
 

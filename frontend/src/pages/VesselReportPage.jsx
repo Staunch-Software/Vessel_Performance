@@ -211,8 +211,9 @@ export default function VesselReportPage() {
                 <thead>
                   {/* Group header row */}
                   <tr className="group-row">
-                    <th colSpan={4}></th>
-                    <th colSpan={5}>Data Discrepancy</th>
+                    <th colSpan={5}></th>
+                    <th colSpan={3} style={{ textAlign: 'center', borderBottom: '1px solid #2d4a6a' }}>Vessel Report (missing report)</th>
+                    <th colSpan={4} style={{ textAlign: 'center' }}>Data Discrepancy</th>
                   </tr>
                   {/* Column header row */}
                   <tr>
@@ -221,7 +222,9 @@ export default function VesselReportPage() {
                     <th className="left" style={{ minWidth:160 }}>Vessel Name</th>
                     <th style={{ minWidth:110 }}>IMO Number</th>
                     <th style={{ minWidth:100 }}>Total Issues</th>
-                    <th style={{ minWidth:110 }}>Missing Report</th>
+                    <th style={{ minWidth:120, textAlign: 'center' }}>WNI</th>
+                    <th style={{ minWidth:120, textAlign: 'center' }}>MariApps</th>
+                    <th style={{ minWidth:100, textAlign: 'center' }}>Total</th>
                     <th style={{ minWidth:140 }}>ROB &amp; Consumption</th>
                     <th style={{ minWidth:100 }}>Distance</th>
                     <th style={{ minWidth:110 }}>Cargo Weight</th>
@@ -254,7 +257,9 @@ export default function VesselReportPage() {
                       </td>
 
                       {/* Discrepancy columns */}
-                      <td><span className={discClass(r.missing_report)}>{r.missing_report}</span></td>
+                      <td><span className={discClass(r.missing_report_wni)}>{r.missing_report_wni ?? 0}</span></td>
+                      <td><span className={discClass(r.missing_report_mariapps)}>{r.missing_report_mariapps ?? 0}</span></td>
+                      <td><span className={discClass((r.missing_report_wni ?? 0) + (r.missing_report_mariapps ?? 0))}>{(r.missing_report_wni ?? 0) + (r.missing_report_mariapps ?? 0)}</span></td>
                       <td><span className={discClass(r.rob_consumption)}>{r.rob_consumption}</span></td>
                       <td><span className={discClass(r.distance)}>{r.distance}</span></td>
                       <td><span className={discClass(r.cargo_weight)}>{r.cargo_weight}</span></td>

@@ -113,7 +113,7 @@ _SOURCE_SQL = {
 }
 
 
-def _rows_for_source(db, imo, source, vlist):
+def _rows_for_source(db, imo, source, vlist, loading_cond=None):
     join, src = _SOURCE_SQL[source]
     sql = f"""
         SELECT a."Voyage_No", a."Loading_Cond", a."Date", a."From_Port", a."To_Port",
@@ -128,6 +128,17 @@ def _rows_for_source(db, imo, source, vlist):
     if vlist:
         sql += ' AND a."Voyage_No" = ANY(:vlist)'
         params["vlist"] = vlist
+        
+    if loading_cond and loading_cond.lower() != "all":
+        lc = loading_cond.lower()
+        if lc == "laden":
+            sql += " AND UPPER(a.\"Loading_Cond\") IN ('LADEN', 'L', 'LD')"
+        elif lc == "ballast":
+            sql += " AND UPPER(a.\"Loading_Cond\") IN ('BALLAST', 'B', 'BL')"
+        else:
+            sql += " AND a.\"Loading_Cond\" ILIKE :lc"
+            params["lc"] = loading_cond
+            
     sql += ' ORDER BY a."Voyage_No", a."Date"'
     return [dict(m) for m in db.execute(text(sql), params).mappings().all()]
 
@@ -137,6 +148,7 @@ def cp_performance(
     imo: str,
     voyages: str = Query(None, description="Comma-separated Voyage_No values; omit for all"),
     source: str = Query(None, description="'wni' or 'mari_apps'; omit for both"),
+    loading_cond: str = Query(None, description="'Laden' or 'Ballast'; omit for all"),
     db: Session = Depends(get_db),
 ):
     """WNI-style per-segment CP performance for the selected voyage(s)."""
@@ -150,7 +162,7 @@ def cp_performance(
     rows = []
     try:
         for s in sources:
-            rows.extend(_rows_for_source(db, imo, s, vlist))
+            rows.extend(_rows_for_source(db, imo, s, vlist, loading_cond))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"CP query failed: {e}")
 

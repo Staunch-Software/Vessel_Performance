@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
+import { memoryStore } from '../utils/memoryStore'
+
 import { Save, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { fetchVessels, updateVesselSources } from '../api/vesselApi'
 import { fetchDesignData, saveDesignData } from '../api/vesselApi'
@@ -88,7 +90,14 @@ export default function MDMPage() {
     fetchVessels()
       .then(list => {
         setVessels(list)
-        if (list.length > 0) setImo(list[0].imo_number)
+        if (list.length > 0) {
+          const saved = memoryStore.getItem('vp_last_vessel_mdm');
+          if (saved && list.find(v => v.imo_number === saved)) {
+            setImo(saved);
+          } else {
+            setImo(list[0].imo_number);
+          }
+        }
       })
       .catch(console.error)
   }, [])
@@ -182,7 +191,10 @@ export default function MDMPage() {
           <select
             className="mdm-vessel-select"
             value={selectedImo}
-            onChange={e => setImo(e.target.value)}
+            onChange={e => {
+              setImo(e.target.value);
+              memoryStore.setItem('vp_last_vessel_mdm', e.target.value);
+            }}
           >
             {vessels.map(v => (
               <option key={v.imo_number} value={v.imo_number}>{v.vessel_name}</option>

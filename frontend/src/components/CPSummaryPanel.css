@@ -48,7 +48,9 @@
   padding: 3px 8px;
   background: #14283e;
   border: 1px solid rgba(45, 74, 106, .6);
-  position: sticky; top: 0; z-index: 2;
+  position: sticky; top: -1px; z-index: 2;
+  /* Use box shadow to fill any 1px rendering gaps that browsers create with border-collapse */
+  box-shadow: 0 1px 0 #14283e, 0 -1px 0 #14283e;
 }
 .cp-grp-tva { color: #34d399 !important; }
 
@@ -60,7 +62,8 @@
   padding: 2px 8px;
   background: #0f1d2e;
   border-bottom: 1px solid rgba(45, 74, 106, .6);
-  position: sticky; top: 23px; z-index: 1;
+  position: sticky; top: 20px; z-index: 1;
+  box-shadow: 0 1px 0 #0f1d2e, 0 -1px 0 #0f1d2e;
 }
 
 .cp-table td {
@@ -72,7 +75,9 @@
   font-variant-numeric: tabular-nums;
   vertical-align: middle;
 }
+.cp-table tbody tr.selected td { background: var(--row-selected, rgba(56, 189, 248, 0.15)); }
 .cp-table tr:hover td { background: rgba(96, 165, 250, .06); }
+.cp-table tbody tr.selected:hover td { background: var(--row-selected, rgba(56, 189, 248, 0.2)); }
 
 .cp-voyage { font-weight: 700; color: #e2e8f0; text-align: left; }
 .cp-port { text-align: left; color: #cbd5e1; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }

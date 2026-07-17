@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
+import { memoryStore } from '../utils/memoryStore'
+
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Columns, Plus, X, Check, Loader2 } from 'lucide-react'
 import { fetchVessels, fetchVoyages, addVessel, updateVesselSources } from '../api/vesselApi'
@@ -144,11 +146,25 @@ function AddVesselModal({ onClose, onAdded }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function TopFilterBar({ graphType, onGraphTypeChange, fuelMode, onFuelModeChange, source, onSourceChange, onFiltersChange, defaultVesselImo, onColumnsClick }) {
+export default function TopFilterBar({ 
+  graphType, 
+  onGraphTypeChange, 
+  fuelMode, 
+  onFuelModeChange, 
+  source, 
+  onSourceChange, 
+  onFiltersChange, 
+  defaultVesselImo, 
+  onColumnsClick,
+  isAdminMode 
+}) {
   const [vessels, setVessels]         = useState([])
-  const [selectedVessel, setVessel]   = useState('')
-  const [displayType, setDisplayType] = useState('month')
-  const [currentMonth, setMonth]      = useState(new Date())
+  const [selectedVessel, setVessel]   = useState(() => memoryStore.getItem('vp_last_vessel_logbook') || '')
+  const [displayType, setDisplayType] = useState(() => memoryStore.getItem('vp_display_type') || 'month')
+  const [currentMonth, setMonth]      = useState(() => {
+    const saved = memoryStore.getItem('vp_current_month')
+    return saved ? new Date(saved) : new Date()
+  })
   const [voyages, setVoyages]         = useState([])
   const [selectedVoyages, setSelVoyages] = useState([])   // multi-select
   const [voyageOpen, setVoyageOpen]   = useState(false)
@@ -156,12 +172,20 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, fuelMode, o
   const voyageBoxRef   = useRef(null)   // trigger wrapper
   const voyagePanelRef = useRef(null)   // portal panel
   const [showAddModal, setShowModal]  = useState(false)
-  const [loadingCond, setLoadingCond] = useState('all')   // all | Laden | Ballast
+  const [loadingCond, setLoadingCond] = useState(() => memoryStore.getItem('vp_loading_cond') || 'all')   // all | Laden | Ballast
   // Period mode (replaces old "All Period")
-  const [periodType, setPeriodType]   = useState('preset') // preset | custom
-  const [periodPreset, setPreset]     = useState('3m')     // 1m | 3m | 6m | 1y
-  const [customFrom, setCustomFrom]   = useState('')
-  const [customTo, setCustomTo]       = useState('')
+  const [periodType, setPeriodType]   = useState(() => memoryStore.getItem('vp_period_type') || 'preset') // preset | custom
+  const [periodPreset, setPreset]     = useState(() => memoryStore.getItem('vp_period_preset') || '3m')     // 1m | 3m | 6m | 1y
+  const [customFrom, setCustomFrom]   = useState(() => memoryStore.getItem('vp_custom_from') || '')
+  const [customTo, setCustomTo]       = useState(() => memoryStore.getItem('vp_custom_to') || '')
+
+  useEffect(() => { memoryStore.setItem('vp_display_type', displayType) }, [displayType])
+  useEffect(() => { memoryStore.setItem('vp_current_month', currentMonth.toISOString()) }, [currentMonth])
+  useEffect(() => { memoryStore.setItem('vp_loading_cond', loadingCond) }, [loadingCond])
+  useEffect(() => { memoryStore.setItem('vp_period_type', periodType) }, [periodType])
+  useEffect(() => { memoryStore.setItem('vp_period_preset', periodPreset) }, [periodPreset])
+  useEffect(() => { memoryStore.setItem('vp_custom_from', customFrom) }, [customFrom])
+  useEffect(() => { memoryStore.setItem('vp_custom_to', customTo) }, [customTo])
 
   // Load vessel list on mount
   useEffect(() => {
@@ -171,26 +195,49 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, fuelMode, o
         if (list.length > 0) {
           if (defaultVesselImo) {
             const match = list.find(v => v.imo_number === defaultVesselImo)
-            setVessel(match ? defaultVesselImo : list[0].imo_number)
+            const imoToSet = match ? defaultVesselImo : list[0].imo_number
+            setVessel(imoToSet)
+            memoryStore.setItem('vp_last_vessel_logbook', imoToSet)
           } else {
-            const amKirti = list.find(v => v.vessel_name.toLowerCase().includes('am kirti'))
-            setVessel(amKirti ? amKirti.imo_number : list[0].imo_number)
+            const saved = memoryStore.getItem('vp_last_vessel_logbook')
+            if (saved && list.find(v => v.imo_number === saved)) {
+              setVessel(saved)
+            } else {
+              const amKirti = list.find(v => v.vessel_name.toLowerCase().includes('am kirti'))
+              const defaultImo = amKirti ? amKirti.imo_number : list[0].imo_number
+              setVessel(defaultImo)
+              memoryStore.setItem('vp_last_vessel_logbook', defaultImo)
+            }
           }
         }
       })
       .catch(console.error)
   }, []) // eslint-disable-line
 
-  // Reload voyages when vessel OR source changes (so dropdown only shows relevant voyages)
+  // Reload voyages when vessel, source, or condition changes
   useEffect(() => {
     if (!selectedVessel) return
-    fetchVoyages(selectedVessel, source)
+    fetchVoyages(selectedVessel, source, loadingCond)
       .then(list => {
         setVoyages(list)
-        setSelVoyages(list.length ? [String(list[0])] : [])   // default to first voyage
+        setSelVoyages(prev => {
+          // If we have saved voyages from memoryStore during initialization, try to use them
+          const savedStr = memoryStore.getItem('vp_selected_voyages')
+          const saved = savedStr ? JSON.parse(savedStr) : []
+          const toCheck = prev.length ? prev : saved
+          const valid = toCheck.filter(v => list.includes(Number(v) || v))
+          if (valid.length > 0) return valid
+          return list.length ? [String(list[0])] : []
+        })
       })
       .catch(console.error)
-  }, [selectedVessel, source])
+  }, [selectedVessel, source, loadingCond])
+
+  useEffect(() => {
+    if (selectedVoyages.length > 0) {
+      memoryStore.setItem('vp_selected_voyages', JSON.stringify(selectedVoyages))
+    }
+  }, [selectedVoyages])
 
   // Close the voyage multi-select when clicking outside the trigger AND the portal panel
   useEffect(() => {
@@ -221,7 +268,11 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, fuelMode, o
   // Fire filter change whenever any filter state changes
   useEffect(() => {
     if (!selectedVessel) return
-    const filters = { vessel_imo: selectedVessel }
+    const vesselObj = vessels.find(v => v.imo_number === selectedVessel)
+    const filters = { 
+      vessel_imo: selectedVessel, 
+      vessel_name: vesselObj ? vesselObj.vessel_name : '' 
+    }
 
     if (displayType === 'month') {
       Object.assign(filters, monthBounds(currentMonth))
@@ -262,7 +313,13 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, fuelMode, o
         <div className="filter-group">
           <span className="filter-label">Vessel</span>
           <div className="vessel-select-wrap">
-            <select className="filter-select" value={selectedVessel} onChange={e => setVessel(e.target.value)}>
+            <select 
+              className={`filter-select${isAdminMode ? ' admin-active' : ''}`} 
+              value={selectedVessel} 
+              onChange={e => {
+                setVessel(e.target.value)
+                memoryStore.setItem('vp_last_vessel_logbook', e.target.value)
+              }}>
               {vessels.map(v => <option key={v.imo_number} value={v.imo_number}>{v.vessel_name}</option>)}
             </select>
             <button
@@ -453,7 +510,11 @@ export default function TopFilterBar({ graphType, onGraphTypeChange, fuelMode, o
 
         {/* Column picker trigger */}
         {onColumnsClick && (
-          <button className="columns-btn" onClick={onColumnsClick} title="Show/hide columns">
+          <button 
+            className="columns-btn" 
+            onClick={() => onColumnsClick(selectedVessel, vessels.find(v=>v.imo_number===selectedVessel)?.vessel_name)} 
+            title="Show/hide columns"
+          >
             <Columns size={13} />
             Columns
           </button>

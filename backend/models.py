@@ -1405,3 +1405,50 @@ class ISO19030Result(Base):
 
     created_at      = Column(DateTime, default=datetime.utcnow)
     updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ============================================================
+# TABLE: USER COLUMN PREFERENCES
+# ============================================================
+# Stores per-user (and optionally per-vessel) column visibility
+# and ordering preferences for the Logbook Column Manager.
+#
+# vessel_imo IS NULL  → user-level preference (applies to all vessels)
+# vessel_imo IS NOT NULL → vessel-specific override for that user
+# ============================================================
+class UserColumnPreference(Base):
+    __tablename__ = "user_column_preferences"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    # FK to users.id — imported lazily to avoid circular import with auth.py
+    user_id      = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    source       = Column(String(20), nullable=False)          # 'mari_apps' | 'wni'
+    vessel_imo   = Column(String(20), nullable=True)           # NULL = user-level pref
+    column_prefs = Column(JSONB, nullable=False, default={})   # {visible: [...], order: [...]}
+    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "source", "vessel_imo",
+                         name="uq_user_col_pref_user_source_vessel"),
+    )
+
+
+# ============================================================
+# TABLE: VESSEL COLUMN DEFAULTS  (admin-set)
+# ============================================================
+# Stores admin-defined default column layouts per vessel per source.
+# Applied when a user has no personal preference saved for a vessel.
+# ============================================================
+class VesselColumnDefault(Base):
+    __tablename__ = "vessel_column_defaults"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    vessel_imo   = Column(String(20), ForeignKey("vessels.imo_number", ondelete="CASCADE"),
+                          nullable=False, index=True)
+    source       = Column(String(20), nullable=False)          # 'mari_apps' | 'wni'
+    column_prefs = Column(JSONB, nullable=False, default={})   # {visible: [...], order: [...]}
+    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("vessel_imo", "source", name="uq_vessel_col_default_vessel_source"),
+    )

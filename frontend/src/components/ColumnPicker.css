@@ -11,7 +11,7 @@
 
 /* ── Panel (slides in from right) ── */
 .cp-panel {
-  width: min(90vw, 400px);
+  width: min(90vw, 500px);
   height: 100vh;
   background: var(--bg-panel);
   border-left: 1px solid var(--border);
@@ -416,3 +416,58 @@
 /* Spinner */
 .icon-spin { animation: cp-spin 0.9s linear infinite; }
 @keyframes cp-spin { to { transform: rotate(360deg); } }
+
+.cp-action-btn { font-size: 10px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: var(--accent-2); border-radius: 4px; padding: 3px 8px; cursor: pointer; transition: all 0.15s ease; font-weight: 600; font-family: inherit; }
+.cp-action-btn:hover { background: rgba(56, 189, 248, 0.2); border-color: var(--accent-2); }
+
+.cp-panel-admin { border-left: 2px solid #f59e0b !important; }
+.cp-panel-admin .cp-header { background-color: rgba(245, 158, 11, 0.05); border-bottom: 1px solid rgba(245, 158, 11, 0.2); }
+.cp-admin-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f59e0b;
+  cursor: pointer;
+  margin-left: 16px;
+  user-select: none;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  transition: all 0.2s ease;
+}
+.cp-admin-toggle:hover {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+.cp-admin-toggle input {
+  display: none;
+}
+.cp-toggle-track {
+  width: 28px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.3s ease;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.cp-admin-toggle input:checked + .cp-toggle-track {
+  background: #f59e0b;
+}
+.cp-toggle-thumb {
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.cp-admin-toggle input:checked + .cp-toggle-track .cp-toggle-thumb {
+  transform: translateX(12px);
+}
