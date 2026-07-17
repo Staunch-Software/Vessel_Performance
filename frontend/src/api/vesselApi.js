@@ -1,9 +1,9 @@
 import axios from 'axios'
 
 // --- LOCAL (original hardcoded dev URL — uncomment to use against a local backend) ---
-const api = axios.create({ baseURL: 'http://127.0.0.1:8000/api/v1' })
+// const api = axios.create({ baseURL: 'http://127.0.0.1:8000/api/v1' })
 // --- VM / PRODUCTION: relative path (same origin via nginx); override with VITE_API_BASE_URL ---
-// const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1' })
+const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1' })
 
 // ── Auth token interceptor ────────────────────────────────────────────
 // Automatically attaches the JWT token (stored in localStorage) to every request.
@@ -260,4 +260,10 @@ export async function saveVesselColumnDefaults(source, vesselImo, columnPrefs) {
   const payload = { source, vessel_imo: vesselImo, column_prefs: columnPrefs }
   const { data } = await api.put('/vessel-column-defaults', payload)
   return data
+}
+
+// ── Fleet Status Monitoring ───────────────────────────────────────────────────
+export async function fetchFleetVoyages() {
+  const { data } = await api.get('/fleet/voyages')
+  return Array.isArray(data) ? data : []
 }
