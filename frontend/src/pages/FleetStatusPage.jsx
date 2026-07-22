@@ -8,7 +8,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import './FleetStatusPage.css'
 // MapLibre is loaded from CDN in index.html to avoid Vite worker minification bugs (wm is not defined)
 // Do NOT import maplibre-gl here — use window.maplibregl directly
-const maplibregl = window.maplibregl
+// Use a getter so it is evaluated lazily (after CDN script has loaded)
+const getMaplibre = () => window.maplibregl
 import { fetchFleetVoyages, fetchVesselTrack } from '../api/vesselApi'
 
 // ── Helper: clean port name ──────────────────────────────────────────────────
@@ -285,15 +286,18 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
 
   // Initialize map once
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return
+    const maplibregl = getMaplibre()
+    if (!mapContainerRef.current || mapRef.current || !maplibregl) return
     mapRef.current = new maplibregl.Map({
       container: mapContainerRef.current,
       style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
       center: [55.0, 10.0],
       zoom: 3,
+      minZoom: 2,   // Cannot zoom out beyond world overview
+      maxZoom: 10,  // Cannot zoom in beyond city-level detail
       attributionControl: false,
     })
-    mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right')
+    mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right')  // maplibregl in scope from above
     mapRef.current.on('styledata', () => {
       const map = mapRef.current
       if (!map) return
@@ -313,6 +317,8 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
     Object.values(markersRef.current).forEach(m => m.remove())
     markersRef.current = {}
 
+    const maplibregl = getMaplibre()
+    if (!maplibregl) return
     const bounds = new maplibregl.LngLatBounds()
     let hasPoints = false
 
@@ -394,7 +400,7 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
           <tr><td class="fsm-popup-label">Point type</td><td class="fsm-popup-val">${pointType}</td></tr>
         </table>`
 
-      const popup = new maplibregl.Popup({
+      const popup = new maplibregl.Popup({  // maplibregl in scope from above
         closeButton: false, closeOnClick: false,
         className: 'fsm-vessel-popup',
         // No fixed anchor — MapLibre auto-flips (top/bottom/left/right)
