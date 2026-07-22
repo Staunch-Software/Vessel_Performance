@@ -1102,7 +1102,7 @@ def get_vessel_track(vessel_imo: str):
     
     features = []
     
-    for path in [track_path, route_path]:
+    for path in [route_path]:
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8") as f:
