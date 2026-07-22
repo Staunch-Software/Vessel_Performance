@@ -6,8 +6,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import './FleetStatusPage.css'
-import maplibregl from 'maplibre-gl/dist/maplibre-gl.js'
-import 'maplibre-gl/dist/maplibre-gl.css'
+// MapLibre is loaded from CDN in index.html to avoid Vite worker minification bugs (wm is not defined)
+// Do NOT import maplibre-gl here — use window.maplibregl directly
+const maplibregl = window.maplibregl
 import { fetchFleetVoyages, fetchVesselTrack } from '../api/vesselApi'
 
 // ── Helper: clean port name ──────────────────────────────────────────────────
