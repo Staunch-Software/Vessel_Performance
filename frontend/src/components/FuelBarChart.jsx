@@ -369,7 +369,7 @@ export default function FuelBarChart({ rows, mode = 'daily', voyageView = false 
                 </span>
               )
             ))}
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <BarChart data={data} margin={{ top: 45, right: 10, left: 0, bottom: 8 }} barSize={16}>
                 {voyageRegions.map((r, idx) => {
                   const isSingle = voyageRegions.length === 1;
@@ -419,7 +419,7 @@ export default function FuelBarChart({ rows, mode = 'daily', voyageView = false 
 
         {/* 2) Sticky Y-Axis Overlay */}
         <div style={{ position: 'absolute', top: 0, left: 0, width: 40, height: 245, background: 'var(--bg-panel)', boxShadow: '2px 0 4px rgba(13,27,42,0.8)', zIndex: 10, pointerEvents: 'none' }}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
             <BarChart data={data} margin={{ top: 45, right: 0, left: 2, bottom: 8 }}>
               <Legend content={() => <div />} height={24} />
               <XAxis

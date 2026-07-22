@@ -52,22 +52,21 @@ EVENT_TYPE_MAP = {
 
 DIR_MAP = {"N": "North", "S": "South", "E": "East", "W": "West"}
 
+import re
+
 def parse_coord(coord):
     if not isinstance(coord, str):
         return None, None, None
     try:
-        coord = coord.replace("°", " ").replace("'", " ").strip()
-        parts = coord.split()
-        deg = float(parts[0])
-        min_part = parts[1]
-        if min_part[-1].isalpha():
-            minutes = float(min_part[:-1])
-            direction_raw = min_part[-1]
-        else:
-            minutes = float(min_part)
-            direction_raw = parts[2]
-        direction = DIR_MAP.get(direction_raw.upper(), direction_raw)
-        return deg, minutes, direction
+        # Robust regex to extract degrees, minutes, and direction regardless of strange unicode symbols
+        match = re.search(r'(\d+)[^\d]+([\d\.]+)[^\d]*([NSWE])', coord, re.IGNORECASE)
+        if match:
+            deg = float(match.group(1))
+            minutes = float(match.group(2))
+            direction_raw = match.group(3).upper()
+            direction = DIR_MAP.get(direction_raw, direction_raw)
+            return deg, minutes, direction
+        return None, None, None
     except:
         return None, None, None
 

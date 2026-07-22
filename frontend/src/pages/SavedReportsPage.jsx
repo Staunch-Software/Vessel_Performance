@@ -227,8 +227,8 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
       const newMissingWni = {}
       const newMissingMariapps = {}
       reportData.forEach(r => { 
-        newMissingWni[r.imo_number] = r.missing_report_wni ?? 0 
-        newMissingMariapps[r.imo_number] = r.missing_report_mariapps ?? 0 
+        newMissingWni[r.imo_number] = r.missing_report_wni
+        newMissingMariapps[r.imo_number] = r.missing_report_mariapps
       })
       setMissingMapWni(newMissingWni)
       setMissingMapMariapps(newMissingMariapps)
@@ -393,7 +393,7 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
           <div className="vr2-health-box">
             <div className="vr2-health-title">Vessel Report Health</div>
             <div className="vr2-donut-wrap">
-              <ResponsiveContainer width={130} height={130}>
+              <ResponsiveContainer width={130} height={130} minWidth={1} minHeight={1}>
                 <PieChart>
                   <Pie
                     data={donutData.length ? donutData : [{ name:'No data', value:1, color:'#2d4a6a' }]}
@@ -517,23 +517,29 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
 
                         {/* Missing Report (WNI) — fixed column, not clickable */}
                         <td>
-                          <span className={`disc-count ${(missingMapWni[v.imo_number] ?? 0) > 0 ? 'nonzero' : 'zero'}`}>
-                            {missingMapWni[v.imo_number] ?? 0}
-                          </span>
+                          {missingMapWni[v.imo_number] === null ? '-' : (
+                            <span className={`disc-count ${(missingMapWni[v.imo_number] ?? 0) > 0 ? 'nonzero' : 'zero'}`}>
+                              {missingMapWni[v.imo_number] ?? 0}
+                            </span>
+                          )}
                         </td>
 
                         {/* Missing Report (MariApps) — fixed column, not clickable */}
                         <td>
-                          <span className={`disc-count ${(missingMapMariapps[v.imo_number] ?? 0) > 0 ? 'nonzero' : 'zero'}`}>
-                            {missingMapMariapps[v.imo_number] ?? 0}
-                          </span>
+                          {missingMapMariapps[v.imo_number] === null ? '-' : (
+                            <span className={`disc-count ${(missingMapMariapps[v.imo_number] ?? 0) > 0 ? 'nonzero' : 'zero'}`}>
+                              {missingMapMariapps[v.imo_number] ?? 0}
+                            </span>
+                          )}
                         </td>
 
                         {/* Missing Report (Total) — fixed column, not clickable */}
                         <td>
-                          <span className={`disc-count ${((missingMapWni[v.imo_number] ?? 0) + (missingMapMariapps[v.imo_number] ?? 0)) > 0 ? 'nonzero' : 'zero'}`}>
-                            {(missingMapWni[v.imo_number] ?? 0) + (missingMapMariapps[v.imo_number] ?? 0)}
-                          </span>
+                          {missingMapWni[v.imo_number] === null && missingMapMariapps[v.imo_number] === null ? '-' : (
+                            <span className={`disc-count ${((missingMapWni[v.imo_number] ?? 0) + (missingMapMariapps[v.imo_number] ?? 0)) > 0 ? 'nonzero' : 'zero'}`}>
+                              {(missingMapWni[v.imo_number] ?? 0) + (missingMapMariapps[v.imo_number] ?? 0)}
+                            </span>
+                          )}
                         </td>
 
                         {/* Dynamic saved-scan columns */}

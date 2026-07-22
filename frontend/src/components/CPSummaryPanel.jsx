@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Download, Loader2 } from 'lucide-react'
 import { fetchCPPerformance } from '../api/vesselApi'
+import { generateVoyagePdf } from '../utils/voyagePdfExport'
 import './CPSummaryPanel.css'
 
 const fmt = (v, d = 2) =>
@@ -22,10 +24,11 @@ function GE({ g, e, d = 2 }) {
   )
 }
 
-export default function CPSummaryPanel({ imo, source, voyages, loadingCond }) {
+export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadingCond }) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState(null)
+  const [pdfLoadingVoyage, setPdfLoadingVoyage] = useState(null)
 
   const rows = data?.results || []
 
@@ -143,7 +146,41 @@ export default function CPSummaryPanel({ imo, source, voyages, loadingCond }) {
                     className={selectedIds.has(rowKey) ? 'selected' : ''}
                     onClick={(e) => handleRowClick(e, rowKey, i)}
                   >
-                    <td className="cp-voyage">{r.voyage_no}</td>
+                    <td className="cp-voyage">
+                      <div className="cp-voyage-dl-wrap">
+                        <button
+                          type="button"
+                          className={`cp-dl-btn ${pdfLoadingVoyage === r.voyage_no ? 'spinning' : ''}`}
+                          onClick={async (e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            if (pdfLoadingVoyage === r.voyage_no) return
+                            setPdfLoadingVoyage(r.voyage_no)
+                            try {
+                              await generateVoyagePdf({
+                                vesselImo: imo,
+                                vesselName: vesselName || '',
+                                voyageNo: r.voyage_no,
+                                voyageNos: [r.voyage_no],
+                                source,
+                                loadingCond,
+                                onProgress: () => {},
+                              })
+                            } catch (_) {
+                              // silent
+                            } finally {
+                              setPdfLoadingVoyage(null)
+                            }
+                          }}
+                          title={`Download PDF for Voyage ${r.voyage_no}`}
+                        >
+                          {pdfLoadingVoyage === r.voyage_no
+                            ? <Loader2 size={12} className="icon-spin" />
+                            : <Download size={12} />}
+                        </button>
+                        <span>{r.voyage_no}</span>
+                      </div>
+                    </td>
                     <td>{(r.loading_cond || '')[0] || '—'}</td>
                     <td>{r.speed_instruction || '—'}</td>
                     <td>{r.segment_no}</td>

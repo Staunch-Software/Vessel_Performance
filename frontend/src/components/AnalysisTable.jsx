@@ -165,7 +165,36 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
       accessorKey: m.db_column,
       header:      headerText,
       size:        m.is_identity ? 110 : 140,
-      cell:        ({ getValue }) => <CellValue val={getValue()} />,
+      cell:        ({ row, getValue }) => {
+        let val = getValue()
+        
+        if (m.db_column === 'VoyageMeta_latitude_operational_LF' && val != null) {
+          const deg = parseFloat(val)
+          if (!isNaN(deg)) {
+            const min = row.original.VoyageMeta_latitude_lat_minutes_operational_LF || 0
+            let dir = row.original.VoyageMeta_latitude_lat_direction_operational_LF || ''
+            if (dir && !isNaN(dir)) {
+                dir = deg >= 0 ? 'N' : 'S'
+            }
+            return <span className="cell-num">{`${Math.abs(deg)}°${Number(min).toFixed(1)}'${dir}`}</span>
+          }
+        }
+        
+        if (m.db_column === 'VoyageMeta_longitude_operational_LF' && val != null) {
+          const deg = parseFloat(val)
+          if (!isNaN(deg)) {
+            const min = row.original.VoyageMeta_longitude_lon_minutes_operational_LF || 0
+            let dir = row.original.VoyageMeta_longitude_lon_direction_operational_LF || ''
+            // Fix MariApps raw data bug where Longitude Direction contains the degree number
+            if (dir && !isNaN(dir)) {
+                dir = deg >= 0 ? 'E' : 'W'
+            }
+            return <span className="cell-num">{`${Math.abs(deg)}°${Number(min).toFixed(1)}'${dir}`}</span>
+          }
+        }
+
+        return <CellValue val={val} />
+      },
     }
   })
 

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { memoryStore } from './utils/memoryStore'
 
-import { Zap, AlertTriangle, FileText, Database, BarChart2, ChevronDown, Users, LogOut, Shield, BookOpen } from 'lucide-react'
+import { Zap, AlertTriangle, FileText, Database, BarChart2, ChevronDown, Users, LogOut, Shield, BookOpen, Map } from 'lucide-react'
 import { queryAnalysis, queryExpandedData, fetchExpandedColumns, fetchUserColumnPrefs, fetchVesselColumnDefaults } from './api/vesselApi'
 import { PERFORMANCE_COLUMNS } from './utils/performanceColumns'
 import TopFilterBar from './components/TopFilterBar'
@@ -16,6 +16,7 @@ import SavedReportsPage from './pages/SavedReportsPage'
 import MDMPage from './pages/MDMPage'
 import SpeedPowerScatter from './components/SpeedPowerScatter'
 import ISO19030Page from './pages/ISO19030Page'
+import FleetStatusPage from './pages/FleetStatusPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -100,11 +101,12 @@ function AvatarMenu({ user, isAdmin, onAdmin, onLogout }) {
 // ── Page tab bar ──────────────────────────────────────────────────────────────
 function PageTabBar({ active, onChange, isAdmin, onLogout, currentUser, onAdmin }) {
   const tabs = [
-    { id: 'reports',  icon: <FileText  size={14} />, label: 'Vessel Reports' },
-    { id: 'logbook',  icon: <BookOpen  size={14} />, label: 'Logbook+'       },
-    { id: 'scan',     icon: <Zap       size={14} />, label: 'Vessel Scan'    },
-    { id: 'mdm',      icon: <Database  size={14} />, label: 'Design Data'    },
-    { id: 'iso',      icon: <BarChart2 size={14} />, label: 'ISO 19030'      },
+    { id: 'reports', icon: <FileText  size={14} />, label: 'Vessel Reports' },
+    { id: 'logbook', icon: <BookOpen  size={14} />, label: 'Logbook+'       },
+    { id: 'scan',    icon: <Zap       size={14} />, label: 'Vessel Scan'    },
+    { id: 'mdm',     icon: <Database  size={14} />, label: 'Design Data'    },
+    { id: 'iso',     icon: <BarChart2 size={14} />, label: 'ISO 19030'      },
+    { id: 'fleet',   icon: <Map       size={14} />, label: 'Fleet Status'   },
   ]
   return (
     <div className="page-tabs">
@@ -347,7 +349,7 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
 
       <div className="table-section">
         {voyageView
-          ? <CPSummaryPanel imo={vesselImo} source={source} voyages={cpVoyages} loadingCond={filtersApplied?.loadingCond} />
+          ? <CPSummaryPanel imo={vesselImo} vesselName={vesselName} source={source} voyages={cpVoyages} loadingCond={filtersApplied?.loadingCond} />
           : loading
             ? <div className="loading-overlay"><div className="spinner" /> Loading reports…</div>
             : <AnalysisTable rows={rows} columnsMeta={columnsMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} />
@@ -465,8 +467,9 @@ function AuthenticatedApp() {
               onNavigateToLogbook={navigateToLogbook}
             />
           )}
-          {page === 'mdm' && <MDMPage />}
-          {page === 'iso' && <ISO19030Page />}
+          {page === 'mdm'   && <MDMPage />}
+          {page === 'iso'   && <ISO19030Page />}
+          {page === 'fleet' && <FleetStatusPage />}
         </>
       )}
     </div>

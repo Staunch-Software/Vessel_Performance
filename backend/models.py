@@ -61,6 +61,16 @@ class RawNoonReport(Base):
     is_duplicate = Column(Boolean, default=False)           
 
 # ============================================================
+# TABLE 3.5: RAW HAR DATA
+# ============================================================
+class RawHarData(Base):
+    __tablename__ = "raw_har_data"
+    id = Column(Integer, primary_key=True)
+    scraped_at = Column(DateTime, default=datetime.utcnow)
+    har_json = Column(JSONB, nullable=False)
+    file_name = Column(String(255))
+
+# ============================================================
 # TABLE 4: NOON REPORT DATA (WNI 160-COLUMN)
 # ============================================================
 class NoonReportData(Base):
@@ -1452,3 +1462,70 @@ class VesselColumnDefault(Base):
     __table_args__ = (
         UniqueConstraint("vessel_imo", "source", name="uq_vessel_col_default_vessel_source"),
     )
+
+# ============================================================
+# TABLE: FLEET STATUS DATA (WNI SSM — live map tracking)
+# ============================================================
+# Populated once per day by scrape_fleet_status() in main_pipeline.py.
+# Stores the latest position, voyage status, and port info for each
+# vessel as scraped from the Weathernews Fleet Status Monitoring page.
+# ============================================================
+class FleetStatusData(Base):
+    __tablename__ = "fleet_status_data"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    vessel_name   = Column(String(255), nullable=False, index=True)
+    imo           = Column(String(20), nullable=True)
+    callsign      = Column(String(50), nullable=True)
+    ship_type     = Column(String(100), nullable=True)
+    flag_code     = Column(String(50), nullable=True)
+
+    # Live position
+    lat           = Column(String(50), nullable=True)   # raw string from WNI e.g. "12.3456"
+    lon           = Column(String(50), nullable=True)
+    speed         = Column(String(50), nullable=True)   # knots
+    heading       = Column(String(50), nullable=True)   # degrees
+    status        = Column(String(100), nullable=True)  # e.g. "Underway", "At Anchor"
+    pos_date      = Column(String(100), nullable=True)  # position timestamp as string from WNI
+
+    # Port info
+    last_port     = Column(String(255), nullable=True)  # departure port (dep_port)
+    etd           = Column(String(100), nullable=True)  # estimated time of departure
+    next_port     = Column(String(255), nullable=True)  # arrival port (arr_port)
+    eta           = Column(String(100), nullable=True)  # estimated time of arrival
+    rta           = Column(String(100), nullable=True)  # required time of arrival
+
+    # Detailed info
+    dwt           = Column(String(100), nullable=True)
+    rep_time      = Column(String(100), nullable=True)
+    rep_type      = Column(String(100), nullable=True)
+    service       = Column(String(100), nullable=True)
+    alert_detail  = Column(TEXT, nullable=True)
+
+    # General Information (Static)
+    build_date     = Column(String(100), nullable=True)
+    length         = Column(String(100), nullable=True)
+    breadth        = Column(String(100), nullable=True)
+    depth          = Column(String(100), nullable=True)
+    draft          = Column(String(100), nullable=True)
+    gross_tonnage  = Column(String(100), nullable=True)
+    engine_builder = Column(String(100), nullable=True)
+    power_mcr      = Column(String(100), nullable=True)
+    rpm_mcr        = Column(String(100), nullable=True)
+    teu            = Column(String(100), nullable=True)
+    email          = Column(String(100), nullable=True)
+    fax            = Column(String(100), nullable=True)
+    phone          = Column(String(100), nullable=True)
+
+    # Logbook+ data
+    voyage_number = Column(String(100), nullable=True)
+
+    # WNI Alert columns (dots on WNI Fleet Status page)
+    port_alert        = Column(String(50), nullable=True)   # port alert indicator
+    coastal_storm     = Column(String(50), nullable=True)   # coastal storm alert
+    ocean_storm       = Column(String(50), nullable=True)   # ocean storm alert
+    tropical_cyclone  = Column(String(50), nullable=True)   # tropical cyclone alert
+    pos_diff          = Column(String(50), nullable=True)   # position difference alert
+    report_missing    = Column(String(50), nullable=True)   # report missing alert
+
+    scraped_at    = Column(DateTime, default=datetime.utcnow, index=True)

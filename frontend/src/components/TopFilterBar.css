@@ -345,7 +345,7 @@
   font-size: 13px;
 }
 
-/* Voyage multi-select */
+/* ── Voyage multi-select ─────────────────────────────────────────── */
 .voyage-multi {
   position: relative;
 }
@@ -363,7 +363,7 @@
   top: calc(100% + 4px);
   left: 0;
   z-index: 60;
-  min-width: 220px;
+  min-width: 240px;
   max-height: 280px;
   overflow-y: auto;
   background: var(--bg-panel);
@@ -373,19 +373,10 @@
   padding: 6px;
 }
 
-.voyage-multi-panel::-webkit-scrollbar {
-  width: 6px;
-}
-.voyage-multi-panel::-webkit-scrollbar-track {
-  background: transparent;
-}
-.voyage-multi-panel::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 4px;
-}
-.voyage-multi-panel::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
-}
+.voyage-multi-panel::-webkit-scrollbar { width: 6px; }
+.voyage-multi-panel::-webkit-scrollbar-track { background: transparent; }
+.voyage-multi-panel::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+.voyage-multi-panel::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
 .voyage-multi-actions {
   display: flex;
@@ -407,6 +398,15 @@
 }
 .voyage-multi-actions button:hover { color: var(--accent-2); border-color: var(--accent-2); }
 
+/* Each voyage row: checkbox label on the left, download icon on the right */
+.voyage-multi-row {
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+.voyage-multi-row:hover { background: var(--bg-table-head); }
+
 .voyage-multi-item {
   display: flex;
   align-items: center;
@@ -417,8 +417,36 @@
   cursor: pointer;
   border-radius: 3px;
 }
-.voyage-multi-item:hover { background: var(--bg-table-head); }
+/* Inside a row div the label suppresses its own hover */
+.voyage-multi-row .voyage-multi-item:hover { background: transparent; }
+.voyage-multi-item--flex { flex: 1; padding-right: 2px; }
+.voyage-multi-label { flex: 1; user-select: none; }
 .voyage-multi-item input[type="checkbox"] { accent-color: var(--accent-2); cursor: pointer; }
+
+/* Download icon button on each voyage row */
+.voyage-row-dl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  margin-right: 4px;
+}
+.voyage-row-dl-btn:hover {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.13);
+}
+.voyage-row-dl-btn.spinning {
+  color: #38bdf8;
+  cursor: default;
+}
 
 .voyage-multi-empty {
   padding: 8px 6px;
@@ -446,11 +474,7 @@
   font-size: 12px;
   transition: background 0.15s, border-color 0.15s;
 }
-
-.radio-option.source-pill input[type="radio"] {
-  display: none;
-}
-
+.radio-option.source-pill input[type="radio"] { display: none; }
 .radio-option.source-pill.active {
   background: var(--accent-2);
   border-color: var(--accent-2);
@@ -479,3 +503,7 @@
 
 .filter-select.admin-active { border: 1px solid #f59e0b !important; color: #f59e0b !important; background-color: rgba(245, 158, 11, 0.1) !important; font-weight: bold; transition: all 0.2s ease; }
 .filter-select.admin-active:focus { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2) !important; }
+
+/* Spin animation (shared with loading icons) */
+.icon-spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

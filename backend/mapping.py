@@ -1,5 +1,6 @@
 import pandas as pd
 import logging
+import re
 from datetime import datetime
 
 log = logging.getLogger(__name__)
@@ -192,6 +193,27 @@ def map_mariapps_to_160(payload, excel_data=None, header_data=None):
     out["lon_degree"]    = val_num(excel, find_key_fuzzy(excel, ["Lon Deg", "Longitude Degree"]))
     out["lon_minutes"]   = val_num(excel, find_key_fuzzy(excel, ["Lon Min", "Longitude Minutes"]))
     out["lon_direction"] = val_str(excel, find_key_fuzzy(excel, ["Lon Dir", "Longitude Direction"]))
+
+    # WNI Fallback: parse raw combined strings like "22 14.5 N" or "22° 14.5' N"
+    raw_lat = val_str(excel, find_key_fuzzy(excel, ["Latitude", "lat_raw"]))
+    if raw_lat and out["lat_degree"] is None:
+        m = re.search(r'(\d+)[^\d]+(\d+(?:\.\d+)?)[^\w]*([NS])', str(raw_lat).upper())
+        if m:
+            out["lat_degree"], out["lat_minutes"], out["lat_direction"] = float(m.group(1)), float(m.group(2)), m.group(3)
+        else:
+            m2 = re.search(r'(\d+(?:\.\d+)?)[^\w]*([NS])', str(raw_lat).upper())
+            if m2:
+                out["lat_degree"], out["lat_minutes"], out["lat_direction"] = float(m2.group(1)), 0.0, m2.group(2)
+
+    raw_lon = val_str(excel, find_key_fuzzy(excel, ["Longitude", "lon_raw"]))
+    if raw_lon and out["lon_degree"] is None:
+        m = re.search(r'(\d+)[^\d]+(\d+(?:\.\d+)?)[^\w]*([EW])', str(raw_lon).upper())
+        if m:
+            out["lon_degree"], out["lon_minutes"], out["lon_direction"] = float(m.group(1)), float(m.group(2)), m.group(3)
+        else:
+            m2 = re.search(r'(\d+(?:\.\d+)?)[^\w]*([EW])', str(raw_lon).upper())
+            if m2:
+                out["lon_degree"], out["lon_minutes"], out["lon_direction"] = float(m2.group(1)), 0.0, m2.group(2)
 
     # --- CARGO & DRAFT ---
     out["cargo_on_board"]        = val_num(excel, find_key_fuzzy(excel, ["Cargo On Board", "Cargo"]))

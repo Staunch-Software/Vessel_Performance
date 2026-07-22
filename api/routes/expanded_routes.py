@@ -211,7 +211,23 @@ def query_mariapps(
         if not meta:
             return []
 
-        cols = [m.db_column for m in meta]
+        # Ensure coordinate columns are available for frontend formatting
+        actual_cols = {
+            r[0] for r in db.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'expanded_mariapps_data'"
+            )).fetchall()
+        }
+        cols = [m.db_column for m in meta if m.db_column in actual_cols]
+        for c in [
+            "VoyageMeta_latitude_lat_minutes_operational_LF",
+            "VoyageMeta_latitude_lat_direction_operational_LF",
+            "VoyageMeta_longitude_lon_minutes_operational_LF",
+            "VoyageMeta_longitude_lon_direction_operational_LF"
+        ]:
+            if c in actual_cols and c not in cols:
+                cols.append(c)
+
         sql, params = _build_query(
             table="expanded_mariapps_data",
             date_col="log_date",
@@ -267,6 +283,15 @@ def query_wni(
 
         # Only select columns that actually exist in the table
         cols = [m.db_column for m in meta if m.db_column in actual_cols]
+        for c in [
+            "VoyageMeta_latitude_lat_minutes_operational_LF",
+            "VoyageMeta_latitude_lat_direction_operational_LF",
+            "VoyageMeta_longitude_lon_minutes_operational_LF",
+            "VoyageMeta_longitude_lon_direction_operational_LF"
+        ]:
+            if c in actual_cols and c not in cols:
+                cols.append(c)
+
         sql, params = _build_query(
             table="expanded_wni_data",
             date_col="date",

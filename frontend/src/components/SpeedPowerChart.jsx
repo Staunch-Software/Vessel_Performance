@@ -38,7 +38,7 @@ export default function SpeedPowerChart({ rows }) {
   if (!data.length) return null
 
   return (
-    <ResponsiveContainer width="100%" height={190}>
+    <ResponsiveContainer width="100%" height={190} minWidth={1} minHeight={1}>
       <ComposedChart data={data} margin={{ top: 4, right: 48, left: -10, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#2d4a6a" vertical={false} />
         <XAxis

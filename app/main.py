@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from fastapi import FastAPI, Depends, HTTPException, APIRouter
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
@@ -218,12 +219,57 @@ async def lifespan(app: FastAPI):
     # NOTE: You might want to run your historical importers (like import_history.py) 
     # here if you want them to run once upon application start, but typically 
     # importers are run as separate cron jobs or CLI commands.
+
+    # 6. Start Fleet Status background scheduler
+    threading.Thread(target=_fleet_status_scheduler, daemon=True).start()
     
     yield
     
     # --- SHUTDOWN EVENT ---
     log.info("🛑 FastAPI Application Shutdown")
+    # Signal the fleet-status scheduler to stop sleeping
+    _fleet_stop_event.set()
     # Clean up resources if necessary (e.g., closing Playwright browser instances if they were global)
+
+
+# ============================================================
+# FLEET STATUS BACKGROUND SCHEDULER
+# ============================================================
+
+_fleet_stop_event = threading.Event()
+
+def _fleet_status_scheduler():
+    """
+    Daemon thread: runs run_fleet_status_only() once immediately on startup,
+    then repeats every FLEET_STATUS_INTERVAL_MINUTES minutes.
+    Set FLEET_STATUS_INTERVAL_MINUTES=0 in .env to disable.
+    """
+    import time
+    _log = logging.getLogger("fleet_scheduler")
+
+    interval_minutes = int(os.getenv("FLEET_STATUS_INTERVAL_MINUTES", "30"))
+    if interval_minutes <= 0:
+        _log.info("[FLEET_SCHED]  Disabled (FLEET_STATUS_INTERVAL_MINUTES=0)")
+        return
+
+    _log.info(f"[FLEET_SCHED]  Scheduler started — interval={interval_minutes}min")
+
+    while not _fleet_stop_event.is_set():
+        try:
+            from backend.pipeline.main_pipeline import run_fleet_status_only
+            _log.info("[FLEET_SCHED]  Triggering fleet status scrape ...")
+            run_fleet_status_only()
+            _log.info("[FLEET_SCHED]  Scrape done. Next run in %d minutes.", interval_minutes)
+        except Exception as e:
+            _log.error(f"[FLEET_SCHED]  Scrape error: {e}", exc_info=True)
+
+        # Sleep in small chunks so shutdown signal is detected quickly
+        for _ in range(interval_minutes * 60):
+            if _fleet_stop_event.is_set():
+                break
+            time.sleep(1)
+
+    _log.info("[FLEET_SCHED]  Scheduler stopped.")
 
 
 # --- FastAPI Application Setup ---

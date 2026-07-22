@@ -130,7 +130,7 @@ function ISOSpeedLossChart({ rows, events = [] }) {
         </span>
       </div>
       <div style={{ height:280 }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
           <ComposedChart margin={{ top:12, right:24, bottom:40, left:48 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(45,74,106,.35)" />
             <XAxis dataKey="x" type="number" scale="time"

@@ -173,7 +173,7 @@ export default function SpeedPowerScatter({ vesselImo }) {
 
       {/* ── Chart ── */}
       <div style={{ flex: 1, minHeight: 0 }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
           <ComposedChart margin={{ top: 12, right: 24, bottom: 24, left: 56 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(45,74,106,0.35)" />
 

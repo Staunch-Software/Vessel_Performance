@@ -363,47 +363,71 @@ async def query_analysis_data(filters: dict, db: Session = Depends(get_db)):
     
 @router.get("/voyage/series")
 def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get_db)):
-    results = db.query(AnalysisData).filter(
+    results = db.query(
+        AnalysisData,
+        NoonReportData,
+        MariAppsReportData
+    ).outerjoin(
+        NoonReportData, AnalysisData.raw_report_id == NoonReportData.raw_report_id
+    ).outerjoin(
+        MariAppsReportData, AnalysisData.raw_mariapps_id == MariAppsReportData.raw_report_id
+    ).filter(
         AnalysisData.Voyage_No == str(voyage_no),
         AnalysisData.vessel_imo == str(vessel_imo)
     ).order_by(AnalysisData.Date.asc()).all()
     
-    return [
-        {
-            "Date": r.Date.isoformat() if r.Date else None,
-            "Voyage_No": r.Voyage_No,
-            "Loading_Cond": r.Loading_Cond,
-            "From_Port": r.From_Port,
-            "To_Port": r.To_Port,
-            "STW_kn": r.STW_kn,
-            "SOG_kn": r.SOG_kn,
-            "ME_FOC_MT": r.ME_FOC_MT,
-            "AE_FOC_MT": r.AE_FOC_MT,
-            "Shaft_Power_kW": r.Shaft_Power_kW,
-            "Shaft_RPM": r.Shaft_RPM,
-            "SFOC_gkWh": r.SFOC_gkWh,
-            "True_Wind_Spd_ms": r.True_Wind_Spd_ms,
-            "Sig_Wave_Ht_m": r.Sig_Wave_Ht_m,
-            "Swell_Ht_m": r.Swell_Ht_m,
-            "Current_Spd_kn": r.Current_Spd_kn,
-            "Mean_Draft_m": r.Mean_Draft_m,
-            "Trim_m": r.Trim_m,
-            "Displacement_MT": r.Displacement_MT,
-            "VTI": r.VTI,
-            "Speed_Loss_pct": r.Speed_Loss_pct,
-            "Water_Temp_C": r.Water_Temp_C,
-            "Power_Dev_pct": r.Power_Dev_pct,
-            "Distance_nm": r.Distance_nm,
-            "Duration_h": r.Duration_h,
-            "apparent_slip": getattr(r, 'apparent_slip', None),
-            "real_slip": getattr(r, 'real_slip', None),
-            "co2_emitted": getattr(r, 'co2_emitted', None),
-            "eeoi": getattr(r, 'eeoi', None),
-            "a_e_iso_sfoc": getattr(r, 'a_e_iso_sfoc', None),
-        }
+    out = []
+    for row in results:
+        ad = row[0]
+        noon = row[1]
+        mariapps = row[2]
         
-    for r in results
-    ]
+        # Determine the source model to fetch lat/lon and event_type
+        source_model = noon if noon else (mariapps if mariapps else None)
+        
+        out.append({
+            "Date": ad.Date.isoformat() if ad.Date else None,
+            "Voyage_No": ad.Voyage_No,
+            "Loading_Cond": ad.Loading_Cond,
+            "From_Port": ad.From_Port,
+            "To_Port": ad.To_Port,
+            "STW_kn": ad.STW_kn,
+            "SOG_kn": ad.SOG_kn,
+            "ME_FOC_MT": ad.ME_FOC_MT,
+            "AE_FOC_MT": ad.AE_FOC_MT,
+            "Shaft_Power_kW": ad.Shaft_Power_kW,
+            "Shaft_RPM": ad.Shaft_RPM,
+            "SFOC_gkWh": ad.SFOC_gkWh,
+            "True_Wind_Spd_ms": ad.True_Wind_Spd_ms,
+            "True_Wind_Dir_deg": getattr(ad, 'True_Wind_Dir_deg', None),
+            "BF_Wind": getattr(ad, 'BF_Wind', None),
+            "Sig_Wave_Ht_m": ad.Sig_Wave_Ht_m,
+            "Swell_Ht_m": ad.Swell_Ht_m,
+            "Current_Spd_kn": ad.Current_Spd_kn,
+            "Swell_Dir_deg": getattr(ad, 'Swell_Dir_deg', None),
+            "Current_Dir_deg": getattr(ad, 'Current_Dir_deg', None),
+            "Mean_Draft_m": ad.Mean_Draft_m,
+            "Draft_Fwd_m": getattr(ad, 'Draft_Fwd_m', None),
+            "Draft_Aft_m": getattr(ad, 'Draft_Aft_m', None),
+            "Trim_m": ad.Trim_m,
+            "Displacement_MT": ad.Displacement_MT,
+            "VTI": ad.VTI,
+            "Speed_Loss_pct": ad.Speed_Loss_pct,
+            "Water_Temp_C": ad.Water_Temp_C,
+            "Power_Dev_pct": ad.Power_Dev_pct,
+            "Distance_nm": ad.Distance_nm,
+            "Duration_h": getattr(ad, 'Duration_h', None),
+            "event_type": getattr(source_model, 'log_type', getattr(source_model, 'event_type', None)) if source_model else getattr(ad, 'event_type', None),
+            "Boiler_FOC_MT": getattr(ad, 'Boiler_FOC_MT', None),
+            "lat_degree": getattr(source_model, 'lat_degree', None) if source_model else None,
+            "lat_minutes": getattr(source_model, 'lat_minutes', None) if source_model else None,
+            "lat_direction": getattr(source_model, 'lat_direction', None) if source_model else None,
+            "lon_degree": getattr(source_model, 'lon_degree', None) if source_model else None,
+            "lon_minutes": getattr(source_model, 'lon_minutes', None) if source_model else None,
+            "lon_direction": getattr(source_model, 'lon_direction', None) if source_model else None,
+        })
+        
+    return out
 
 # backend/routers/analysis.py
 
@@ -533,6 +557,98 @@ def get_fleet_status(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fleet status error: {e}")
 
+
+# ── FLEET STATUS VOYAGES — latest record per vessel from SSM scrape ───────────
+@router.get("/fleet/voyages")
+def get_fleet_voyages(db: Session = Depends(get_db)):
+    """
+    Returns the most recent fleet status record for each vessel,
+    scraped from the Weathernews SSM (Fleet Status Monitoring) map page.
+    Used by the new FleetStatusPage React component to power the Leaflet map
+    and the data table.
+    """
+    try:
+        from backend.models import FleetStatusData, VesselParticulars
+        from sqlalchemy import func
+
+        # Subquery: latest scraped_at per vessel_name
+        latest_sub = (
+            db.query(
+                FleetStatusData.vessel_name,
+                func.max(FleetStatusData.scraped_at).label("max_scraped")
+            )
+            .group_by(FleetStatusData.vessel_name)
+            .subquery()
+        )
+
+        records = (
+            db.query(FleetStatusData, VesselParticulars)
+            .join(
+                latest_sub,
+                (FleetStatusData.vessel_name == latest_sub.c.vessel_name) &
+                (FleetStatusData.scraped_at  == latest_sub.c.max_scraped)
+            )
+            .outerjoin(
+                VesselParticulars,
+                FleetStatusData.imo == VesselParticulars.vessel_imo
+            )
+            .order_by(FleetStatusData.vessel_name)
+            .all()
+        )
+
+        return [
+            {
+                "vessel_name":      r.FleetStatusData.vessel_name,
+                "imo":              r.FleetStatusData.imo,
+                "callsign":         r.FleetStatusData.callsign,
+                "ship_type":        r.FleetStatusData.ship_type,
+                "lat":              r.FleetStatusData.lat,
+                "lon":              r.FleetStatusData.lon,
+                "speed":            r.FleetStatusData.speed,
+                "heading":          r.FleetStatusData.heading,
+                "status":           r.FleetStatusData.status,
+                "pos_date":         r.FleetStatusData.pos_date,
+                "last_port":        r.FleetStatusData.last_port,
+                "etd":              r.FleetStatusData.etd,
+                "next_port":        r.FleetStatusData.next_port,
+                "eta":              r.FleetStatusData.eta,
+                "voyage_number":    r.FleetStatusData.voyage_number,
+                "port_alert":       r.FleetStatusData.port_alert,
+                "coastal_storm":    r.FleetStatusData.coastal_storm,
+                "ocean_storm":      r.FleetStatusData.ocean_storm,
+                "tropical_cyclone": r.FleetStatusData.tropical_cyclone,
+                "pos_diff":         r.FleetStatusData.pos_diff,
+                "report_missing":   r.FleetStatusData.report_missing,
+                
+                "dwt":              r.VesselParticulars.deadweight if r.VesselParticulars else r.FleetStatusData.dwt,
+                "rep_time":         r.FleetStatusData.rep_time,
+                "rep_type":         r.FleetStatusData.rep_type,
+                "service":          r.FleetStatusData.service,
+                "alert_detail":     r.FleetStatusData.alert_detail,
+                "rta":              r.FleetStatusData.rta,
+                
+                "scraped_at":       r.FleetStatusData.scraped_at.isoformat() if r.FleetStatusData.scraped_at else None,
+                
+                "flag_code":        r.FleetStatusData.flag_code or (r.VesselParticulars.flag if r.VesselParticulars else None),
+                "build_date":       r.FleetStatusData.build_date or (str(r.VesselParticulars.year_built) if (r.VesselParticulars and r.VesselParticulars.year_built) else None),
+                "length":           r.FleetStatusData.length or (round(r.VesselParticulars.length_overall, 2) if (r.VesselParticulars and r.VesselParticulars.length_overall) else None),
+                "breadth":          r.FleetStatusData.breadth or (round(r.VesselParticulars.beam, 2) if (r.VesselParticulars and r.VesselParticulars.beam) else None),
+                "depth":            r.FleetStatusData.depth or (round(r.VesselParticulars.depth_m, 2) if (r.VesselParticulars and r.VesselParticulars.depth_m) else None),
+                "draft":            r.FleetStatusData.draft or (round(r.VesselParticulars.design_draft, 3) if (r.VesselParticulars and r.VesselParticulars.design_draft) else None),
+                "gross_tonnage":    r.FleetStatusData.gross_tonnage or (round(r.VesselParticulars.gross_tonnage, 0) if (r.VesselParticulars and r.VesselParticulars.gross_tonnage) else None),
+                "engine_builder":   r.FleetStatusData.engine_builder or (r.VesselParticulars.me_engine_type if (r.VesselParticulars and r.VesselParticulars.me_engine_type) else None),
+                "power_mcr":        r.FleetStatusData.power_mcr or (round(r.VesselParticulars.me_engine_mcr_kw, 0) if (r.VesselParticulars and r.VesselParticulars.me_engine_mcr_kw) else None),
+                "rpm_mcr":          r.FleetStatusData.rpm_mcr or (round(r.VesselParticulars.me_mcr_rpm, 1) if (r.VesselParticulars and r.VesselParticulars.me_mcr_rpm) else None),
+                "teu":              r.FleetStatusData.teu   or None,
+                "email":            r.FleetStatusData.email or None,
+                "fax":              r.FleetStatusData.fax   or None,
+                "phone":            r.FleetStatusData.phone or None
+            }
+            for r in records
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fleet voyages error: {e}")
+
 # ── VESSEL REPORT HEALTH ─────────────────────────────────────────────────────
 @router.get("/vessel-report")
 def get_vessel_report(year: int = None, ship_group: str = None, db: Session = Depends(get_db)):
@@ -571,7 +687,7 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
             def calc_missing(subset):
                 dates = sorted({r.Date for r in subset if r.Date})
                 if not dates:
-                    return 0
+                    return None
                 first = dates[0]
                 last  = dates[-1]
                 today     = _date.today()
@@ -598,11 +714,15 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
                 return 0
 
             # 1. Missing reports per source
-            records_wni = [r for r in records if r.source_id == "wni"]
-            records_mariapps = [r for r in records if r.source_id == "mari_apps"]
+            missing_report_wni = None
+            if getattr(v, "wni_enabled", False):
+                records_wni = [r for r in records if r.source_id == "wni"]
+                missing_report_wni = calc_missing(records_wni)
             
-            missing_report_wni = calc_missing(records_wni)
-            missing_report_mariapps = calc_missing(records_mariapps)
+            missing_report_mariapps = None
+            if getattr(v, "mari_enabled", False):
+                records_mariapps = [r for r in records if r.source_id == "mari_apps"]
+                missing_report_mariapps = calc_missing(records_mariapps)
 
             # 2. ROB & Consumption — BOTH ME and AE fuel are missing (no fuel data at all)
             rob_consumption = sum(
@@ -635,7 +755,7 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
                 bq = bq.filter(extract("year", DataQualityLog.report_date) == year)
             bunkering = bq.count()
 
-            total_issues = missing_report_wni + missing_report_mariapps + rob_consumption + distance + cargo_weight + bunkering
+            total_issues = (missing_report_wni or 0) + (missing_report_mariapps or 0) + rob_consumption + distance + cargo_weight + bunkering
 
             result.append({
                 "vessel_name":    v.vessel_name,
@@ -962,3 +1082,39 @@ def run_scan(payload: dict, db: Session = Depends(get_db)):
     except Exception as e:
         logging.error("Scan error: %s", e)
         raise HTTPException(status_code=500, detail=f"Scan error: {e}")
+
+
+import os
+import json
+from fastapi.responses import JSONResponse
+
+@router.get("/{vessel_imo}/track")
+def get_vessel_track(vessel_imo: str):
+    """
+    Returns the combined historical track and route GeoJSON files downloaded from Weathernews.
+    """
+    from backend.config import config
+    import os, json
+    
+    track_dir = os.path.join(config.ROOT_DIR, "data", "wni", "tracks")
+    track_path = os.path.join(track_dir, f"{vessel_imo}.geojson")
+    route_path = os.path.join(track_dir, f"{vessel_imo}_route.geojson")
+    
+    features = []
+    
+    for path in [route_path]:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data.get("type") == "FeatureCollection":
+                        features.extend(data.get("features", []))
+                    elif data.get("type") == "Feature":
+                        features.append(data)
+            except Exception:
+                pass
+
+    if not features:
+        raise HTTPException(status_code=404, detail="Track/Route not found for this vessel")
+        
+    return JSONResponse(content={"type": "FeatureCollection", "features": features})

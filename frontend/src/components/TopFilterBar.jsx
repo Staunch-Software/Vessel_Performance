@@ -2,8 +2,9 @@ import { useEffect, useState, useRef } from 'react'
 import { memoryStore } from '../utils/memoryStore'
 
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, Columns, Plus, X, Check, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Columns, Plus, X, Check, Loader2, Download } from 'lucide-react'
 import { fetchVessels, fetchVoyages, addVessel, updateVesselSources } from '../api/vesselApi'
+import { generateVoyagePdf } from '../utils/voyagePdfExport'
 import './TopFilterBar.css'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -145,7 +146,61 @@ function AddVesselModal({ onClose, onAdded }) {
   )
 }
 
+// ── Voyage PDF Download Button ─────────────────────────────────────────────────
+function VoyageDownloadBtn({ vesselImo, vesselName, voyageNos, source, loadingCond }) {
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfMsg,     setPdfMsg]     = useState('')
+  const [pdfError,   setPdfError]   = useState('')
+
+  async function handleDownload() {
+    if (pdfLoading || !voyageNos.length) return
+    setPdfLoading(true)
+    setPdfError('')
+    setPdfMsg('Preparing…')
+    try {
+      const { filename, pages } = await generateVoyagePdf({
+        vesselImo,
+        vesselName,
+        voyageNo:   voyageNos[0],
+        voyageNos,
+        source,
+        loadingCond,
+        onProgress: (msg) => setPdfMsg(msg),
+      })
+      setPdfMsg(`✓ ${filename} (${pages} pages)`)
+      setTimeout(() => { setPdfMsg(''); setPdfLoading(false) }, 4000)
+    } catch (e) {
+      setPdfError('PDF generation failed. ' + (e?.message || ''))
+      setPdfLoading(false)
+      setTimeout(() => setPdfError(''), 5000)
+    }
+  }
+
+  return (
+    <div className="filter-group voyage-dl-group">
+      <span className="filter-label">&nbsp;</span>
+      <div className="voyage-dl-wrap">
+        <button
+          className={`voyage-dl-btn${pdfLoading ? ' loading' : ''}`}
+          onClick={handleDownload}
+          disabled={pdfLoading}
+          title={`Download Voyage Audit PDF for voyage ${voyageNos.join(', ')}`}
+          id="voyage-pdf-download-btn"
+        >
+          {pdfLoading
+            ? <><Loader2 size={13} className="icon-spin" /> {pdfMsg || 'Building PDF…'}</>
+            : <><Download size={13} /> Download PDF</>
+          }
+        </button>
+        {pdfError && <span className="voyage-dl-error">{pdfError}</span>}
+        {!pdfLoading && pdfMsg && <span className="voyage-dl-ok">{pdfMsg}</span>}
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
+
 export default function TopFilterBar({ 
   graphType, 
   onGraphTypeChange, 
@@ -178,6 +233,8 @@ export default function TopFilterBar({
   const [periodPreset, setPreset]     = useState(() => memoryStore.getItem('vp_period_preset') || '3m')     // 1m | 3m | 6m | 1y
   const [customFrom, setCustomFrom]   = useState(() => memoryStore.getItem('vp_custom_from') || '')
   const [customTo, setCustomTo]       = useState(() => memoryStore.getItem('vp_custom_to') || '')
+  // Per-voyage PDF generation loading state (tracks which voyageNo is generating)
+  const [pdfLoadingVoyage, setPdfLoadingVoyage] = useState(null)
 
   useEffect(() => { memoryStore.setItem('vp_display_type', displayType) }, [displayType])
   useEffect(() => { memoryStore.setItem('vp_current_month', currentMonth.toISOString()) }, [currentMonth])
@@ -397,7 +454,7 @@ export default function TopFilterBar({
           </div>
         )}
 
-        {/* Voyage selector — multi-select with checkboxes */}
+        {/* Voyage selector — multi-select with checkboxes + per-row download icon */}
         {displayType === 'voyage' && (
           <div className="filter-group">
             <span className="filter-label">Voyage No</span>
@@ -426,19 +483,22 @@ export default function TopFilterBar({
                   </div>
                   {voyages.length === 0 && <div className="voyage-multi-empty">No voyages</div>}
                   {voyages.map(v => {
-                    const val = String(v)
+                    const val     = String(v)
                     const checked = selectedVoyages.includes(val)
+
                     return (
-                      <label key={val} className="voyage-multi-item">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => setSelVoyages(prev =>
-                            prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]
-                          )}
-                        />
-                        {val}
-                      </label>
+                      <div key={val} className="voyage-multi-row">
+                        <label className="voyage-multi-item voyage-multi-item--flex">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setSelVoyages(prev =>
+                              prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]
+                            )}
+                          />
+                          <span className="voyage-multi-label">{val}</span>
+                        </label>
+                      </div>
                     )
                   })}
                 </div>,

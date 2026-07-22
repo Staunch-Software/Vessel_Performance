@@ -63,7 +63,7 @@ def init_db():
                 db.add(s)
         
         db.commit()
-        print("✅ Database Initialized with Providers.")
+        print("Database Initialized with Providers.")
 
         # ── Seed default admin user if no users exist ──────────────────
         # Imported here to avoid circular imports at module load time.

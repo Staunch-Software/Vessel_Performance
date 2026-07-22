@@ -142,7 +142,7 @@ export default function VesselReportPage() {
           <div className="vr-health-box">
             <div className="vr-health-title">Vessel Report Health</div>
             <div className="vr-donut-wrap">
-              <ResponsiveContainer width={130} height={130}>
+              <ResponsiveContainer width={130} height={130} minWidth={1} minHeight={1}>
                 <PieChart>
                   <Pie
                     data={donutData.length ? donutData : [{ name:'No data', value:1, color:'#2d4a6a' }]}
@@ -257,9 +257,9 @@ export default function VesselReportPage() {
                       </td>
 
                       {/* Discrepancy columns */}
-                      <td><span className={discClass(r.missing_report_wni)}>{r.missing_report_wni ?? 0}</span></td>
-                      <td><span className={discClass(r.missing_report_mariapps)}>{r.missing_report_mariapps ?? 0}</span></td>
-                      <td><span className={discClass((r.missing_report_wni ?? 0) + (r.missing_report_mariapps ?? 0))}>{(r.missing_report_wni ?? 0) + (r.missing_report_mariapps ?? 0)}</span></td>
+                      <td>{r.missing_report_wni === null ? '-' : <span className={discClass(r.missing_report_wni)}>{r.missing_report_wni}</span>}</td>
+                      <td>{r.missing_report_mariapps === null ? '-' : <span className={discClass(r.missing_report_mariapps)}>{r.missing_report_mariapps}</span>}</td>
+                      <td>{r.missing_report_wni === null && r.missing_report_mariapps === null ? '-' : <span className={discClass((r.missing_report_wni ?? 0) + (r.missing_report_mariapps ?? 0))}>{(r.missing_report_wni ?? 0) + (r.missing_report_mariapps ?? 0)}</span>}</td>
                       <td><span className={discClass(r.rob_consumption)}>{r.rob_consumption}</span></td>
                       <td><span className={discClass(r.distance)}>{r.distance}</span></td>
                       <td><span className={discClass(r.cargo_weight)}>{r.cargo_weight}</span></td>

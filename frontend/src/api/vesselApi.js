@@ -181,6 +181,21 @@ export async function fetchSpeedPowerISO(imo, loadingCondition = 'all') {
   return data
 }
 
+// ── Voyage Summary & Series (used for PDF export) ────────────────────────────
+export async function fetchVoyageSummary(voyageNo, vesselImo) {
+  const { data } = await api.get('/voyage/summary', {
+    params: { voyage_no: voyageNo, vessel_imo: vesselImo },
+  })
+  return data
+}
+
+export async function fetchVoyageSeries(voyageNo, vesselImo) {
+  const { data } = await api.get('/voyage/series', {
+    params: { voyage_no: voyageNo, vessel_imo: vesselImo },
+  })
+  return Array.isArray(data) ? data : []
+}
+
 // ── Charter-Party (CP) performance config ───────────────────────────────────────
 // Returns { vessel_imo, configs: { Laden: {...}, Ballast: {...} }, _empty }
 export async function fetchCPConfig(imo) {
@@ -266,4 +281,9 @@ export async function saveVesselColumnDefaults(source, vesselImo, columnPrefs) {
 export async function fetchFleetVoyages() {
   const { data } = await api.get('/fleet/voyages')
   return Array.isArray(data) ? data : []
+}
+
+export async function fetchVesselTrack(vesselImo) {
+  const { data } = await api.get(`/${vesselImo}/track`)
+  return data
 }

@@ -1,0 +1,786 @@
+/* ============================================================
+   FleetStatusPage.css — Fleet Status Monitoring
+   Matches the WNI dark navy theme. Includes Alert column dots,
+   grouped column headers, CSV download button, ETA sub-text.
+   ============================================================ */
+
+:root {
+  --wni-bg:        #0d1b2a;
+  --wni-header-bg: #1b263b;
+  --wni-card-bg:   #1b263b;
+  --wni-border:    #415a77;
+  --wni-text:      #ffffff;
+  --wni-muted:     #e0e1dd;
+  --wni-highlight: #00b4d8;
+}
+
+/* ── Page wrapper ─────────────────────────────────────────────── */
+.fsm-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--wni-bg);
+  color: var(--wni-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  overflow: hidden;
+}
+
+/* ── Top bar ──────────────────────────────────────────────────── */
+.fsm-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--wni-header-bg);
+  border-bottom: 2px solid var(--wni-border);
+  padding: 0 16px;
+  height: 52px;
+  flex-shrink: 0;
+}
+
+.fsm-title {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.fsm-subtitle {
+  font-size: 0.72rem;
+  color: var(--wni-highlight);
+  font-weight: 600;
+}
+
+.fsm-spacer { flex: 1; }
+
+.fsm-last-updated {
+  font-size: 0.72rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* ── Source filter buttons ────────────────────────────────────── */
+.fsm-filters {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--wni-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.fsm-filter-btn {
+  background: var(--wni-header-bg);
+  border: none;
+  color: var(--wni-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.3px;
+}
+.fsm-filter-btn:not(:last-child) {
+  border-right: 1px solid var(--wni-border);
+}
+
+.fsm-filter-btn:hover { color: #fff; background: var(--wni-border); }
+.fsm-filter-btn.active { background: var(--wni-highlight) !important; color: #000 !important; }
+
+/* ── CSV download button ──────────────────────────────────────── */
+.fsm-csv-btn {
+  background: transparent;
+  border: 1px solid var(--wni-border);
+  color: var(--wni-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.fsm-csv-btn:hover {
+  background: var(--wni-border);
+  color: #fff;
+}
+
+/* ── Search box ───────────────────────────────────────────────── */
+.fsm-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+}
+
+.fsm-search-icon {
+  position: absolute;
+  left: 9px;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.fsm-search-input {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--wni-border);
+  color: #fff;
+  font-size: 0.78rem;
+  padding: 5px 28px 5px 28px;
+  border-radius: 6px;
+  width: 210px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.fsm-search-input::placeholder { color: #64748b; }
+.fsm-search-input:focus {
+  border-color: var(--wni-highlight);
+  background: rgba(0,180,216,0.06);
+}
+
+.fsm-search-clear {
+  position: absolute;
+  right: 7px;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+.fsm-search-clear:hover { color: #fff; }
+
+/* ── Sortable column headers ──────────────────────────────────── */
+.fsm-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.fsm-sortable:hover {
+  background: rgba(255,255,255,0.08) !important;
+}
+
+/* ── Body ─────────────────────────────────────────────────────── */
+.fsm-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 12px;
+  gap: 12px;
+}
+
+/* ── Map card ─────────────────────────────────────────────────── */
+.fsm-map-card {
+  background: var(--wni-card-bg);
+  border: 1px solid var(--wni-border);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  flex-shrink: 0;
+  height: 320px;
+}
+
+/* Leaflet popup dark theme */
+.leaflet-popup-content-wrapper {
+  background-color: var(--wni-header-bg) !important;
+  color: #fff !important;
+  border: 1px solid var(--wni-border) !important;
+  border-radius: 6px !important;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+}
+
+.leaflet-popup-tip {
+  background-color: var(--wni-header-bg) !important;
+}
+
+/* ── Data table card ──────────────────────────────────────────── */
+.fsm-table-card {
+  background: var(--wni-card-bg);
+  border: 1px solid var(--wni-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.fsm-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.78rem;
+  color: #fff;
+}
+
+/* ── Grouped column headers ───────────────────────────────────── */
+.fsm-table thead th {
+  background: #000;
+  color: #fff;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--wni-border);
+  border-right: 1px solid var(--wni-border);
+  text-align: center;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.fsm-table thead th:last-child { border-right: none; }
+
+/* Vessel column — spans 2 rows */
+.fsm-th-vessel {
+  background: #000 !important;
+  border-right: 2px solid var(--wni-border) !important;
+  border-bottom: 2px solid var(--wni-border) !important;
+  vertical-align: middle !important;
+  min-width: 140px;
+  position: sticky;
+  left: 60px;
+  z-index: 50 !important;
+}
+
+/* "Alert" group header */
+.fsm-th-alert-group {
+  background: #1a0808 !important;
+  color: #f87171 !important;
+  border-right: 2px solid var(--wni-border) !important;
+  border-bottom: 1px solid var(--wni-border) !important;
+  letter-spacing: 1px;
+}
+
+/* "AIS Information" group header */
+.fsm-th-ais-group {
+  background: #080e1a !important;
+  color: var(--wni-highlight) !important;
+  border-bottom: 1px solid var(--wni-border) !important;
+  letter-spacing: 1px;
+}
+
+/* "Report Information" group header */
+.fsm-th-report-group {
+  background: #08101a !important;
+  color: #bae6fd !important;
+  border-right: 2px solid var(--wni-border) !important;
+  border-bottom: 1px solid var(--wni-border) !important;
+  letter-spacing: 1px;
+}
+
+/* "General Information" group header */
+.fsm-th-general-group {
+  background: #0d121c !important;
+  color: #e2e8f0 !important;
+  border-bottom: 1px solid var(--wni-border) !important;
+  letter-spacing: 1px;
+}
+
+/* Row 2: All sub-headers */
+.fsm-table thead tr:nth-child(2) th {
+  top: 37px;
+}
+
+.fsm-th-alert {
+  background: #140606;
+  color: #fca5a5;
+}
+
+.fsm-th-ais {
+  background: #060a14;
+  color: #93c5fd;
+}
+
+.fsm-th-report {
+  background: #040810;
+  color: #7dd3fc;
+}
+
+.fsm-th-general {
+  background: #080a0f;
+  color: #cbd5e1;
+}
+
+/* ── Table body ───────────────────────────────────────────────── */
+.fsm-table tbody td {
+  background: #000;
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--wni-border);
+  border-right: 1px solid var(--wni-border);
+  text-align: center;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.fsm-table tbody td:last-child { border-right: none; }
+.fsm-table tbody tr:last-child td { border-bottom: none; }
+
+.fsm-table tbody tr:hover td {
+  background: #111;
+  cursor: pointer;
+}
+
+/* Vessel name cell */
+.fsm-table tbody td.fsm-vessel-name {
+  font-weight: 700;
+  color: var(--wni-highlight) !important;
+  text-align: left;
+  min-width: 140px;
+  position: sticky;
+  left: 60px;
+  z-index: 40 !important;
+  background: #000;
+}
+
+.fsm-table tbody tr:hover td.fsm-detail-cell,
+.fsm-table tbody tr:hover td.fsm-vessel-name {
+  background: #111 !important;
+}
+
+/* WNI source badge */
+.fsm-source-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #fff;
+  background: #000;
+  border: 1px solid var(--wni-border);
+  padding: 1px 7px;
+  border-radius: 12px;
+  margin-top: 2px;
+  letter-spacing: 0.2px;
+}
+
+/* ── Alert dot — grey = no alert, red = active alert ─────────── */
+.fsm-alert-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.fsm-alert-dot.inactive {
+  background: #374151;
+  border: 1px solid #4b5563;
+}
+
+.fsm-alert-dot.active {
+  background: #ef4444;
+  border: 1px solid #fca5a5;
+  box-shadow: 0 0 6px rgba(239,68,68,0.6);
+}
+
+/* ── Status badge ─────────────────────────────────────────────── */
+.fsm-status {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.fsm-status.underway {
+  background: rgba(0,180,216,0.15);
+  color: var(--wni-highlight);
+  border: 1px solid rgba(0,180,216,0.3);
+}
+
+.fsm-status.anchor {
+  background: rgba(245,158,11,0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245,158,11,0.3);
+}
+
+.fsm-status.port {
+  background: rgba(34,197,94,0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34,197,94,0.3);
+}
+
+/* ETA shown as small sub-text below Next Port */
+.fsm-eta-sub {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* ── Empty / loading states ───────────────────────────────────── */
+.fsm-empty {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.fsm-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+@keyframes fsm-spin {
+  to { transform: rotate(360deg); }
+}
+
+.fsm-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #415a77;
+  border-top-color: var(--wni-highlight);
+  border-radius: 50%;
+  animation: fsm-spin 0.8s linear infinite;
+}
+
+/* -- Modal Overlay --------------------------------------------------------- */
+.fsm-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+/* -- Modal Container ------------------------------------------------------- */
+.fsm-modal {
+  background: #0f172a; /* Slate-900 */
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* -- Modal Header ---------------------------------------------------------- */
+.fsm-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1e293b;
+}
+
+.fsm-modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fsm-modal-status {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.fsm-modal-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.fsm-modal-close:hover {
+  color: #f8fafc;
+}
+
+/* -- Modal Tabs ------------------------------------------------------------ */
+.fsm-modal-tabs {
+  display: flex;
+  border-bottom: 1px solid #1e293b;
+  background: #0f172a;
+}
+
+.fsm-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 14px 0;
+  color: #94a3b8;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.fsm-tab-btn:hover {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.fsm-tab-btn.active {
+  color: #38bdf8;
+  border-bottom: 2px solid #38bdf8;
+  background: rgba(56, 189, 248, 0.05);
+}
+
+/* -- Modal Content --------------------------------------------------------- */
+.fsm-modal-content {
+  padding: 24px;
+  background: #0f172a;
+}
+
+.fsm-tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* -- Info Grid ------------------------------------------------------------- */
+.fsm-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+
+.fsm-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fsm-info-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.fsm-info-value {
+  font-size: 1rem;
+  color: #f1f5f9;
+  font-weight: 500;
+}
+
+/* -- Alert Details Box ----------------------------------------------------- */
+.fsm-alert-details-box {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.fsm-alert-details-box h4 {
+  margin: 0 0 8px 0;
+  color: #fca5a5;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fsm-alert-details-box p {
+  margin: 0;
+  color: #fee2e2;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* -- MapLibre Overrides --------------------------------------------------- */
+.maplibregl-popup-content {
+  background: #1e293b;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: #334155;
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: #334155;
+}
+
+/* -- Custom MapLibre Markers ----------------------------------------------- */
+.fsm-vessel-marker {
+}
+
+@keyframes fsm-pulse-alert {
+  0% { filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.4)); }
+  50% { filter: drop-shadow(0 0 12px rgba(239, 68, 68, 1)); }
+  100% { filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.4)); }
+}
+
+.fsm-marker-alert svg {
+  animation: fsm-pulse-alert 1.5s infinite;
+}
+
+.fsm-marker-label {
+  position: absolute;
+  left: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: Inter, sans-serif;
+  text-shadow: 1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Detail column ────────────────────────────────────────────── */
+.fsm-th-detail {
+  background: #000 !important;
+  border-right: 1px solid var(--wni-border) !important;
+  border-bottom: 2px solid var(--wni-border) !important;
+  vertical-align: middle !important;
+  min-width: 60px;
+  width: 60px;
+  box-sizing: border-box;
+  position: sticky;
+  left: 0;
+  z-index: 50 !important;
+}
+
+.fsm-detail-cell {
+  text-align: center !important;
+  padding: 6px 4px !important;
+  min-width: 60px;
+  width: 60px;
+  box-sizing: border-box;
+  position: sticky;
+  left: 0;
+  z-index: 40 !important;
+  background: #000;
+}
+
+.fsm-detail-btn {
+  background: transparent;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.fsm-detail-btn:hover {
+  background: #1e293b;
+  color: var(--wni-highlight);
+  border-color: var(--wni-highlight);
+}
+
+/* ── Selected row highlight ───────────────────────────────────── */
+.fsm-row-selected td {
+  background: #0e2a3d !important;
+  border-bottom-color: var(--wni-highlight) !important;
+}
+
+/* ── Pos.Date and date cells ──────────────────────────────────── */
+.fsm-pos-date,
+.fsm-date-cell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Override MapLibre default popup — dark theme ───────────────── */
+.fsm-vessel-popup {
+  z-index: 9999 !important;
+}
+
+.fsm-vessel-popup .maplibregl-popup-content {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,179,237,0.08);
+  color: #f1f5f9;
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+}
+
+.fsm-vessel-popup .maplibregl-popup-tip {
+  border-top-color: #0f172a;
+}
+
+/* ── Hover popup inner styling ────────────────────────────────── */
+.fsm-popup-inner {
+  min-width: 220px;
+  font-size: 0.79rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+}
+
+.fsm-popup-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #334155;
+  color: #f8fafc;
+}
+
+/* WNI-style popup table: label col left, value col right */
+.fsm-popup-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fsm-popup-table tr td {
+  padding: 3px 0;
+  vertical-align: top;
+  color: #cbd5e1;
+}
+
+.fsm-popup-table tr td:first-child {
+  color: #64748b;
+  padding-right: 14px;
+  white-space: nowrap;
+  width: 90px;
+}
+
+.fsm-popup-table tr td:last-child {
+  color: #f1f5f9;
+  font-weight: 500;
+}
+
+/* ── Modal vessel name / ship type ───────────────────────────── */
+.fsm-modal-vessel-name {
+  margin: 0 0 4px 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.fsm-modal-ship-type {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+/* ── General Information group header (now hidden from table) ── */
+.fsm-th-gen-group {
+  background: #081208 !important;
+  color: #86efac !important;
+  border-bottom: 1px solid var(--wni-border) !important;
+  letter-spacing: 1px;
+}
+
