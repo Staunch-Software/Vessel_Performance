@@ -441,6 +441,8 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
             f => f.geometry && f.geometry.type === 'LineString'
           ),
         }
+        
+        console.log('✅ Track loaded:', data.features.length, 'features total ->', lineOnly.features.length, 'LineStrings rendered.')
 
         if (map.getSource('vessel-track')) {
           map.getSource('vessel-track').setData(lineOnly)
@@ -462,17 +464,27 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
             id:     'vessel-track-future',
             type:   'line',
             source: 'vessel-track',
-            filter: ['any', ['==', ['get', 'routetype'], 'future'], ['==', ['get', 'routetype'], 'intention']],
+            filter: ['==', ['get', 'routetype'], 'future'],
             layout: { 'line-join': 'round', 'line-cap': 'round' },
             paint:  { 'line-color': '#eab308', 'line-width': 2, 'line-dasharray': [4, 4] },
           })
 
-          // Any other route types — orange solid line
+          // Intended route — yellow dashed line
+          map.addLayer({
+            id:     'vessel-track-intention',
+            type:   'line',
+            source: 'vessel-track',
+            filter: ['==', ['get', 'routetype'], 'intention'],
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint:  { 'line-color': '#eab308', 'line-width': 2, 'line-dasharray': [4, 4] },
+          })
+
+          // Any other route types (historical track without routetype) — orange solid line
           map.addLayer({
             id:     'vessel-track-other',
             type:   'line',
             source: 'vessel-track',
-            filter: ['!', ['any', ['==', ['get', 'routetype'], 'actual'], ['==', ['get', 'routetype'], 'future'], ['==', ['get', 'routetype'], 'intention']]],
+            filter: ['!has', 'routetype'],
             layout: { 'line-join': 'round', 'line-cap': 'round' },
             paint:  { 'line-color': '#f97316', 'line-width': 2 },
           })
