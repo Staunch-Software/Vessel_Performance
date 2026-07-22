@@ -462,7 +462,7 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
             id:     'vessel-track-future',
             type:   'line',
             source: 'vessel-track',
-            filter: ['in', ['get', 'routetype'], ['literal', ['future', 'intention']]],
+            filter: ['any', ['==', ['get', 'routetype'], 'future'], ['==', ['get', 'routetype'], 'intention']],
             layout: { 'line-join': 'round', 'line-cap': 'round' },
             paint:  { 'line-color': '#eab308', 'line-width': 2, 'line-dasharray': [4, 4] },
           })
@@ -472,7 +472,7 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
             id:     'vessel-track-other',
             type:   'line',
             source: 'vessel-track',
-            filter: ['!', ['in', ['get', 'routetype'], ['literal', ['actual', 'future', 'intention']]]],
+            filter: ['!', ['any', ['==', ['get', 'routetype'], 'actual'], ['==', ['get', 'routetype'], 'future'], ['==', ['get', 'routetype'], 'intention']]],
             layout: { 'line-join': 'round', 'line-cap': 'round' },
             paint:  { 'line-color': '#f97316', 'line-width': 2 },
           })
