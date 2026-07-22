@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import './FleetStatusPage.css'
-import maplibregl from 'maplibre-gl'
+import maplibregl from 'maplibre-gl/dist/maplibre-gl.js'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { fetchFleetVoyages, fetchVesselTrack } from '../api/vesselApi'
 
