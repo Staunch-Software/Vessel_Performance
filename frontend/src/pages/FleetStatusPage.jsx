@@ -4,13 +4,14 @@
 // Dark-navy MapLibre map + data table with Alert columns, CSV download
 // =============================================================================
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import './FleetStatusPage.css'
 // MapLibre is loaded from CDN in index.html to avoid Vite worker minification bugs (wm is not defined)
 // Do NOT import maplibre-gl here — use window.maplibregl directly
 // Use a getter so it is evaluated lazily (after CDN script has loaded)
 const getMaplibre = () => window.maplibregl
 import { fetchFleetVoyages, fetchVesselTrack } from '../api/vesselApi'
+import { memoryStore } from '../utils/memoryStore'
 
 // ── Helper: clean port name ──────────────────────────────────────────────────
 function cleanPort(str) {
@@ -293,7 +294,7 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
       style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
       center: [55.0, 10.0],
       zoom: 3,
-      minZoom: 2,   // Cannot zoom out beyond world overview
+      minZoom: 1,   // Cannot zoom out beyond world overview
       maxZoom: 10,  // Cannot zoom in beyond city-level detail
       attributionControl: false,
     })
@@ -385,7 +386,8 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
       const posDate    = v.pos_date ? formatDate(v.pos_date) : '-'
       const posStr     = `${formatLat(lat)}, ${formatLon(lon)}`
       const speedStr   = v.speed   != null ? `${formatDecimal(v.speed,   2)} kts`     : '-'
-      const headingStr = v.heading != null ? `${formatDecimal(v.heading, 0)} degrees`  : '-'
+      const fmtHead    = formatDecimal(v.heading, 0)
+      const headingStr = fmtHead !== '-' ? `${String(fmtHead).padStart(3, '0')}°` : '-'
       const pointType  = v.rep_type || 'AIS'
 
       const popupEl = document.createElement('div')
@@ -655,6 +657,35 @@ export default function FleetStatusPage() {
   const [sortCol,        setSortCol]        = useState(null)
   const [sortDir,        setSortDir]        = useState('asc')
 
+  const [topHeight, setTopH]        = useState(() => {
+    const saved = parseInt(memoryStore.getItem('vp_fsm_top_height'), 10)
+    if (saved) return saved
+    // Default to 55% of screen height, but cap it at 700px for very large screens
+    return Math.min(window.innerHeight * 0.55, 700)
+  })
+  const [dragging, setDrag]         = useState(false)
+  const dragStartY                  = useRef(0)
+  const dragStartH                  = useRef(0)
+
+  useEffect(() => { memoryStore.setItem('vp_fsm_top_height', topHeight) }, [topHeight])
+
+  function onDragMouseDown(e) {
+    e.preventDefault()
+    dragStartY.current = e.clientY
+    dragStartH.current = topHeight
+    setDrag(true)
+    function onMove(ev) {
+      setTopH(Math.max(160, Math.min(window.innerHeight - 100, dragStartH.current + (ev.clientY - dragStartY.current))))
+    }
+    function onUp() {
+      setDrag(false)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   const handleSort = (col) => {
     if (sortCol === col) {
       setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -686,8 +717,8 @@ export default function FleetStatusPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Filter by search, then sort
-  const displayedVoyages = (() => {
+  // Filter by search, then sort — memoized so map markers only rebuild when data/search/sort changes
+  const displayedVoyages = useMemo(() => {
     let rows = voyages
     if (search.trim()) {
       const q = search.trim().toLowerCase()
@@ -708,11 +739,13 @@ export default function FleetStatusPage() {
       })
     }
     return rows
-  })()
+  }, [voyages, search, sortCol, sortDir])
 
-  const mappableVessels = displayedVoyages.filter(v =>
-    isFinite(parseFloat(v.lat)) && isFinite(parseFloat(v.lon))
-  )
+  const mappableVessels = useMemo(() =>
+    displayedVoyages.filter(v =>
+      isFinite(parseFloat(v.lat)) && isFinite(parseFloat(v.lon))
+    )
+  , [displayedVoyages])
 
   const handleVesselClick = useCallback((v) => {
     setSelectedVessel(v)
@@ -762,12 +795,16 @@ export default function FleetStatusPage() {
       <div className="fsm-body">
 
         {/* Map */}
-        <div className="fsm-map-card">
+        <div className="fsm-map-card" style={{ height: topHeight }}>
           <MapLibreMap
             vessels={mappableVessels}
             selectedVessel={selectedVessel}
             onVesselClick={handleVesselClick}
           />
+        </div>
+
+        <div className={`fsm-drag-handle${dragging ? ' dragging' : ''}`} onMouseDown={onDragMouseDown} title="Drag to resize">
+          <div className="fsm-drag-handle-grip" />
         </div>
 
         {/* Table */}

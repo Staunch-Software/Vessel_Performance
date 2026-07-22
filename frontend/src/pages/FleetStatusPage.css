@@ -165,9 +165,9 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  overflow: hidden;
+  overflow: visible; /* Allow map popups to overflow below the map card */
   padding: 12px;
-  gap: 12px;
+  gap: 0;
 }
 
 /* ── Map card ─────────────────────────────────────────────────── */
@@ -175,10 +175,15 @@
   background: var(--wni-card-bg);
   border: 1px solid var(--wni-border);
   border-radius: 6px;
-  overflow: hidden;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   flex-shrink: 0;
-  height: 320px;
+  position: relative;
+  z-index: 10; /* Ensure popup renders over table */
+}
+
+/* Ensure map corners stay rounded since overflow: hidden is removed from parent */
+.fsm-map-card .maplibregl-map {
+  border-radius: 5px;
 }
 
 /* Leaflet popup dark theme */
@@ -197,13 +202,15 @@
 
 /* ── Data table card ──────────────────────────────────────────── */
 .fsm-table-card {
-  background: var(--wni-card-bg);
+  background: #000;
   border: 1px solid var(--wni-border);
   border-radius: 6px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   overflow: auto;
   flex: 1;
   min-height: 0;
+  position: relative;
+  z-index: 1; /* below map popups which are z-index: 9999 */
 }
 
 .fsm-table {
@@ -725,7 +732,7 @@
 
 /* ── Hover popup inner styling ────────────────────────────────── */
 .fsm-popup-inner {
-  min-width: 220px;
+  min-width: 260px;
   font-size: 0.79rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
 }
@@ -747,8 +754,9 @@
 
 .fsm-popup-table tr td {
   padding: 3px 0;
-  vertical-align: top;
+  vertical-align: middle;
   color: #cbd5e1;
+  white-space: nowrap;
 }
 
 .fsm-popup-table tr td:first-child {
@@ -782,5 +790,75 @@
   color: #86efac !important;
   border-bottom: 1px solid var(--wni-border) !important;
   letter-spacing: 1px;
+}
+
+/* ── Drag Handle ──────────────────────────────────────────────── */
+.fsm-drag-handle {
+  height: 8px; /* Hit area */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  flex-shrink: 0;
+  margin: 2px 0;
+}
+
+/* The continuous thin line */
+.fsm-drag-handle::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--wni-border);
+  z-index: 1;
+  transition: background 0.15s;
+}
+
+/* The thicker grip bar in the center */
+.fsm-drag-handle-grip {
+  width: 40px;
+  height: 4px;
+  background: #64748b;
+  border-radius: 2px;
+  transition: background 0.15s, transform 0.15s;
+  z-index: 2;
+}
+
+/* Hover effects */
+.fsm-drag-handle:hover .fsm-drag-handle-grip,
+.fsm-drag-handle.dragging .fsm-drag-handle-grip {
+  background: var(--wni-highlight);
+  transform: scaleY(1.2);
+}
+
+.fsm-drag-handle:hover::before,
+.fsm-drag-handle.dragging::before {
+  background: rgba(0, 180, 216, 0.5);
+}
+
+/* ── Media Queries ────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .fsm-topbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 12px;
+  }
+  .fsm-search-input {
+    width: 160px;
+  }
+  .fsm-body {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  .fsm-search-input {
+    width: 140px;
+  }
+  .fsm-title {
+    font-size: 0.9rem;
+  }
 }
 

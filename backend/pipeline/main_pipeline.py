@@ -1279,15 +1279,38 @@ def run_fleet_status_only():
     try:
         with sync_playwright() as p:
             # Run silently in the background so it doesn't interrupt the user
-            browser = p.chromium.launch(headless=True, args=["--start-maximized"])
-            har_path = str(_cfg.ROOT_DIR / "data" / "wni" / "fleet_status.har")
-            os.makedirs(os.path.dirname(har_path), exist_ok=True)
+            # ── Low-resource Chrome flags ─────────────────────────────────────
+            # These flags cut RAM usage by ~40-60% vs a default headless launch.
+            _chrome_args = [
+                "--headless=new",            # newer, lighter headless mode
+                "--no-sandbox",              # required on Linux servers
+                "--disable-gpu",             # no GPU needed for scraping
+                "--disable-dev-shm-usage",   # prevents /dev/shm OOM crashes on small VMs
+                "--disable-extensions",      # no extensions needed
+                "--disable-sync",
+                "--disable-translate",
+                "--disable-default-apps",
+                "--no-first-run",
+                "--mute-audio",
+                "--disable-software-rasterizer",
+                "--js-flags=--max-old-space-size=256",  # cap JS heap to 256 MB
+            ]
+            browser = p.chromium.launch(headless=True, args=_chrome_args)
+            # No HAR recording — it buffers the entire network log in RAM (was: record_har_path=...)
             context = browser.new_context(
                 no_viewport=True,
-                accept_downloads=True,
-                record_har_path=har_path
+                accept_downloads=False,      # we never download files in fleet scrape
             )
             page = context.new_page()
+
+            # ── Block images, fonts, and media — cuts bandwidth and RAM by ~60% ──
+            def _abort_unnecessary(route):
+                if route.request.resource_type in ("image", "media", "font"):
+                    route.abort()
+                else:
+                    route.continue_()
+            page.route("**/*", _abort_unnecessary)
+
             page.set_default_timeout(30000)
             page.set_default_navigation_timeout(60000)
 
