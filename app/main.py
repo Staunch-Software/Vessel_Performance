@@ -237,6 +237,7 @@ async def lifespan(app: FastAPI):
 # ============================================================
 
 _fleet_stop_event = threading.Event()
+_fleet_scheduler_socket = None
 
 def _fleet_status_scheduler():
     """
@@ -245,7 +246,17 @@ def _fleet_status_scheduler():
     Set FLEET_STATUS_INTERVAL_MINUTES=0 in .env to disable.
     """
     import time
+    import socket
     _log = logging.getLogger("fleet_scheduler")
+    
+    # Prevent multiple Gunicorn workers from running this simultaneously
+    global _fleet_scheduler_socket
+    try:
+        _fleet_scheduler_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _fleet_scheduler_socket.bind(("127.0.0.1", 65432))
+    except socket.error:
+        _log.info("[FLEET_SCHED]  Scheduler already running in another worker. Skipping in this process.")
+        return
 
     interval_minutes = int(os.getenv("FLEET_STATUS_INTERVAL_MINUTES", "30"))
     if interval_minutes <= 0:

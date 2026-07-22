@@ -638,7 +638,7 @@ def scrape_fleet_status(page, fleet_json_data, api_headers):
             target_text = f"{vessel.strip().upper()} / {callsign}"
             try:
                 v_input = page.locator("input.simple-typeahead-input")
-                v_input.wait_for(state="visible", timeout=10000)
+                v_input.wait_for(state="visible", timeout=20000)
                 v_input.click(force=True)
                 v_input.fill("")
                 v_input.type(vessel, delay=50)
