@@ -165,7 +165,7 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  overflow: visible; /* Allow map popups to overflow below the map card */
+  overflow: hidden; /* Required for table scroll to work */
   padding: 12px;
   gap: 0;
 }
@@ -178,11 +178,17 @@
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   flex-shrink: 0;
   position: relative;
-  z-index: 10; /* Ensure popup renders over table */
+  z-index: 100; /* High stacking so popup floats above table */
+  overflow: visible; /* Allow popup to extend below card edge */
 }
 
-/* Ensure map corners stay rounded since overflow: hidden is removed from parent */
+/* Map canvas corners stay rounded */
 .fsm-map-card .maplibregl-map {
+  border-radius: 5px;
+}
+
+/* Clip only the map canvas — not the popup overlay */
+.fsm-map-card canvas {
   border-radius: 5px;
 }
 
