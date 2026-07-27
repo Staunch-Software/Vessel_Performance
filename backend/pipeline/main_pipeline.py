@@ -812,7 +812,7 @@ def run():
     # HISTORICAL_START_DATE = datetime(2026, 3, 31)
     # HISTORICAL_START_DATE = datetime(2025, 8, 1)
     # HISTORICAL_START_DATE = datetime(2025, 12, 1)
-    HISTORICAL_START_DATE = datetime(2026, 6, 1)
+    HISTORICAL_START_DATE = datetime(2026, 3, 1)
     end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)   # today (dynamic)
 
     # Build list of (month_start, month_end) tuples from Aug 1 → today
@@ -850,7 +850,8 @@ def run():
         context = browser.new_context(
             no_viewport=True, 
             accept_downloads=True,
-            record_har_path=har_path
+            record_har_path=har_path,
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         page = context.new_page()
 
@@ -1396,4 +1397,4 @@ def handle_wni_response_standalone(response, fleet_json_data):
 
 if __name__ == "__main__":
     run()
-    save_har_to_db()
+    save_har_to_db()
