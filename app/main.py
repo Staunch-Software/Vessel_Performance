@@ -12,6 +12,9 @@ from api.routes.sync_routes import router as sync_router
 from api.routes.cp_routes import router as cp_router
 from api.routes.auth_routes import router as auth_router
 from api.routes.column_pref_routes import router as column_pref_router
+from api.routes.cp_description_routes import router as cp_description_router
+from api.routes.cp_compliance_routes import router as cp_compliance_router
+from api.routes.emission_routes import router as emission_router
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
@@ -318,6 +321,9 @@ app.include_router(sync_router,          prefix="/api/v1")
 app.include_router(cp_router,            prefix="/api/v1")
 app.include_router(auth_router,          prefix="/api/v1")
 app.include_router(column_pref_router,   prefix="/api/v1")
+app.include_router(cp_description_router, prefix="/api/v1")
+app.include_router(cp_compliance_router,  prefix="/api/v1")
+app.include_router(emission_router,       prefix="/api/v1")
 
 
 # --- DEFINE /analysis/query ENDPOINT DIRECTLY HERE ---

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { memoryStore } from './utils/memoryStore'
 
-import { Zap, AlertTriangle, FileText, Database, BarChart2, ChevronDown, Users, LogOut, Shield, BookOpen, Map } from 'lucide-react'
+import { Zap, AlertTriangle, FileText, Database, BarChart2, ChevronDown, Users, LogOut, Shield, BookOpen, Map, ScrollText, Leaf } from 'lucide-react'
 import { queryAnalysis, queryExpandedData, fetchExpandedColumns, fetchUserColumnPrefs, fetchVesselColumnDefaults } from './api/vesselApi'
 import { PERFORMANCE_COLUMNS } from './utils/performanceColumns'
 import TopFilterBar from './components/TopFilterBar'
@@ -17,6 +17,8 @@ import MDMPage from './pages/MDMPage'
 import SpeedPowerScatter from './components/SpeedPowerScatter'
 import ISO19030Page from './pages/ISO19030Page'
 import FleetStatusPage from './pages/FleetStatusPage'
+import CPDescriptionPage from './pages/CPDescriptionPage'
+import EmissionPage from './pages/EmissionPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -107,6 +109,8 @@ function PageTabBar({ active, onChange, isAdmin, onLogout, currentUser, onAdmin 
     { id: 'mdm',     icon: <Database  size={14} />, label: 'Design Data'    },
     { id: 'iso',     icon: <BarChart2 size={14} />, label: 'ISO 19030'      },
     { id: 'fleet',   icon: <Map       size={14} />, label: 'Fleet Status'   },
+    { id: 'cp',      icon: <ScrollText size={14} />, label: 'CP Description' },
+    { id: 'emission', icon: <Leaf size={14} />, label: 'Emission' },
   ]
   return (
     <div className="page-tabs">
@@ -470,6 +474,8 @@ function AuthenticatedApp() {
           {page === 'mdm'   && <MDMPage />}
           {page === 'iso'   && <ISO19030Page />}
           {page === 'fleet' && <FleetStatusPage />}
+          {page === 'cp'    && <CPDescriptionPage />}
+          {page === 'emission' && <EmissionPage />}
         </>
       )}
     </div>

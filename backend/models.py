@@ -1328,6 +1328,142 @@ class VesselCPConfig(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+# ============================================================
+# CHARTER-PARTY DESCRIPTION (CP Description tab) — 4-table model
+# ============================================================
+# Richer, fixture-versioned replacement/complement to VesselCPConfig above.
+# Schema mirrors the client-supplied data model (CP_Description_Consolidated_Fleet_14Vessels.xlsx,
+# sheet "5. CP Format - Data Model"): one header (T1) per CP fixture, with sea-passage (T2),
+# port/anchorage (T3), and warranty-conditions (T4) child records.
+class CPVesselDescription(Base):
+    """T1. CP_VESSEL_DESCRIPTION — header, one record per vessel per fixture."""
+    __tablename__ = 'cp_vessel_description'
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    cp_id       = Column(String(30), unique=True, nullable=False)  # business key: CPD-<IMO>-<rev>
+    vessel_imo  = Column(String(20), ForeignKey('vessels.imo_number', ondelete='CASCADE'), nullable=False)
+    vessel_name = Column(String(100))
+    vessel_type = Column(String(60))
+
+    dwt_summer_mt   = Column(Float)
+    summer_draft_m  = Column(Float)
+    year_built      = Column(Integer)
+    flag_state      = Column(String(40))
+    class_society   = Column(String(40))
+
+    me_make_model  = Column(String(80))
+    me_mcr_kw      = Column(Float)
+    me_mcr_rpm     = Column(Float)
+    me_ncr_kw      = Column(Float)
+    me_ncr_rpm     = Column(Float)
+    me_ncr_pct_mcr = Column(Float)   # calculated: me_ncr_kw / me_mcr_kw * 100
+
+    eexi_compliance_method = Column(String(30))  # EPL / ShaPoLi / Technical Measure / Not Applicable
+    epl_kw         = Column(Float)
+    epl_rpm        = Column(Float)
+    epl_pct_mcr    = Column(Float)   # calculated: epl_kw / me_mcr_kw * 100
+
+    ae_count       = Column(Integer)
+    ae_rated_kw    = Column(Float)
+    boiler_fitted  = Column(Boolean)
+
+    cp_type        = Column(String(30))   # Time Charter / Voyage Charter / COA / Bareboat
+    cp_form        = Column(String(30))   # NYPE 2015 / NYPE 1993 / NYPE 1946 / BALTIME / GENCON / Bespoke
+    charterer_name = Column(String(80))
+    cp_date        = Column(Date)
+    validity_from  = Column(Date)
+    validity_to    = Column(Date)
+    basis_of_figures    = Column(String(40))  # Sea Trial / Model Test / Shop Test / Observed Voyage Performance / Maker Curve
+    last_drydock_date   = Column(Date)
+
+    version_no  = Column(Integer, default=1)
+    doc_status  = Column(String(20), default='Draft')  # Draft / Under Review / Issued / Active / Superseded
+    prepared_by = Column(String(60))
+    approved_by = Column(String(60))
+
+    source_file  = Column(String(255))  # traceability: which template file this was parsed from
+    source_notes = Column(TEXT)         # verbatim "as stated" values / known data-quality caveats
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CPSeaWarranty(Base):
+    """T2. CP_SEA_WARRANTY — child, minimum 4 records per CP description (Ballast/Laden x Eco/Full)."""
+    __tablename__ = 'cp_sea_warranty'
+
+    id    = Column(Integer, primary_key=True, autoincrement=True)
+    cp_id = Column(Integer, ForeignKey('cp_vessel_description.id', ondelete='CASCADE'), nullable=False)
+
+    loading_condition = Column(String(15))  # Ballast / Laden / Part Laden
+    speed_mode        = Column(String(15))  # Eco / Full / Slow / Instructed
+
+    warranted_speed_kn  = Column(Float)
+    speed_tolerance_kn  = Column(Float, default=0.5)
+    me_load_pct         = Column(Float)   # NULL where source had a placeholder (e.g. "(XX-10)%") — see raw_value_notes
+    me_shaft_power_kw   = Column(Float)   # calculated: me_load_pct * me_mcr_kw / 100
+    me_rpm              = Column(Float)   # NULL where source gave a range (e.g. "74-75") — see raw_value_notes
+    me_cons_mt_day      = Column(Float)
+    me_fuel_grade       = Column(String(40))
+    ae_cons_mt_day      = Column(Float)
+    ae_fuel_grade       = Column(String(40))
+    boiler_cons_sea_mt_day = Column(Float, default=0)
+    total_cons_mt_day   = Column(Float)   # calculated: ME + AE + Boiler
+    cons_tolerance_pct  = Column(Float, default=5.0)
+
+    mean_draft_m     = Column(Float)
+    trim_m           = Column(Float)
+    displacement_mt  = Column(Float)
+    about_clause     = Column(Boolean, default=True)
+
+    raw_value_notes = Column(TEXT)  # ambiguous/placeholder source text kept for traceability, not silently dropped
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CPPortWarranty(Base):
+    """T3. CP_PORT_WARRANTY — child, minimum 3 records per CP description (Idle/Loading/Discharging)."""
+    __tablename__ = 'cp_port_warranty'
+
+    id    = Column(Integer, primary_key=True, autoincrement=True)
+    cp_id = Column(Integer, ForeignKey('cp_vessel_description.id', ondelete='CASCADE'), nullable=False)
+
+    port_condition = Column(String(40))  # Idle at Anchorage / Idle at Berth / Loading / Discharging / Cargo Gear in Use / Tank or Hold Cleaning / Manoeuvring
+    ae_cons_mt_day     = Column(Float)
+    boiler_cons_mt_day = Column(Float)
+    total_cons_mt_day  = Column(Float)   # calculated: AE + Boiler
+    fuel_grade         = Column(String(40))
+    cargo_gear_in_use  = Column(Boolean)
+
+    raw_value_notes = Column(TEXT)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CPWarrantyConditions(Base):
+    """T4. CP_WARRANTY_CONDITIONS — one record per CP description (good-weather filter, tolerances, clause basis)."""
+    __tablename__ = 'cp_warranty_conditions'
+
+    id    = Column(Integer, primary_key=True, autoincrement=True)
+    cp_id = Column(Integer, ForeignKey('cp_vessel_description.id', ondelete='CASCADE'), unique=True, nullable=False)
+
+    weather_max_bf            = Column(Integer, default=4)
+    weather_max_douglas       = Column(Integer, default=3)
+    max_swell_m               = Column(Float, default=2.0)
+    adverse_current_excluded  = Column(Boolean, default=True)
+    min_good_weather_hrs      = Column(Integer, default=24)
+    evaluation_basis          = Column(String(40), default='Good Weather Only')  # Good Weather Only / All Weather (Charterer's Router) / Independent Router
+    weather_source            = Column(String(40), default='Vessel Noon Report')
+    hull_prop_clean_months    = Column(Integer, default=6)
+    extra_slip_allowance_pct  = Column(Float)
+    fuel_spec_standard        = Column(String(60), default='ISO 8217 (latest edition)')
+    exclusions                = Column(JSONB)  # list of excluded-period strings, e.g. ["Canal transit", "River & pilotage", ...]
+    clause_basis              = Column(String(200))
+    remarks                   = Column(TEXT)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class VesselBaselineCurve(Base):
     """
     Stores the 4 polynomial speed-power baseline curves per vessel:

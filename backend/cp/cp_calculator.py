@@ -21,6 +21,8 @@ Each row is expected to expose these analysis_data keys (None-safe):
 
 from collections import OrderedDict
 
+from backend.cp.cp_compliance_v2 import _pick_sea_warranty
+
 # Fixed fair-weather definition (WNI charter-party "good weather day")
 FAIR_BF_MAX        = 4.0     # Beaufort wind force
 FAIR_WAVE_MAX_M    = 3.0     # significant wave height (m)
@@ -310,7 +312,17 @@ def _segments(vrows):
 
 
 def compute_cp_voyage_table(rows, cp_by_cond):
-    """Return WNI-style per-segment rows for the selected voyage(s)."""
+    """
+    Return WNI-style per-segment rows for the selected voyage(s).
+
+    `cp_by_cond`: {"Laden": [warranty_dict, ...], "Ballast": [warranty_dict, ...]} —
+    a LIST of candidate warranty records per loading condition (e.g. Eco + Full),
+    not a single fixed dict. Each segment picks whichever candidate's
+    warranted_speed_kn is nearest to its observed speed (see _pick_sea_warranty),
+    so a segment sailed at Full speed is compared against the Full warranty, not
+    forced against a single collapsed figure. Each dict needs: warranted_speed_kn,
+    warranted_fo_mtpd, warranted_dogo_mtpd, speed_tol_kn, cons_tol_pct.
+    """
     by_voyage = OrderedDict()
     for r in rows:
         by_voyage.setdefault(r.get("Voyage_No"), []).append(r)
@@ -327,7 +339,9 @@ def compute_cp_voyage_table(rows, cp_by_cond):
             good_wx = _agg_wni(fair)
 
             cond = _dominant_condition(steaming)
-            cfg  = cp_by_cond.get(cond) or {}
+            candidates = cp_by_cond.get(cond) or []
+            observed_speed_for_match = good_wx["avg_speed_kn"] or entire["avg_speed_kn"]
+            cfg = _pick_sea_warranty(candidates, observed_speed_for_match) or {}
             w_spd  = _num(cfg.get("warranted_speed_kn"))
             w_fo   = _num(cfg.get("warranted_fo_mtpd"))
             w_dogo = _num(cfg.get("warranted_dogo_mtpd"))

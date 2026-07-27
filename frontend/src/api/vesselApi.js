@@ -123,6 +123,48 @@ export async function patchDesignData(imo, payload) {
   return data
 }
 
+// ── Charter-Party Description ─────────────────────────────────────────
+export async function fetchCPDescriptionVessels() {
+  const { data } = await api.get('/cp-description/vessels')
+  return Array.isArray(data) ? data : []
+}
+
+export async function fetchCPDescription(imo) {
+  const { data } = await api.get(`/cp-description/${imo}`)
+  return data
+}
+
+export async function updateCPHeader(imo, payload) {
+  const { data } = await api.patch(`/cp-description/${imo}/header`, payload)
+  return data
+}
+
+export async function replaceCPSeaWarranty(imo, rows) {
+  const { data } = await api.put(`/cp-description/${imo}/sea-warranty`, rows)
+  return data
+}
+
+export async function replaceCPPortWarranty(imo, rows) {
+  const { data } = await api.put(`/cp-description/${imo}/port-warranty`, rows)
+  return data
+}
+
+export async function updateCPConditions(imo, payload) {
+  const { data } = await api.patch(`/cp-description/${imo}/conditions`, payload)
+  return data
+}
+
+// ── Charter-Party Compliance v2 (Phase 3a pilot — see CLAUDE.md) ──────────
+export async function fetchCPCompliancePilotVessels() {
+  const { data } = await api.get('/cp-compliance/pilot-vessels')
+  return Array.isArray(data) ? data : []
+}
+
+export async function fetchCPCompliance(imo, source) {
+  const { data } = await api.get(`/cp-compliance/${imo}`, { params: source ? { source } : {} })
+  return data
+}
+
 export async function fetchSpeedPowerData(imo, loadingCondition = 'all') {
   const { data } = await api.get(`/vessels/${imo}/speed-power-data`, {
     params: { loading_condition: loadingCondition },
@@ -285,5 +327,16 @@ export async function fetchFleetVoyages() {
 
 export async function fetchVesselTrack(vesselImo) {
   const { data } = await api.get(`/${vesselImo}/track`)
+  return data
+}
+
+// ── Emission (AER & CII) ───────────────────────────────────────────────────
+export async function fetchEmissionYears(imo) {
+  const { data } = await api.get(`/emission/${imo}/years`)
+  return Array.isArray(data) ? data : []
+}
+
+export async function fetchEmissionCII(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/cii`, { params: { year, ...(source ? { source } : {}) } })
   return data
 }

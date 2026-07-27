@@ -19,7 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.database import SessionLocal
-from backend.models import Vessel, VesselCPConfig
+from backend.models import Vessel, VesselCPConfig, CPVesselDescription, CPSeaWarranty
 from backend.cp.cp_calculator import compute_cp_voyage_table
 
 log = logging.getLogger(__name__)
@@ -143,6 +143,54 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
     return [dict(m) for m in db.execute(text(sql), params).mappings().all()]
 
 
+# Same FO/DO-GO grade classification convention as import_cp_description.py / cp_compliance_v2.
+def _classify_fuel_grade(grade):
+    if not grade:
+        return None
+    g = grade.upper()
+    if "VLSFO" in g or "HFO" in g or "LFO" in g or "HSFO" in g:
+        return "FO"
+    if "MGO" in g or "MDO" in g or "LDO" in g or "HFHSD" in g or "DMA" in g or "DMB" in g:
+        return "DOGO"
+    return None
+
+
+def _cp_by_cond_from_cp_description(db, imo):
+    """
+    Build {"Laden": [warranty_dict, ...], "Ballast": [...]} from the CP Description
+    tables (cp_sea_warranty), replacing vessel_cp_config as the data source for the
+    Charter-Party Performance table. Each loading condition can have multiple
+    candidate records (Eco + Full) — compute_cp_voyage_table picks the nearest
+    match by observed speed per segment, so a Full-speed voyage is compared
+    against the Full warranty instead of a single collapsed figure.
+    """
+    header = (
+        db.query(CPVesselDescription)
+        .filter(CPVesselDescription.vessel_imo == imo, CPVesselDescription.doc_status == "Active")
+        .order_by(CPVesselDescription.version_no.desc())
+        .first()
+    )
+    if not header:
+        return {}
+
+    sea_rows = db.query(CPSeaWarranty).filter(CPSeaWarranty.cp_id == header.id).all()
+    cp_by_cond = {}
+    for s in sea_rows:
+        me_cls = _classify_fuel_grade(s.me_fuel_grade)
+        ae_cls = _classify_fuel_grade(s.ae_fuel_grade) if s.ae_fuel_grade else me_cls
+        me, ae, boiler = s.me_cons_mt_day or 0, s.ae_cons_mt_day or 0, s.boiler_cons_sea_mt_day or 0
+        fo   = (me if me_cls == "FO"   else 0) + (ae if ae_cls == "FO"   else 0) + boiler
+        dogo = (me if me_cls == "DOGO" else 0) + (ae if ae_cls == "DOGO" else 0)
+        cp_by_cond.setdefault(s.loading_condition, []).append({
+            "warranted_speed_kn":  s.warranted_speed_kn,
+            "warranted_fo_mtpd":   round(fo, 2),
+            "warranted_dogo_mtpd": round(dogo, 2),
+            "speed_tol_kn":        s.speed_tolerance_kn,
+            "cons_tol_pct":        s.cons_tolerance_pct,
+        })
+    return cp_by_cond
+
+
 @router.get("/{imo}/performance")
 def cp_performance(
     imo: str,
@@ -152,8 +200,7 @@ def cp_performance(
     db: Session = Depends(get_db),
 ):
     """WNI-style per-segment CP performance for the selected voyage(s)."""
-    cp_rows = db.query(VesselCPConfig).filter(VesselCPConfig.vessel_imo == imo).all()
-    cp_by_cond = {r.loading_cond: _config_to_dict(r) for r in cp_rows}
+    cp_by_cond = _cp_by_cond_from_cp_description(db, imo)
 
     vlist = [v.strip() for v in voyages.split(",")] if voyages else None
     vlist = [v for v in vlist if v] if vlist else None

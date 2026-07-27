@@ -27,8 +27,14 @@
 .cp-panel-msg.cp-err  { color: #f87171; }
 .cp-panel-msg.cp-warn { color: #fbbf24; }
 
-/* Fill the panel (full width + remaining height) and scroll internally (both axes) */
-.cp-table-wrap { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 0; overflow: auto; }
+/* Fills the remaining height of .cpp-panel and scrolls internally — the ONE scroll
+   region for both the CP table and the compliance section stacked below it, so a
+   sibling block doesn't fight the table for flex space (see CPComplianceSection). */
+.cpp-scroll-area { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 0; overflow: auto; }
+
+/* Sized to its own content — no longer the flex-grow/shrink scroll owner itself,
+   .cpp-scroll-area is. Keeps horizontal scroll for the wide table. */
+.cp-table-wrap { flex-shrink: 0; width: 100%; min-width: 0; overflow-x: auto; }
 
 .cp-table {
   border-collapse: collapse;
