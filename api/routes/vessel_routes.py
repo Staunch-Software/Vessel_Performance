@@ -702,11 +702,8 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
                     year_end = _date(year, 12, 31)
                     if upper > year_end:
                         upper = year_end
-                    
-                    # Force the start of the range to Jan 1 of the selected year
-                    year_start = _date(year, 1, 1)
-                    if first > year_start:
-                        first = year_start
+                    # The start of the range is intentionally kept as the vessel's actual first report date
+                    # (we no longer force it to Jan 1st)
 
                 if upper >= first:
                     expected = (upper - first).days + 1
