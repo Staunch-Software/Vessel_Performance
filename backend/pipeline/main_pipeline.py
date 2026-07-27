@@ -1007,10 +1007,6 @@ def run():
         # from Logbook+. Saves to fleet_status_data table.
         scrape_fleet_status(page, fleet_json_data, api_headers)
         log.info("[FLEET]    Fleet Status scrape complete.")
-        
-        # --- USER REQUEST: Run ONLY fleet status scrape ---
-        log.info("Stopping pipeline early to only run Fleet Status scrape.")
-        return
 
         # Navigate back to Logbook+ for the normal CSV downloads
         page.wait_for_selector("a", timeout=20000)
