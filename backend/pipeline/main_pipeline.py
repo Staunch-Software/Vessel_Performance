@@ -843,7 +843,7 @@ def run():
     # ============================================================
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+        browser = p.chromium.launch(headless=True, args=["--start-maximized", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"])
         from ..config import config as _cfg
         har_path = str(_cfg.ROOT_DIR / "data" / "wni" / "fleet_status.har")
         os.makedirs(os.path.dirname(har_path), exist_ok=True)
