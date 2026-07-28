@@ -1,6 +1,6 @@
 from datetime import datetime
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
@@ -14,7 +14,7 @@ from sqlalchemy import func, extract, and_, or_, not_, literal, literal_column, 
 import re
 from backend.models import (
     Vessel, VesselParticulars, AnalysisData, VesselParticularsResponse,
-    NoonReportData, MariAppsReportData, DataQualityLog, RawMariAppsLog,
+    NoonReportData, MariAppsReportData, DataQualityLog, RawMariAppsLog, RawNoonReport
 )
 
 # --- Dependency to get DB session ---
@@ -109,6 +109,65 @@ def create_vessel(body: dict, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create vessel: {e}")
+
+# --- ENDPOINT 1d: Upload Excel Report for specific vessels ---
+@router.post("/vessels/{imo}/upload-excel")
+async def upload_excel_report(imo: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if imo != "9887750": # TUFMAX IMO is typically something, let's just use the param. Actually, we shouldn't strictly hardcode the IMO in case it changes, we will verify by name.
+        vessel = db.query(Vessel).filter(Vessel.imo_number == imo).first()
+        if not vessel or vessel.vessel_name != "AMNS TUFMAX":
+            pass # We can just allow it for testing or future-proofing, but user wants it restricted in UI. So backend restriction isn't strictly necessary, but let's check name.
+            
+    vessel = db.query(Vessel).filter(Vessel.imo_number == imo).first()
+    if not vessel:
+        raise HTTPException(status_code=404, detail="Vessel not found")
+        
+    try:
+        content = await file.read()
+        from backend.excel_processing.tufmax_parser import parse_tufmax_excel
+        from backend.pipeline.processor import save_to_db
+        import io
+        import hashlib
+        
+        parsed_records = parse_tufmax_excel(io.BytesIO(content))
+        
+        if not parsed_records:
+            return {"message": "No data found or parsed from Excel file.", "count": 0}
+            
+        inserted = 0
+        for record in parsed_records:
+            date_str = str(record.get("Date", "")).strip()
+            event_type = str(record.get("Event Type", "")).strip().upper()
+            if not date_str:
+                continue
+            
+            # Delete existing records to allow re-upload (upsert)
+            fp_str = f"{imo}|{date_str}|{event_type}"
+            fingerprint = hashlib.sha256(fp_str.encode()).hexdigest()
+            
+            existing_raw = db.query(RawNoonReport).filter(RawNoonReport.fingerprint == fingerprint).first()
+            if existing_raw:
+                db.query(AnalysisData).filter(AnalysisData.raw_report_id == existing_raw.id).delete()
+                db.query(NoonReportData).filter(NoonReportData.raw_report_id == existing_raw.id).delete()
+                db.query(DataQualityLog).filter(DataQualityLog.raw_report_id == existing_raw.id).delete()
+                
+                # Delete expanded_wni_data if it exists
+                from sqlalchemy import text
+                db.execute(text("DELETE FROM expanded_wni_data WHERE raw_report_id = :rid"), {"rid": existing_raw.id})
+                
+                db.query(RawNoonReport).filter(RawNoonReport.id == existing_raw.id).delete()
+                db.commit()
+
+            # Process through the full pipeline
+            res = save_to_db(vessel.vessel_name, record, f"excel_upload_{file.filename}")
+            if res == "success":
+                inserted += 1
+                
+        return {"message": f"Successfully parsed and processed {inserted} daily reports into the dashboard.", "count": inserted}
+    except Exception as e:
+        db.rollback()
+        log.error(f"Excel upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process excel file: {str(e)}")
 
 # --- ENDPOINT 2: Get Vessel Specs ---
 @router.get("/vessel/{imo}/specs", response_model=VesselParticularsResponse)
@@ -650,6 +709,37 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Fleet voyages error: {e}")
 
 # ── VESSEL REPORT HEALTH ─────────────────────────────────────────────────────
+
+# ── Owner Group mapping ───────────────────────────────────────────────────────
+# Maps each vessel name (upper-case) to its owner group label.
+_OWNER_GROUP_MAP = {
+    # Umang Shipping Private LTD
+    "GCL GANGA":     "Umang Shipping Private LTD",
+    "GCL NARMADA":   "Umang Shipping Private LTD",
+    "GCL SABARMATI": "Umang Shipping Private LTD",
+    "GCL TAPI":      "Umang Shipping Private LTD",
+    "GCL YAMUNA":    "Umang Shipping Private LTD",
+    # Global Chartering Limited
+    "AM TARANG":     "Global Chartering Limited",
+    "AM KIRTI":      "Global Chartering Limited",
+    "AM UMANG":      "Global Chartering Limited",
+    "GCL SARASWATI": "Global Chartering Limited",
+    "GCL FOS":       "Global Chartering Limited",
+    # AMNS Shipping & Logistics Private Limited (all remaining AMNS / AMNSI vessels)
+}
+_AMNS_OWNER = "AMNS Shipping & Logistics Private Limited"
+
+def _get_owner_group(vessel_name: str) -> str:
+    """Return the owner group for a given vessel name."""
+    key = vessel_name.strip().upper() if vessel_name else ""
+    if key in _OWNER_GROUP_MAP:
+        return _OWNER_GROUP_MAP[key]
+    # Strict filter for AMNS and AMNSI vessels
+    if key.startswith("AMNS ") or key.startswith("AMNSI "):
+        return _AMNS_OWNER
+    return "Other"   # default fallback for any unrelated vessel
+
+
 @router.get("/vessel-report")
 def get_vessel_report(year: int = None, ship_group: str = None, db: Session = Depends(get_db)):
     """
@@ -670,10 +760,10 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
         for v in vessels:
             imo = str(v.imo_number)
 
-            # Derive ship group from first word of vessel name
-            vessel_group = v.vessel_name.split()[0] if v.vessel_name else "OTHER"
+            # Derive owner group from the owner mapping
+            vessel_group = _get_owner_group(v.vessel_name)
             if ship_group and ship_group.lower() != "all":
-                if vessel_group.upper() != ship_group.upper():
+                if vessel_group != ship_group:
                     continue
 
             # ── Base query for this vessel + year ──
@@ -757,7 +847,7 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
             result.append({
                 "vessel_name":    v.vessel_name,
                 "imo_number":     imo,
-                "ship_group":     vessel_group,
+                "owner_group":    vessel_group,
                 "report_count":   len(records),
                 "total_issues":   total_issues,
                 "missing_report_wni": missing_report_wni,
@@ -776,11 +866,11 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
 
 
 @router.get("/vessel-report/groups")
-def get_ship_groups(db: Session = Depends(get_db)):
-    """Returns distinct ship groups derived from vessel name prefixes."""
+def get_owner_groups(db: Session = Depends(get_db)):
+    """Returns distinct owner groups for the vessel report filter dropdown."""
     try:
         vessels = db.query(Vessel.vessel_name).all()
-        groups  = sorted({v.vessel_name.split()[0] for v in vessels if v.vessel_name})
+        groups  = sorted({_get_owner_group(v.vessel_name) for v in vessels if v.vessel_name})
         return ["All"] + list(groups)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

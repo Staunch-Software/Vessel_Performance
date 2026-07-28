@@ -183,8 +183,8 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
         if (m.db_column === 'VoyageMeta_longitude_operational_LF' && val != null) {
           const deg = parseFloat(val)
           if (!isNaN(deg)) {
-            const min = row.original.VoyageMeta_longitude_lon_minutes_operational_LF || 0
-            let dir = row.original.VoyageMeta_longitude_lon_direction_operational_LF || ''
+            const min = row.original.VoyageMeta_longitude_minutes_operational_LF || row.original.VoyageMeta_longitude_lon_minutes_operational_LF || 0
+            let dir = row.original.VoyageMeta_longitude_direction_operational_LF || row.original.VoyageMeta_longitude_lon_direction_operational_LF || ''
             // Fix MariApps raw data bug where Longitude Direction contains the degree number
             if (dir && !isNaN(dir)) {
                 dir = deg >= 0 ? 'E' : 'W'
@@ -232,28 +232,28 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
-      // 1. Primary sort: local calendar date (log_date is the source-of-truth display date)
+      // 1. Primary sort: local calendar date descending (latest first)
       const dateA = (a.log_date || a.date || '').substring(0, 10)
       const dateB = (b.log_date || b.date || '').substring(0, 10)
-      if (dateA !== dateB) return dateA.localeCompare(dateB)
+      if (dateA !== dateB) return dateB.localeCompare(dateA)
 
-      // 2. Secondary sort: actual UTC datetime from the analysis record.
+      // 2. Secondary sort: actual UTC datetime descending.
       //    `Date` on AnalysisData rows contains the full ISO datetime (e.g. "2026-03-21T03:12:00").
       //    This gives the real recorded chronological order regardless of event type.
       const tsA = a.Date ? new Date(a.Date).getTime() : NaN
       const tsB = b.Date ? new Date(b.Date).getTime() : NaN
       const bothHaveTs = !isNaN(tsA) && !isNaN(tsB)
-      if (bothHaveTs && tsA !== tsB) return tsA - tsB
+      if (bothHaveTs && tsA !== tsB) return tsB - tsA
 
-      // 3. If UTC datetime is identical or missing, fall back to Time_UTC string comparison
+      // 3. If UTC datetime is identical or missing, fall back to Time_UTC string comparison descending
       const timeA = String(a.Time_UTC || a.time_utc || '')
       const timeB = String(b.Time_UTC || b.time_utc || '')
-      if (timeA && timeB && timeA !== timeB) return timeA.localeCompare(timeB)
+      if (timeA && timeB && timeA !== timeB) return timeB.localeCompare(timeA)
 
-      // 4. Last resort: log_number / voyage_no (alphanumeric — later leg numbers sort later)
+      // 4. Last resort: log_number / voyage_no descending
       const numA = String(a.log_number || a.voyage_no || a.Voyage_No || '')
       const numB = String(b.log_number || b.voyage_no || b.Voyage_No || '')
-      return numA.localeCompare(numB)
+      return numB.localeCompare(numA)
     })
   }, [rows])
 

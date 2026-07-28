@@ -143,7 +143,7 @@ async function exportExcel(data) {
     { header: 'Ocean Storm', key: 'ocean_storm', width: 15 },
     { header: 'Tropical Cyclone', key: 'tropical_cyclone', width: 18 },
     { header: 'Pos Diff', key: 'pos_diff', width: 12 },
-    { header: 'Report Missing', key: 'report_missing', width: 16 },
+
     
     // AIS Information (5)
     { header: 'Voyage No.', key: 'voyage_number', width: 14 },
@@ -240,7 +240,7 @@ async function exportExcel(data) {
       ocean_storm: fmtAlert(r.ocean_storm),
       tropical_cyclone: fmtAlert(r.tropical_cyclone),
       pos_diff: fmtAlert(r.pos_diff),
-      report_missing: fmtAlert(r.report_missing),
+
       voyage_number: fmt(r.voyage_number),
       speed: formatDecimal(r.speed, 1),
       heading: formatDecimal(r.heading, 1),
@@ -332,7 +332,7 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
       const vStatus = (v.status || '').toLowerCase()
       const hasAlert = isAlertActive(v.port_alert) || isAlertActive(v.coastal_storm) ||
                        isAlertActive(v.ocean_storm) || isAlertActive(v.tropical_cyclone) ||
-                       isAlertActive(v.pos_diff)    || isAlertActive(v.report_missing)
+                       isAlertActive(v.pos_diff)
 
       let color = '#38bdf8'   // cyan - underway default
       if (hasAlert)                                                       color = '#ef4444'
@@ -616,7 +616,7 @@ function VesselModal({ vessel, onClose }) {
                   ['Ocean Storm',      vessel.ocean_storm],
                   ['Tropical Cyclone', vessel.tropical_cyclone],
                   ['Pos. Difference',  vessel.pos_diff],
-                  ['Report Missing',   vessel.report_missing],
+
                 ].map(([label, val]) => (
                   <div className="fsm-info-item" key={label}>
                     <span className="fsm-info-label">{label}</span>
@@ -823,7 +823,7 @@ export default function FleetStatusPage() {
                   <th rowSpan={2} className="fsm-th-vessel fsm-sortable" onClick={() => handleSort('vessel_name')}>
                     Vessel Name{sortIcon('vessel_name')}
                   </th>
-                  <th colSpan={6} className="fsm-th-alert-group">Alert</th>
+                  <th colSpan={5} className="fsm-th-alert-group">Alert</th>
                   {/* AIS: 5 cols now includes Voyage No. */}
                   <th colSpan={5} className="fsm-th-ais-group">AIS Information</th>
                   <th colSpan={6} className="fsm-th-report-group">Report Information</th>
@@ -836,7 +836,7 @@ export default function FleetStatusPage() {
                   <th className="fsm-th-alert">Ocean Storm</th>
                   <th className="fsm-th-alert">Tropical Cyclone</th>
                   <th className="fsm-th-alert">Pos Diff</th>
-                  <th className="fsm-th-alert">Report Missing</th>
+
                   {/* AIS Information (5) — added Voyage No. */}
                   <th className="fsm-th-ais fsm-sortable" onClick={() => handleSort('voyage_number')}>Voyage No.{sortIcon('voyage_number')}</th>
                   <th className="fsm-th-ais fsm-sortable" onClick={() => handleSort('speed')}>Speed (kts){sortIcon('speed')}</th>
@@ -899,7 +899,7 @@ export default function FleetStatusPage() {
                     <td><AlertDot value={v.ocean_storm} /></td>
                     <td><AlertDot value={v.tropical_cyclone} /></td>
                     <td><AlertDot value={v.pos_diff} /></td>
-                    <td><AlertDot value={v.report_missing} /></td>
+
                     {/* AIS Information — Voyage No. first */}
                     <td>{fmt(v.voyage_number)}</td>
                     <td>{formatDecimal(v.speed, 1)}</td>

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { memoryStore } from '../utils/memoryStore'
 
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, Columns, Plus, X, Check, Loader2, Download } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Columns, Plus, X, Check, Loader2, Download, Upload } from 'lucide-react'
 import { fetchVessels, fetchVoyages, addVessel, updateVesselSources } from '../api/vesselApi'
 import { generateVoyagePdf } from '../utils/voyagePdfExport'
 import './TopFilterBar.css'
@@ -227,6 +227,8 @@ export default function TopFilterBar({
   const voyageBoxRef   = useRef(null)   // trigger wrapper
   const voyagePanelRef = useRef(null)   // portal panel
   const [showAddModal, setShowModal]  = useState(false)
+  
+
   const [loadingCond, setLoadingCond] = useState(() => memoryStore.getItem('vp_loading_cond') || 'all')   // all | Laden | Ballast
   // Period mode (replaces old "All Period")
   const [periodType, setPeriodType]   = useState(() => memoryStore.getItem('vp_period_type') || 'preset') // preset | custom
@@ -317,7 +319,9 @@ export default function TopFilterBar({
     setVoyageOpen(o => !o)
   }
 
-  // Reset loading condition when switching away from voyage mode
+
+
+  // Effect: when dependencies change, update URL query and notify parent
   useEffect(() => {
     if (displayType !== 'voyage') setLoadingCond('all')
   }, [displayType])
@@ -352,6 +356,7 @@ export default function TopFilterBar({
     }
 
     if (source !== 'all') filters.source_id = source
+    
     onFiltersChange(filters)
   }, [selectedVessel, displayType, currentMonth, selectedVoyages, source, loadingCond,
       periodType, periodPreset, customFrom, customTo])
@@ -374,8 +379,12 @@ export default function TopFilterBar({
               className={`filter-select${isAdminMode ? ' admin-active' : ''}`} 
               value={selectedVessel} 
               onChange={e => {
-                setVessel(e.target.value)
-                memoryStore.setItem('vp_last_vessel_logbook', e.target.value)
+                const newImo = e.target.value
+                setVessel(newImo)
+                memoryStore.setItem('vp_last_vessel_logbook', newImo)
+                if (newImo === '9486295') {
+                  onSourceChange('wni')
+                }
               }}>
               {vessels.map(v => <option key={v.imo_number} value={v.imo_number}>{v.vessel_name}</option>)}
             </select>
@@ -530,13 +539,21 @@ export default function TopFilterBar({
         <div className="filter-group">
           <span className="filter-label">Source</span>
           <div className="radio-group">
-            {[['all','All'], ['wni','WNI'], ['mari_apps','MariApps']].map(([val, label]) => (
-              <label key={val} className={`radio-option source-pill${source === val ? ' active' : ''}`}>
-                <input type="radio" name="source" value={val}
-                  checked={source === val} onChange={() => onSourceChange(val)} />
-                {label}
+            {vessels.find(v => v.imo_number === selectedVessel)?.vessel_name === 'AMNS TUFMAX' ? (
+              <label key="excel" className={`radio-option source-pill${source === 'wni' ? ' active' : ''}`}>
+                <input type="radio" name="source" value="wni"
+                  checked={source === 'wni'} onChange={() => onSourceChange('wni')} />
+                Excel
               </label>
-            ))}
+            ) : (
+              [['all','All'], ['wni','WNI'], ['mari_apps','MariApps']].map(([val, label]) => (
+                <label key={val} className={`radio-option source-pill${source === val ? ' active' : ''}`}>
+                  <input type="radio" name="source" value={val}
+                    checked={source === val} onChange={() => onSourceChange(val)} />
+                  {label}
+                </label>
+              ))
+            )}
           </div>
         </div>
 
@@ -568,17 +585,22 @@ export default function TopFilterBar({
 
         <div className="filter-divider" />
 
-        {/* Column picker trigger */}
-        {onColumnsClick && (
-          <button 
-            className="columns-btn" 
-            onClick={() => onColumnsClick(selectedVessel, vessels.find(v=>v.imo_number===selectedVessel)?.vessel_name)} 
-            title="Show/hide columns"
-          >
-            <Columns size={13} />
-            Columns
-          </button>
-        )}
+        {/* Action buttons section */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {/* Column picker trigger */}
+          {onColumnsClick && (
+            <button 
+              className="columns-btn" 
+              onClick={() => onColumnsClick(selectedVessel, vessels.find(v=>v.imo_number===selectedVessel)?.vessel_name)} 
+              title="Show/hide columns"
+            >
+              <Columns size={13} />
+              Columns
+            </button>
+          )}
+
+
+        </div>
 
       </div>
 

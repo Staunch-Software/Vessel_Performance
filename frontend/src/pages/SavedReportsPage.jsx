@@ -345,7 +345,7 @@ export default function SavedReportsPage({ onNavigateToScan, onNavigateToScanFor
       {/* ── Filters ── */}
       <div className="vr2-topbar">
         <div className="vr2-filter-group">
-          <span className="vr2-filter-label">Ship Group</span>
+          <span className="vr2-filter-label">Owner</span>
           <select className="vr2-filter-select" value={shipGroup} onChange={e => setShipGroup(e.target.value)}>
             {groups.map(g => <option key={g} value={g}>{g}</option>)}
           </select>

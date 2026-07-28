@@ -288,6 +288,10 @@
   outline: none;
   cursor: pointer;
   min-width: 120px;
+  max-width: 160px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
   font-family: inherit;
 }
 

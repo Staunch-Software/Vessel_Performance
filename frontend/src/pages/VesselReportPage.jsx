@@ -113,7 +113,7 @@ export default function VesselReportPage() {
       {/* ── Filters ── */}
       <div className="vr-filters">
         <div className="vr-filter-group">
-          <span className="vr-filter-label">Ship Group</span>
+          <span className="vr-filter-label">Owner</span>
           <select className="vr-filter-select" value={shipGroup} onChange={e => setShipGroup(e.target.value)}>
             {groups.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
