@@ -76,7 +76,7 @@ class MariAppsGridExtractor:
         all_log_numbers = {}  # log_number → row_data (de-duplication key)
         last_captured_count = 0
         stale_rounds = 0
-        MAX_STALE_ROUNDS = 10  # stop if no new rows appear after 10 scroll attempts
+        MAX_STALE_ROUNDS = 3  # stop if no new rows appear after 3 scroll attempts
 
         scroll_step = 800  # pixels per scroll step
         current_scroll = 0

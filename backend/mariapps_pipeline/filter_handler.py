@@ -129,13 +129,17 @@ class MariAppsFilterHandler:
             log.info(f"  ↳ Clicked month {month}")
             time.sleep(0.4)
 
-            # STEP 7: Click day
+            # STEP 7: Click day (Exclude days from previous/next month that are grayed out)
             day_str = str(int(day))  # '04' -> '4'
             ok = target.evaluate(js(f"""
-                for (const a of popup.querySelectorAll('a.k-link'))
-                    if (a.innerText.trim() === '{day_str}') {{ a.click(); return true; }}
-                for (const c of popup.querySelectorAll('td[role="gridcell"]'))
-                    if (c.innerText.trim() === '{day_str}') {{ c.click(); return true; }}
+                for (const td of popup.querySelectorAll('td[role="gridcell"]:not(.k-other-month)')) {{
+                    if (td.innerText.trim() === '{day_str}') {{
+                        const link = td.querySelector('a.k-link');
+                        if (link) link.click();
+                        else td.click();
+                        return true;
+                    }}
+                }}
                 return false;
             """))
             if not ok:
