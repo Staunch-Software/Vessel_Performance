@@ -194,6 +194,15 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
           uVis = new Set(defaultCols)
         }
       }
+
+      // ── TUFMAX: always show Tufmax-specific columns when this vessel is selected ──
+      const TUFMAX_IMO = '9486295'
+      if (vesselImo === TUFMAX_IMO) {
+        uVis.add('wni_tufmax_me_ldo_mt')
+        uVis.add('wni_tufmax_ae_hfhsd_mt')
+      }
+      // ────────────────────────────────────────────────────────────────────────────
+
       setUserVisible(uVis)
     })
     return () => { active = false }
