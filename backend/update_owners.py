@@ -31,22 +31,25 @@ def get_owner_group(vessel_name):
     return "Other"
 
 def migrate():
+    # Step 1: Add the column in its own transaction
     with engine.connect() as conn:
-        # 1. Add the column (ignoring error if it already exists)
         try:
             conn.execute(text("ALTER TABLE vessels ADD COLUMN owner_group VARCHAR(255);"))
             conn.commit()
             print("Added owner_group column.")
         except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate column name" in str(e).lower():
-                print("Column owner_group already exists.")
+            conn.rollback()  # MUST rollback before any further queries on this connection
+            if "already exists" in str(e).lower():
+                print("Column owner_group already exists. Skipping ALTER.")
             else:
-                print(f"Error adding column (might already exist): {e}")
+                print(f"Unexpected error adding column: {e}")
+                raise
 
-        # 2. Fetch all vessels and update them
+    # Step 2: Populate owner_group in a fresh connection/transaction
+    with engine.connect() as conn:
         result = conn.execute(text("SELECT imo_number, vessel_name FROM vessels;"))
         vessels = result.fetchall()
-        
+
         for imo_number, vessel_name in vessels:
             owner = get_owner_group(vessel_name)
             conn.execute(
@@ -54,7 +57,7 @@ def migrate():
                 {"owner": owner, "imo": imo_number}
             )
             print(f"Updated {vessel_name} (IMO: {imo_number}) -> {owner}")
-            
+
         conn.commit()
         print("Migration complete!")
 

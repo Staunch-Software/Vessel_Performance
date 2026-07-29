@@ -193,6 +193,11 @@ def map_row(row):
     out["lat_degree"], out["lat_minutes"], out["lat_direction"] = lat_d, lat_m, lat_dir
     out["lon_degree"], out["lon_minutes"], out["lon_direction"] = lon_d, lon_m, lon_dir
 
+    out["eta"] = pd.to_datetime(val_str(row, "ETA"), errors='coerce')
+    out["distance_to_eosp"] = val_num(row, "Distance to EOSP (nm)_Distance to Go")
+    out["anchorage_hours"] = val_num(row, "Hours at Anchoring")
+    out["drifting_hours"] = val_num(row, "Hours at Drifting")
+
     out["speed_og"] = val_num(row, "Speed_Reported Spd. (kts)")
     out["distance_og"] = val_num(row, "Distance (nm)_Reported Distance (nm)")
     out["log_duration"] = val_num(row, "Time Sailed (hrs)")

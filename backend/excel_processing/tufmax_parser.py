@@ -192,48 +192,105 @@ def parse_tufmax_excel(file_content) -> list:
             dest_port = from_to  # "AT CHENNAI", "ENROUTE HAZIRA", etc.
 
         # ── RPM: handle "ENGINE STOPPED" string ──────────────────────────────
-        rpm_raw = get_val("RPM_#1 Engine_12:00 (Today)", c) or get_val("RPM (Daily AVG)", c)
+        rpm_raw = get_val("RPM (Daily AVG)", c) or get_val("RPM", c)
         try:
             rpm = float(rpm_raw)
         except (TypeError, ValueError):
             rpm = 0.0  # ENGINE STOPPED or non-numeric
 
-        # ── Shaft Power ───────────────────────────────────────────────────────
-        shaft_power = get_num("Shaft Power (#1+#2)", c, 0)
-        if shaft_power == 0:
-            shaft_power = get_num("Shaft Power_#1 Engine_12:00 (Today)", c, 0)
+        # ── Shaft Power (Issue 8): Read from #1 Engine row (row 88) ──────────
+        # Row 88 = Shaft Power #1 Engine; Row 90 = Shaft Power (#1+#2) combined
+        def get_shaft_power_by_row(col_idx):
+            # Try combined first (row 90), then #1 Engine (row 88)
+            for row_idx in [90, 88]:
+                try:
+                    val = df.iloc[row_idx, col_idx]
+                    if not pd.isna(val) and str(val).strip() not in ['', 'nan']:
+                        return float(val)
+                except (TypeError, ValueError, IndexError):
+                    pass
+            return 0.0
+        shaft_power = get_shaft_power_by_row(c)
+
+        # ── ETA (Issue 2): Row 44 = ETA (Date & Time / Local Time) ───────────
+        eta_raw = get_val("ETA (Date & Time / Local Time)", c, None)
+        eta_str = ""
+        if eta_raw is not None:
+            if isinstance(eta_raw, datetime):
+                eta_str = eta_raw.strftime("%Y-%m-%d %H:%M")
+            else:
+                eta_str = str(eta_raw).strip()
+
+        # ── Distance to Go (Issue 3): Row 45 ─────────────────────────────────
+        distance_to_go = get_num("Distance to Go", c, 0)
+
+        # ── Anchorage Hours (Issue 4): Row 57 ────────────────────────────────
+        hours_at_anchor = get_num("Hours at Anchoring", c, 0)
+
+        # ── Drifting Hours (Issue 5): Row 62 ─────────────────────────────────
+        hours_at_drifting = get_num("Hours at Drifting", c, 0)
+
+        # ── Relative Wind Speed/Dir (Issue 6): Rows 68, 71 ───────────────────
+        rel_wind_speed = get_num("Relative Wind Speed", c, 0)
+        rel_wind_dir   = get_num("Relative Wind Direction", c, 0)
 
         # ── Fuel: TUFMAX uses LDO (ME) and HFHSD (AE/GE) ────────────────────
-        # ME fuel = LDO (stored as MDO/distillate in the DB)
-        me_ldo = get_num("Main Engine Consumption  (LDO) in Kilo Litres", c, 0)
+        # The fuel table spans rows 100-134 with labels in columns 2,3,4.
+        # Column 2 has the main section header (only on first row of section).
+        # Column 3 has the consumer (M/E, G/E, BOILER, etc.)
+        # Column 4 has the fuel type (HFO, VLSFO, LDO, HFHSD, MGO, etc.)
+        # We read directly by row index to avoid ambiguous label matching.
+        # Row 103 = M/E LDO, Row 113 = G/E HFHSD
+        def get_fuel_by_row(row_idx, col_idx, default=0.0):
+            try:
+                val = df.iloc[row_idx, col_idx]
+                if pd.isna(val) or str(val).strip() in ['', 'nan']:
+                    return default
+                return float(val)
+            except (TypeError, ValueError, IndexError):
+                return default
+
+        me_ldo = get_fuel_by_row(103, c, 0.0)   # M/E LDO consumption
+        ae_hfhsd = get_fuel_by_row(113, c, 0.0) # G/E HFHSD consumption
+
+        # Fallback to named rows (older Excel templates may differ)
         if me_ldo == 0:
-            me_ldo = get_num(f"{FUEL_KEY}_M/E_HFO", c, 0)       # fallback
-            
-        # AE/GE fuel = HFHSD (stored as MDO)
-        ae_hfhsd = get_num("Auxiliary Engine Consumption  (HFHSD) in Kilo Litres", c, 0)
+            me_ldo = get_num("Main Engine Consumption  (LDO) in Kilo Litres", c, 0)
         if ae_hfhsd == 0:
-            ae_hfhsd = get_num(f"{FUEL_KEY}_G/E_HFO", c, 0)     # fallback
+            ae_hfhsd = get_num("Auxiliary Engine Consumption  (HFHSD) in Kilo Litres", c, 0)
 
         # ── Drafts ───────────────────────────────────────────────────────────
         fwd = get_num("Draft Fwd", c, 0)
         aft = get_num("Draft Aft", c, 0)
 
-        # ── Wind ──────────────────────────────────────────────────────────────
-        # ── Wind ──────────────────────────────────────────────────────────────
-        bf_wind = get_num("BF Wind", c, 0) # Fallback, likely 0
-        # True wind direction is in degrees (numeric) in this Excel
-        true_wind_dir = get_num("True Wind Direction", c, 0)
-        true_wind_spd = get_num("True Wind Speed", c, 0)  # in knots
+        # ── Wind ─────────────────────────────────────────────────────────────
+        bf_wind = get_num("BF Scale", c, 0)  # Row 76 BF Scale 12:00 today
+        # True wind direction (Issue 7): Row 72 'True Wind Direction' is same
+        # as 'True Wind Direction at Anemometer' — use directly
+        true_wind_dir = get_num("True Wind Direction", c, 0)  # degrees
+        true_wind_spd = get_num("True Wind Speed", c, 0)      # knots (Row 69)
 
-        # ── Sea State -> Wave Height (meters) ─────────────────────────────
-        # Converted using Douglas Sea Scale midpoints.
-        # This will be overridden by the email body value in email_scraper.py if present.
+        # ── Sea State → Wave Height (meters) ─────────────────────────────────
+        # Noon to Noon AVG (row 79) is more reliable than 12:00 snapshot (row 78)
         sea_state_raw = get_num("Sea State", c, 0)
+        # Try Noon to Noon AVG row (row 79) first
+        try:
+            sea_state_avg = df.iloc[79, c]
+            if not pd.isna(sea_state_avg) and str(sea_state_avg).strip() not in ['', 'nan']:
+                sea_state_raw = float(sea_state_avg)
+        except (TypeError, ValueError, IndexError):
+            pass
         try:
             sea_state_int = int(sea_state_raw)
             wave_height_m = SEA_STATE_TO_METERS.get(sea_state_int, round(sea_state_raw * 0.875, 2))
         except (ValueError, TypeError):
             wave_height_m = 0.0
+
+        # ── Longitude Parsing (Issue 1) ───────────────────────────────────────
+        # Position_Long raw format is e.g. "072-29 E" — store as-is; the
+        # email_scraper / processor will split degrees/minutes/direction.
+        pos_lat_raw  = str(get_val("Position (Lat)",  c, ""))
+        pos_long_raw = str(get_val("Position (Long)", c, ""))
 
         record = {
             # ── Identity ──────────────────────────────────────────────────────
@@ -244,11 +301,10 @@ def parse_tufmax_excel(file_content) -> list:
             "L/B":                                      lb_status,
             "Event Type":                               event_type,
 
-            # ── Position ──────────────────────────────────────────────────────
-            "Position_Lat":                             str(get_val("Position (Lat)", c, "")),
-            "Position_Long":                            str(get_val("Position (Long)", c, "")),
+            # ── Position (Issue 1: full lat/long including minutes) ────────────
+            "Position_Lat":                             pos_lat_raw,
+            "Position_Long":                            pos_long_raw,
 
-            # ── Speed & Distance ──────────────────────────────────────────────
             # ── Speed & Distance ──────────────────────────────────────────────
             "Speed_Reported Spd. (kts)":               sog,
             "Speed_TW Spd. (kts)":                    get_num("Speed through Water (Daily AVG)", c, 0),
@@ -256,44 +312,54 @@ def parse_tufmax_excel(file_content) -> list:
             "Time Sailed (hrs)":                       hours,
             "Vessel Heading_Heading":                  get_num("Ship's Heading", c, 0),
 
-            # ── Wind ──────────────────────────────────────────────────────────
+            # ── ETA & Distance to Go (Issues 2 & 3) ──────────────────────────
+            "ETA":                                     eta_str,
+            "Distance to EOSP (nm)_Distance to Go":   distance_to_go,  # Issue 3: Distance to Go → Distance to EOSP
+
+            # ── Port Hours (Issues 4 & 5) ─────────────────────────────────────
+            "Hours at Anchoring":                      hours_at_anchor,   # Issue 4
+            "Hours at Drifting":                       hours_at_drifting, # Issue 5
+
+            # ── Wind (Issues 6 & 7) ───────────────────────────────────────────
             "Wind (WNI)_BF Wind":                      bf_wind,
-            "Wind (WNI)_Wind Dir.":                    str(true_wind_dir),  # degrees, not cardinal
-            "Wind (WNI)_Wind Spd. (kts)":             true_wind_spd,
+            "Wind (WNI)_Wind Dir.":                    str(true_wind_dir),  # True Wind Dir (Issue 7)
+            "Wind (WNI)_Wind Spd. (kts)":             true_wind_spd,       # True Wind Speed
+            "Relative Wind Speed (kts)":               rel_wind_speed,      # Issue 6
+            "Relative Wind Direction":                  str(rel_wind_dir),   # Issue 6
 
             # ── Sea State ─────────────────────────────────────────────────────
             "Wave (WNI)_Sig. Wave (m)":               wave_height_m,  # Converted from Sea State Douglas Scale
             "Wave (WNI)_Swell Dir.":                  "",
 
             # ── Current ───────────────────────────────────────────────────────
-            "Current (WNI)_Current Speed (kts)":      get_num("Current Speed", c, 0),
-            "Current (WNI)_Current Dir":              str(get_num("Current Direction", c, 0)),
+            "Current (WNI)_Current Speed (kts)":      get_num("Current Speed (Relative)", c, 0),
+            "Current (WNI)_Current Dir":              str(get_num("Current Direction (Relative)", c, 0)),
 
             # ── Drafts & Displacement ─────────────────────────────────────────
             "Draft_FWD (m)":                          fwd,
             "Draft_AFT (m)":                          aft,
             "Draft_Displacement (mt)":                get_num("Displacement", c, 0),
 
-            # ── Engine ────────────────────────────────────────────────────────
+            # ── Engine (Issue 8: shaft power from #1 Engine row) ──────────────
             "Engine_RPM":                             rpm,
             "Engine_M/E Power (kW)":                  shaft_power,
 
             # ── Fuel Consumption ──────────────────────────────────────────────
             # TUFMAX uses LDO (Main Engine) and HFHSD (Generator/AE) only.
-            # Map LDO → me_mdo (distillate),  HFHSD → ae_mdo (distillate)
+            # LDO → stored in MGO column (distillate); HFHSD → AE MGO column
             "M/E Fuel Consumption_VLSFO (HFO/LFO) (mt)": 0,
             "M/E Fuel Consumption_ULSFO (mt)":            0,
-            "M/E Fuel Consumption_MGO (>0.5%) (mt)":      me_ldo,    # LDO stored here
+            "M/E Fuel Consumption_MGO (>0.5%) (mt)":      me_ldo,    # LDO (M/E)
 
             "A/E Fuel Consumption_VLSFO (HFO/LFO) (mt)": 0,
             "A/E Fuel Consumption_ULSFO (mt)":            0,
-            "A/E Fuel Consumption_MGO (>0.5%) (mt)":      ae_hfhsd,  # HFHSD stored here
+            "A/E Fuel Consumption_MGO (>0.5%) (mt)":      ae_hfhsd,  # HFHSD (G/E)
 
             "Boiler Fuel Consumption_VLSFO (HFO) (mt)":  0,
             "Boiler Fuel Consumption_LSMGO (mt)":         0,
 
             # ── Water temp / depth ────────────────────────────────────────────
-            "Sea Water Temp_°C":                      get_num("Sea Water Temp", c, 0),
+            "Sea Water Temp_\u00b0C":                  get_num("Sea Water Temp", c, 0),
             "Sea Water Depth_m":                      get_num("Sea Water Depth", c, 0),
 
             # ── Flag ──────────────────────────────────────────────────────────
