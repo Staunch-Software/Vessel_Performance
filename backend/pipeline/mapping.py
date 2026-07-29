@@ -37,6 +37,7 @@ BEAUFORT_MAP = {
 }
 
 EVENT_TYPE_MAP = {
+    # Standard WNI/MariApps codes
     "NOON": "Noon at sea",
     "INPORT NOON": "Noon at port",
     "EOSP": "EOSP",
@@ -47,7 +48,19 @@ EVENT_TYPE_MAP = {
     "UNBERTH": "Departure Report",
     "BUNKERING": "Bunkering",
     "START FUEL CHANGE": "Start Fuel Change",
-    "END FUEL CHANGE": "End Fuel Change"
+    "END FUEL CHANGE": "End Fuel Change",
+    # TUFMAX already-mapped labels (pass-through — parser already mapped them)
+    "NOON AT SEA": "Noon at sea",
+    "NOON AT PORT": "Noon at port",
+    "ARRIVAL REPORT": "Arrival Report",
+    "DEPARTURE REPORT": "Departure Report",
+    "START ANCHORAGE": "Start Anchorage",
+    "END ANCHORAGE": "End Anchorage",
+    "BOSP": "BOSP",
+    "DRIFTING START": "Drifting Start",
+    "DRIFTING STOP": "Drifting Stop",
+    "SHIFTING": "Shifting",
+    "ETC": "ETC",
 }
 
 DIR_MAP = {"N": "North", "S": "South", "E": "East", "W": "West"}
@@ -173,6 +186,7 @@ def map_row(row):
     out["loading_condition"] = val_str(row, "L/B")
     raw_ev = val_str(row, "Event Type", default="").upper()
     out["log_type"] = EVENT_TYPE_MAP.get(raw_ev, raw_ev)
+    out["total_ballast_onboard"] = val_num(row, "Draft_Displacement (mt)")
 
     lat_d, lat_m, lat_dir = parse_coord(val_str(row, "Position_Lat"))
     lon_d, lon_m, lon_dir = parse_coord(val_str(row, "Position_Long"))
@@ -185,24 +199,46 @@ def map_row(row):
     out["ship_heading"] = val_str(row, "Vessel Heading_Heading")
 
     out["true_wind_force"] = val_num(row, "Wind (WNI)_BF Wind")
-    out["wind_direction"] = WIND_DIR_MAP.get(val_str(row, "Wind (WNI)_Wind Dir."))
-    out["wave_height"] = val_str(row, "Wave (WNI)_Sig. Wave (m)")
-    out["wave_direction"] = WIND_DIR_MAP.get(val_str(row, "Wave (WNI)_Swell Dir."))
-    out["wind_speed"] = BEAUFORT_MAP.get(row.get("Wind (WNI)_BF Wind"))
+    
+    # Wind Direction (TUFMAX gives degrees directly, old WNI gives strings)
+    raw_wdir = val_str(row, "Wind (WNI)_Wind Dir.")
+    if raw_wdir and raw_wdir.upper() in WIND_DIR_MAP:
+        out["wind_direction"] = WIND_DIR_MAP.get(raw_wdir.upper())
+    else:
+        out["wind_direction"] = val_num(row, "Wind (WNI)_Wind Dir.", default=None)
+
+    out["wave_height"] = val_num(row, "Wave (WNI)_Sig. Wave (m)")
+    
+    # Wave Direction
+    raw_wavedir = val_str(row, "Wave (WNI)_Swell Dir.")
+    if raw_wavedir and raw_wavedir.upper() in WIND_DIR_MAP:
+        out["wave_direction"] = WIND_DIR_MAP.get(raw_wavedir.upper())
+    else:
+        out["wave_direction"] = val_num(row, "Wave (WNI)_Swell Dir.", default=None)
+
+    # Wind Speed (TUFMAX gives explicit speed, old WNI uses Beaufort)
+    ws_kts = val_num(row, "Wind (WNI)_Wind Spd. (kts)", default=0.0)
+    out["wind_speed"] = ws_kts if ws_kts > 0 else BEAUFORT_MAP.get(row.get("Wind (WNI)_BF Wind"))
     out["current_speed"] = val_num(row, "Current (WNI)_Current Speed (kts)")
     out["current_direction"] = val_str(row, "Current (WNI)_Current Dir")
 
     # Fuel Logic
+    # TUFMAX: LDO (ME) stored in MGO >0.5% key, HFHSD (AE) stored in MGO >0.5% key
+    # For regular WNI data: reads VLSFO/ULSFO/MDO keys
     me_vlsfo = val_num(row, "M/E Fuel Consumption_VLSFO (HFO/LFO) (mt)")
     me_ulsfo = val_num(row, "M/E Fuel Consumption_ULSFO (mt)")
+    me_ldo   = val_num(row, "M/E Fuel Consumption_MGO (>0.5%) (mt)")  # TUFMAX LDO
     out["me_hfo"] = me_vlsfo if me_vlsfo > 0 else me_ulsfo
-    out["me_mdo"] = calculate_distillate_fuel(row, "M/E Fuel Consumption")
+    out["me_ldo"] = me_ldo
+    out["me_mdo"] = me_ldo if me_ldo > 0 else calculate_distillate_fuel(row, "M/E Fuel Consumption")
     out["me_total_cons"] = out["me_hfo"] + out["me_mdo"]
 
     ae_vlsfo = val_num(row, "A/E Fuel Consumption_VLSFO (HFO/LFO) (mt)")
     ae_ulsfo = val_num(row, "A/E Fuel Consumption_ULSFO (mt)")
+    ae_hfhsd = val_num(row, "A/E Fuel Consumption_MGO (>0.5%) (mt)")  # TUFMAX HFHSD
     out["ae_hfo"] = ae_vlsfo if ae_vlsfo > 0 else ae_ulsfo
-    out["ae_mdo"] = calculate_distillate_fuel(row, "A/E Fuel Consumption")
+    out["ae_hfhsd"] = ae_hfhsd
+    out["ae_mdo"] = ae_hfhsd if ae_hfhsd > 0 else calculate_distillate_fuel(row, "A/E Fuel Consumption")
     out["ae_total_cons"] = out["ae_hfo"] + out["ae_mdo"]
 
     out["bl_hfo"] = calculate_bl_hfo_smart(row)
@@ -219,6 +255,11 @@ def map_row(row):
     out["trim"] = round(aft - fwd, 2) if (fwd > 0 and aft > 0) else 0.0
     out["displacement"] = val_num(row, "Draft_Displacement (mt)")
 
+    # Water Temp & Depth (Tufmax Excel specific fields — not in MARI_APPS_COLUMNS
+    # but needed for WNI_TO_NEWCOL mapping in backfill_wni)
+    out["Water_Temp_C"] = val_num(row, "Sea Water Temp_°C", default=None) or val_num(row, "Sea Water Temp_°C", default=None)
+    out["Water_Depth_m"] = val_num(row, "Sea Water Depth_m", default=None)
+
     return pd.Series(out)
 
 def map_analysis_row(row, specs=None):
@@ -233,7 +274,7 @@ def map_analysis_row(row, specs=None):
     if pd.notnull(dt):
         out["Date"], out["Time_UTC"] = dt.date(), dt.strftime('%H:%M')
     
-    out["Voyage_No"] = val_str(row ,"Voyage Number_#")
+    out["Voyage_No"] = val_str(row, "Voyage Number_#")
     out["From_Port"] = val_str(row, "Departure Port_Orig. Port")
     out["To_Port"] = val_str(row, "Destination Port_Dest. Port")
     out["Loading_Cond"] = val_str(row, "L/B")
@@ -258,26 +299,54 @@ def map_analysis_row(row, specs=None):
     if rpm > 0 and mcr_rpm > 0:
         out["Est_Power_kW"] = mcr_kw * (rpm / mcr_rpm)**get_spec("propeller_law_exponent", 3.0)
 
-    me_foc = val_num(row, "M/E Fuel Consumption_VLSFO (HFO/LFO) (mt)") + calculate_distillate_fuel(row, "M/E Fuel Consumption")
+    # Fuel: TUFMAX LDO -> me_mdo, HFHSD -> ae_mdo
+    ae_hfhsd = val_num(row, "A/E Fuel Consumption_MGO (>0.5%) (mt)")
+    out["ae_hfhsd"] = ae_hfhsd
+    me_ldo   = val_num(row, "M/E Fuel Consumption_MGO (>0.5%) (mt)")
+    out["me_ldo"] = me_ldo
+    me_vlsfo = val_num(row, "M/E Fuel Consumption_VLSFO (HFO/LFO) (mt)")
+    me_foc = (me_ldo if me_ldo > 0 else me_vlsfo) + calculate_distillate_fuel(row, "M/E Fuel Consumption") if me_ldo == 0 else me_ldo
     out["ME_FOC_MT"] = me_foc
     if shaft_power_kw > 0 and duration > 0:
         out["SFOC_gkWh"] = (me_foc / (shaft_power_kw * duration)) * 1000000
 
-    # AE FOC — same logic as map_row() ae_total_cons
+    # AE FOC
     ae_vlsfo = val_num(row, "A/E Fuel Consumption_VLSFO (HFO/LFO) (mt)")
     ae_ulsfo = val_num(row, "A/E Fuel Consumption_ULSFO (mt)")
     ae_hfo   = ae_vlsfo if ae_vlsfo > 0 else ae_ulsfo
-    ae_mdo   = calculate_distillate_fuel(row, "A/E Fuel Consumption")
+    ae_mdo   = ae_hfhsd if ae_hfhsd > 0 else calculate_distillate_fuel(row, "A/E Fuel Consumption")
     out["AE_FOC_MT"] = ae_hfo + ae_mdo
 
-    # 4. Environment (Using DB Specs)
-    out["True_Wind_Dir_deg"] = WIND_DIR_MAP.get(val_str(row, "Wind (WNI)_Wind Dir."))
+    # 4. Environment
+    # Wind Direction: TUFMAX gives degrees, WNI gives cardinal strings
+    raw_wdir = val_str(row, "Wind (WNI)_Wind Dir.")
+    if raw_wdir and raw_wdir.upper() in WIND_DIR_MAP:
+        out["True_Wind_Dir_deg"] = WIND_DIR_MAP.get(raw_wdir.upper())
+    else:
+        out["True_Wind_Dir_deg"] = val_num(row, "Wind (WNI)_Wind Dir.", default=None)
 
-    # WNI-analyzed Beaufort — used by the CP fair-weather filter (BF <= 4).
+    # Wind Speed in m/s (TUFMAX gives kts, convert)
+    ws_kts = val_num(row, "Wind (WNI)_Wind Spd. (kts)", default=0.0)
+    out["True_Wind_Spd_ms"] = round(ws_kts * 0.5144, 3) if ws_kts > 0 else None
+
+    # BF Wind
     out["BF_Wind"] = val_num(row, "Wind (WNI)_BF Wind", default=None)
 
     out["Sig_Wave_Ht_m"] = val_num(row, "Wave (WNI)_Sig. Wave (m)")
-    rel_wind_ms = val_num(row, "Wind (WNI)_Wind Spd. (kts)") * 0.5144
+    
+    # Current
+    out["Current_Spd_kn"] = val_num(row, "Current (WNI)_Current Speed (kts)")
+    raw_cdir = val_str(row, "Current (WNI)_Current Dir")
+    try:
+        out["Current_Dir_deg"] = float(raw_cdir) if raw_cdir else None
+    except (ValueError, TypeError):
+        out["Current_Dir_deg"] = None
+
+    # Water Temp & Depth (from Tufmax Excel)
+    out["Water_Temp_C"] = val_num(row, "Sea Water Temp_°C") or val_num(row, "Sea Water Temp_\u00b0C")
+    out["Water_Depth_m"] = val_num(row, "Sea Water Depth_m")
+
+    rel_wind_ms = ws_kts * 0.5144
 
     if stw_kn > 0:
         out["P_wind_kW"] = 0.5 * 1.225 * get_spec("wind_coeff_cx_0", 0.8) * get_spec("transverse_projected_area") * (rel_wind_ms**2 - (stw_kn * 0.5144)**2) * (stw_kn * 0.5144) / 1000

@@ -215,12 +215,12 @@ export default function VesselReportPage() {
                     <th colSpan={3} style={{ textAlign: 'center', borderBottom: '1px solid #2d4a6a' }}>Vessel Report (missing report)</th>
                     <th colSpan={4} style={{ textAlign: 'center' }}>Data Discrepancy</th>
                   </tr>
-                  {/* Column header row */}
                   <tr>
                     <th className="left" style={{ width:50 }}>Details</th>
                     <th className="left" style={{ width:40 }}>DL</th>
                     <th className="left" style={{ minWidth:160 }}>Vessel Name</th>
                     <th style={{ minWidth:110 }}>IMO Number</th>
+                    <th className="left" style={{ minWidth:160 }}>Owner</th>
                     <th style={{ minWidth:100 }}>Total Issues</th>
                     <th style={{ minWidth:120, textAlign: 'center' }}>WNI</th>
                     <th style={{ minWidth:120, textAlign: 'center' }}>MariApps</th>
@@ -250,6 +250,7 @@ export default function VesselReportPage() {
 
                       <td className="left" style={{ fontWeight: 500 }}>{r.vessel_name}</td>
                       <td>{r.imo_number}</td>
+                      <td className="left" style={{ color: 'var(--text-muted)' }}>{r.owner_group}</td>
 
                       {/* Total issues — colour coded */}
                       <td>

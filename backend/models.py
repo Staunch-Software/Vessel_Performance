@@ -36,6 +36,9 @@ class Vessel(Base):
     # Seeded/backfilled by database._ensure_scrape_flags() on existing DBs.
     wni_enabled = Column(Boolean, nullable=True)
     mari_enabled = Column(Boolean, nullable=True)
+    
+    # The owner company of the vessel
+    owner_group = Column(String(255), nullable=True, default="Other")
 
 # ============================================================
 # TABLE 2: DATA SOURCE REFERENCE
@@ -69,6 +72,19 @@ class RawHarData(Base):
     scraped_at = Column(DateTime, default=datetime.utcnow)
     har_json = Column(JSONB, nullable=False)
     file_name = Column(String(255))
+
+# ============================================================
+# TABLE 3.6: PROCESSED EMAIL TRACKER
+# Tracks which email message IDs have already been processed
+# so the scraper never re-imports the same email twice.
+# ============================================================
+class ProcessedEmail(Base):
+    __tablename__ = "processed_emails"
+    id          = Column(Integer, primary_key=True)
+    msg_id      = Column(String(512), unique=True, nullable=False, index=True)
+    subject     = Column(String(512))
+    vessel_name = Column(String(255))
+    processed_at = Column(DateTime, default=datetime.utcnow)
 
 # ============================================================
 # TABLE 4: NOON REPORT DATA (WNI 160-COLUMN)

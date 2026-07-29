@@ -870,6 +870,7 @@ WNI_TO_NEWCOL = {
     'distance_og': 'Vessel_DOG_dCnt_operational_LF',
     'distance_to_eosp': 'Vessel_DEOSP_operational_LF',
     'draft_aft': 'Vessel_Ta_avg_operational_LF',
+    'from_port': 'VoyageMeta_departure_port_last_leg_operational_LF',
     'draft_fwd': 'Vessel_Tf_avg_operational_LF',
     'drifting_hours': 'Vessel_DH_dCnt_operational_LF',
     'eeoi': 'VoyageMeta_eeoi_gco2mtnm_operational_LF',
@@ -920,7 +921,7 @@ WNI_TO_NEWCOL = {
     'm_e_scoc': 'ME_SCOCbME_operational_LF',
     'mandatory_failed_reason': '__identity__',
     'mcr': 'VoyageMeta_mcr_operational_LF',
-    'me1_power': 'ME_PeffestME_avg_operational_LF',
+    'me1_power': 'ME_PSME_avg_operational_LF',
     'me1_rpm': 'ME_NME_avg_operational_LF',
     'me1_running_hrs': 'ME_RHME_dCnt_operational_LF',
     'me_ammonia': 'ME_FO_mFOCME_dCnt_operational_LF',
@@ -940,17 +941,20 @@ WNI_TO_NEWCOL = {
     'ship_heading': 'Vessel_HEAD_avg_operational_LF',
     'sox_emitted': 'VoyageMeta_nox_emmited_mt_operational_LF',
     'speed_og': 'Vessel_SOG_avg_operational_LF',
+    'speed_tw': 'Vessel_STW_avg_operational_LF',
     'status': '__identity__',
     'time_zone': 'VoyageMeta_time_zone_operational_LF',
     'to_port': 'VoyageMeta_to_port_operational_LF',
     'total_ballast_onboard': 'Vessel_BallastTot_operational_LF',
     'trim': 'VoyageMeta_trimm_operational_LF',
-    'true_wind_force': 'Weather_Uwit_avg_operational_LF',
+    
     'validation_details': '__identity__',
     'validation_status': '__identity__',
     'wave_direction': 'Weather_psiwvt_avg_operational_LF',
     'wave_height': 'Weather_Hwv_avg_operational_LF',
     'wind_direction': 'Weather_psiwit_avg_operational_LF',
+    'water_depth': 'Weather_hsw_avg_operational_LF',
+    'water_temperature': 'Weather_Tsw_avg_operational_LF',
     'wind_speed': 'Weather_Uwit_avg_operational_LF',
 }
 
@@ -11120,3 +11124,33 @@ ACTIVE_COLUMNS = [
     'Weather_psiwvt_avg_operational_LF',
     'Weather_psiwvt_operational_LF',
 ]
+
+# --- ADDED FOR AMNS TUFMAX EXCEL SUPPORT ---
+WNI_TO_NEWCOL.update({
+    "Water_Temp_C": "Weather_Tsw_avg_operational_LF",
+    "Water_Depth_m": "Weather_hsw_avg_operational_LF",
+    "wind_speed": "Weather_Uwit_avg_operational_LF",
+    "Engine_M/E Power (kW)": "ME_PSME_avg_operational_LF",
+    "Wind (WNI)_BF Wind": "wnix_wind_wni_bf_wind",
+    "me_ldo": "wni_tufmax_me_ldo_mt",
+    "ae_hfhsd": "wni_tufmax_ae_hfhsd_mt",
+})
+
+NEWCOL_META.update({
+    "wni_tufmax_me_ldo_mt": {
+        "display_name": "ME Fuel (LDO) Consumption (MT)",
+        "category_full": "Fuel",
+        "category": "Fuel",
+        "unit": "MT",
+        "is_active": True
+    },
+    "wni_tufmax_ae_hfhsd_mt": {
+        "display_name": "AE Fuel (HFHSD) Consumption (MT)",
+        "category_full": "Fuel",
+        "category": "Fuel",
+        "unit": "MT",
+        "is_active": True
+    }
+})
+
+ALL_OPERATIONAL_COLUMNS.extend(["wni_tufmax_me_ldo_mt", "wni_tufmax_ae_hfhsd_mt"])

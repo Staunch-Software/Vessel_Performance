@@ -190,8 +190,10 @@ def save_to_db(vessel_name_raw, raw_data_dict, file_name):
             db.rollback()
             return "error"
 
+        _noon_valid_cols = set(NoonReportData.__table__.columns.keys())
+        noon_data_filtered = {k: v for k, v in clean_dict(noon_data).items() if k in _noon_valid_cols}
         db.add(NoonReportData(
-            **clean_dict(noon_data),
+            **noon_data_filtered,
             vessel_imo=vessel.imo_number,
             source_id="wni",
             raw_report_id=raw_rec.id
@@ -203,8 +205,10 @@ def save_to_db(vessel_name_raw, raw_data_dict, file_name):
 
         analysis_data = map_analysis_row(cleaned_json, specs=specs)
 
+        _analysis_valid_cols = set(AnalysisData.__table__.columns.keys())
+        analysis_data_filtered = {k: v for k, v in clean_dict(analysis_data).items() if k in _analysis_valid_cols}
         db.add(AnalysisData(
-            **clean_dict(analysis_data),
+            **analysis_data_filtered,
             vessel_imo=vessel.imo_number,
             source_id="wni",
             raw_report_id=raw_rec.id

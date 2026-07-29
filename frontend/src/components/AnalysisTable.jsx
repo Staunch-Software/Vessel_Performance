@@ -173,7 +173,8 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
           if (!isNaN(deg)) {
             const min = row.original.VoyageMeta_latitude_lat_minutes_operational_LF || 0
             let dir = row.original.VoyageMeta_latitude_lat_direction_operational_LF || ''
-            if (dir && !isNaN(dir)) {
+            // Derive direction from sign when missing or when MariApps stores a raw number instead
+            if (!dir || !isNaN(dir)) {
                 dir = deg >= 0 ? 'N' : 'S'
             }
             return <span className="cell-num">{`${Math.abs(deg)}°${Number(min).toFixed(1)}'${dir}`}</span>
@@ -185,8 +186,8 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
           if (!isNaN(deg)) {
             const min = row.original.VoyageMeta_longitude_minutes_operational_LF || row.original.VoyageMeta_longitude_lon_minutes_operational_LF || 0
             let dir = row.original.VoyageMeta_longitude_direction_operational_LF || row.original.VoyageMeta_longitude_lon_direction_operational_LF || ''
-            // Fix MariApps raw data bug where Longitude Direction contains the degree number
-            if (dir && !isNaN(dir)) {
+            // Derive direction from sign when missing or when MariApps stores a raw number instead
+            if (!dir || !isNaN(dir)) {
                 dir = deg >= 0 ? 'E' : 'W'
             }
             return <span className="cell-num">{`${Math.abs(deg)}°${Number(min).toFixed(1)}'${dir}`}</span>

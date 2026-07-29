@@ -710,35 +710,7 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
 
 # ── VESSEL REPORT HEALTH ─────────────────────────────────────────────────────
 
-# ── Owner Group mapping ───────────────────────────────────────────────────────
-# Maps each vessel name (upper-case) to its owner group label.
-_OWNER_GROUP_MAP = {
-    # Umang Shipping Private LTD
-    "GCL GANGA":     "Umang Shipping Private LTD",
-    "GCL NARMADA":   "Umang Shipping Private LTD",
-    "GCL SABARMATI": "Umang Shipping Private LTD",
-    "GCL TAPI":      "Umang Shipping Private LTD",
-    "GCL YAMUNA":    "Umang Shipping Private LTD",
-    # Global Chartering Limited
-    "AM TARANG":     "Global Chartering Limited",
-    "AM KIRTI":      "Global Chartering Limited",
-    "AM UMANG":      "Global Chartering Limited",
-    "GCL SARASWATI": "Global Chartering Limited",
-    "GCL FOS":       "Global Chartering Limited",
-    # AMNS Shipping & Logistics Private Limited (all remaining AMNS / AMNSI vessels)
-}
-_AMNS_OWNER = "AMNS Shipping & Logistics Private Limited"
-
-def _get_owner_group(vessel_name: str) -> str:
-    """Return the owner group for a given vessel name."""
-    key = vessel_name.strip().upper() if vessel_name else ""
-    if key in _OWNER_GROUP_MAP:
-        return _OWNER_GROUP_MAP[key]
-    # Strict filter for AMNS and AMNSI vessels
-    if key.startswith("AMNS ") or key.startswith("AMNSI "):
-        return _AMNS_OWNER
-    return "Other"   # default fallback for any unrelated vessel
-
+# ── VESSEL REPORT HEALTH ─────────────────────────────────────────────────────
 
 @router.get("/vessel-report")
 def get_vessel_report(year: int = None, ship_group: str = None, db: Session = Depends(get_db)):
@@ -759,9 +731,8 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
 
         for v in vessels:
             imo = str(v.imo_number)
+            vessel_group = v.owner_group or "Other"
 
-            # Derive owner group from the owner mapping
-            vessel_group = _get_owner_group(v.vessel_name)
             if ship_group and ship_group.lower() != "all":
                 if vessel_group != ship_group:
                     continue
@@ -869,8 +840,8 @@ def get_vessel_report(year: int = None, ship_group: str = None, db: Session = De
 def get_owner_groups(db: Session = Depends(get_db)):
     """Returns distinct owner groups for the vessel report filter dropdown."""
     try:
-        vessels = db.query(Vessel.vessel_name).all()
-        groups  = sorted({_get_owner_group(v.vessel_name) for v in vessels if v.vessel_name})
+        vessels = db.query(Vessel.owner_group).filter(Vessel.owner_group.isnot(None)).distinct().all()
+        groups  = sorted({v[0] for v in vessels if v[0]})
         return ["All"] + list(groups)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

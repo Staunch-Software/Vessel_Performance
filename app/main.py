@@ -226,12 +226,16 @@ async def lifespan(app: FastAPI):
     # 6. Start Fleet Status background scheduler
     threading.Thread(target=_fleet_status_scheduler, daemon=True).start()
     
+    # 7. Start Email Scraper background scheduler
+    threading.Thread(target=_email_scraper_scheduler, daemon=True).start()
+    
     yield
     
     # --- SHUTDOWN EVENT ---
     log.info("🛑 FastAPI Application Shutdown")
     # Signal the fleet-status scheduler to stop sleeping
     _fleet_stop_event.set()
+    _email_stop_event.set()
     # Clean up resources if necessary (e.g., closing Playwright browser instances if they were global)
 
 
@@ -284,6 +288,56 @@ def _fleet_status_scheduler():
             time.sleep(1)
 
     _log.info("[FLEET_SCHED]  Scheduler stopped.")
+
+
+# ============================================================
+# EMAIL SCRAPER BACKGROUND SCHEDULER
+# ============================================================
+
+_email_stop_event = threading.Event()
+_email_scheduler_socket = None
+
+def _email_scraper_scheduler():
+    """
+    Daemon thread: runs check_inbox() once immediately on startup,
+    then repeats every EMAIL_SCRAPER_INTERVAL_MINUTES minutes.
+    """
+    import time
+    import socket
+    _log = logging.getLogger("email_scheduler")
+    
+    # Prevent multiple Gunicorn workers from running this simultaneously
+    global _email_scheduler_socket
+    try:
+        _email_scheduler_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _email_scheduler_socket.bind(("127.0.0.1", 65433)) # Use a different port
+    except socket.error:
+        _log.info("[EMAIL_SCHED]  Scheduler already running in another worker. Skipping in this process.")
+        return
+
+    interval_minutes = int(os.getenv("EMAIL_SCRAPER_INTERVAL_MINUTES", "15"))
+    if interval_minutes <= 0:
+        _log.info("[EMAIL_SCHED]  Disabled (EMAIL_SCRAPER_INTERVAL_MINUTES=0)")
+        return
+
+    _log.info(f"[EMAIL_SCHED]  Scheduler started — interval={interval_minutes}min")
+
+    while not _email_stop_event.is_set():
+        try:
+            from backend.pipeline.email_scraper import check_inbox
+            _log.info("[EMAIL_SCHED]  Triggering email inbox check ...")
+            check_inbox()
+            _log.info("[EMAIL_SCHED]  Inbox check done. Next run in %d minutes.", interval_minutes)
+        except Exception as e:
+            _log.error(f"[EMAIL_SCHED]  Scrape error: {e}", exc_info=True)
+
+        # Sleep in small chunks so shutdown signal is detected quickly
+        for _ in range(interval_minutes * 60):
+            if _email_stop_event.is_set():
+                break
+            time.sleep(1)
+
+    _log.info("[EMAIL_SCHED]  Scheduler stopped.")
 
 
 # --- FastAPI Application Setup ---
