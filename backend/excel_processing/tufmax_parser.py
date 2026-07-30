@@ -147,8 +147,12 @@ def parse_tufmax_excel(file_content) -> list:
         sog = get_num("Speed Over Ground (Daily AVG)", c, 0)
         hours = get_num("Daily Hours Underway", c, 0)
         
-        # Location Text check (From/To or Position fields)
-        loc_text = str(get_val("From Port To Port", c, "")).upper() + " " + str(get_val("Position (Lat)", c, "")).upper()
+        # Location Text check (From/To, Position fields, and Port Name)
+        loc_text = (
+            str(get_val("From Port To Port", c, "")).upper() + " " + 
+            str(get_val("Position (Lat)", c, "")).upper() + " " + 
+            str(get_val("Port Name", c, "")).upper()
+        )
         is_at_port = "AT " in loc_text or "PORT" in loc_text or "ANCHOR" in loc_text
 
         # Determine Event Type
