@@ -213,7 +213,7 @@ def check_inbox(force_full_run=False):
     }
 
     # Start with the first page of up to 100 emails, filtered by subject
-    url = f"https://graph.microsoft.com/v1.0/users/{IMAP_EMAIL}/mailFolders/inbox/messages?$filter=contains(subject, 'TUFMAX') and contains(subject, 'NOON')&$top=100"
+    url = f"https://graph.microsoft.com/v1.0/users/{IMAP_EMAIL}/mailFolders/inbox/messages?$filter=contains(subject, 'TUFMAX') and contains(subject, 'NOON')&$orderby=receivedDateTime DESC&$top=100"
     
     total_emails_scanned = 0
     total_with_attachment = 0
