@@ -11,7 +11,7 @@ from backend.pipeline.processor import save_to_db
 from backend.database import SessionLocal
 from backend.models import Vessel, ProcessedEmail
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger(__name__)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
