@@ -733,21 +733,35 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
                 except:
                     return None
                     
+            def map_status(event_type):
+                if not event_type: return "RUN"
+                et = str(event_type).lower()
+                if "port" in et or "arrival" in et or "berth" in et: return "BERTH"
+                if "anchor" in et: return "ANCHOR"
+                if "drift" in et: return "DRIFT"
+                return "RUN"
+                
+            eta_val = data.get("ETA")
+            if eta_val and str(eta_val).startswith("0000"): eta_val = None
+            
+            etd_val = data.get("ETD")
+            if etd_val and str(etd_val).startswith("0000"): etd_val = None
+                    
             formatted_records.append({
                 "vessel_name":      "AMNS TUFMAX",
                 "imo":              "9486295",
                 "callsign":         vp.call_sign if vp else None,
-                "ship_type":        vp.vessel_type if vp else "Bulk Carrier",
+                "ship_type":        str(vp.vessel_type).upper() if vp and vp.vessel_type else "BULK CARRIER",
                 "lat":              parse_dms(data.get("Position_Lat")),
                 "lon":              parse_dms(data.get("Position_Long")),
                 "speed":            str(data.get("ME_Speed_log_24h_Avg")) if data.get("ME_Speed_log_24h_Avg") else None,
-                "heading":          None,
-                "status":           data.get("Event Type") or "Noon",
+                "heading":          str(data.get("Vessel Heading_Heading")) if data.get("Vessel Heading_Heading") is not None else None,
+                "status":           map_status(data.get("Event Type")),
                 "pos_date":         data.get("Date"),
-                "last_port":        None,
-                "etd":              None,
-                "next_port":        data.get("To_Port_To_Port") or data.get("From_Port_To_Port"),
-                "eta":              data.get("ETA"),
+                "last_port":        data.get("Departure Port_Orig. Port"),
+                "etd":              etd_val,
+                "next_port":        data.get("Destination Port_Dest. Port") or data.get("To_Port_To_Port") or data.get("From_Port_To_Port"),
+                "eta":              eta_val,
                 "voyage_number":    data.get("Voyage Number_#"),
                 "port_alert":       None,
                 "coastal_storm":    None,
