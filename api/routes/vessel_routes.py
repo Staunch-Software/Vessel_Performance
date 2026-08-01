@@ -747,7 +747,20 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
             last_port = data.get("Departure Port_Orig. Port")
             if not last_port:
                 last_port = ""
-                    
+                
+            # Fallback for empty last_port from recent historical reports
+            if not last_port.strip():
+                past_reports = db.query(RawNoonReport).filter(
+                    RawNoonReport.vessel_imo == "9486295"
+                ).order_by(RawNoonReport.id.desc()).limit(10).all()
+                
+                for pr in past_reports:
+                    p_data = pr.raw_json or {}
+                    p_last_port = p_data.get("Departure Port_Orig. Port")
+                    if p_last_port and str(p_last_port).strip():
+                        last_port = p_last_port
+                        break
+                        
             formatted_records.append({
                 "vessel_name":      "AMNS TUFMAX",
                 "imo":              "9486295",
