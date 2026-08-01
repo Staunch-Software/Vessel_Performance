@@ -627,7 +627,7 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
     and the data table.
     """
     try:
-        from backend.models import FleetStatusData, VesselParticulars
+        from backend.models import FleetStatusData, VesselParticulars, NoonReportData
         from sqlalchemy import func
 
         # Subquery: latest scraped_at per vessel_name
@@ -655,7 +655,7 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
             .all()
         )
 
-        return [
+        formatted_records = [
             {
                 "vessel_name":      r.FleetStatusData.vessel_name,
                 "imo":              r.FleetStatusData.imo,
@@ -705,6 +705,84 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
             }
             for r in records
         ]
+        
+        # Manually append AMNS TUFMAX from NoonReportData since it comes from emails, not WNI fleet status
+        latest_tufmax_sub = (
+            db.query(func.max(NoonReportData.log_date).label("max_date"))
+            .filter(NoonReportData.vessel_imo == "9944625")
+            .scalar_subquery()
+        )
+        
+        tufmax_record = (
+            db.query(NoonReportData, VesselParticulars)
+            .filter(NoonReportData.vessel_imo == "9944625")
+            .filter(NoonReportData.log_date == latest_tufmax_sub)
+            .outerjoin(VesselParticulars, VesselParticulars.vessel_imo == NoonReportData.vessel_imo)
+            .first()
+        )
+        
+        if tufmax_record:
+            nr = tufmax_record.NoonReportData
+            vp = tufmax_record.VesselParticulars
+            
+            lat_str = None
+            if nr.lat_degree is not None and nr.lat_minutes is not None:
+                lat_val = nr.lat_degree + (nr.lat_minutes / 60.0)
+                if nr.lat_direction == "S": lat_val = -lat_val
+                lat_str = str(round(lat_val, 4))
+                
+            lon_str = None
+            if nr.lon_degree is not None and nr.lon_minutes is not None:
+                lon_val = nr.lon_degree + (nr.lon_minutes / 60.0)
+                if nr.lon_direction == "W": lon_val = -lon_val
+                lon_str = str(round(lon_val, 4))
+                
+            formatted_records.append({
+                "vessel_name":      "AMNS TUFMAX",
+                "imo":              "9944625",
+                "callsign":         vp.call_sign if vp else None,
+                "ship_type":        vp.vessel_type if vp else "Bulk Carrier",
+                "lat":              lat_str,
+                "lon":              lon_str,
+                "speed":            str(nr.speed_og) if nr.speed_og else None,
+                "heading":          None,
+                "status":           nr.log_type,
+                "pos_date":         nr.log_date.strftime("%Y-%m-%d %H:%M:%S") if nr.log_date else None,
+                "last_port":        None,
+                "etd":              None,
+                "next_port":        nr.to_port,
+                "eta":              nr.eta.strftime("%Y-%m-%d %H:%M:%S") if nr.eta else None,
+                "voyage_number":    nr.leg_number,
+                "port_alert":       None,
+                "coastal_storm":    None,
+                "ocean_storm":      None,
+                "tropical_cyclone": None,
+                "pos_diff":         None,
+                "report_missing":   None,
+                "dwt":              vp.deadweight if vp else None,
+                "rep_time":         nr.log_date.strftime("%H:%M") if nr.log_date else None,
+                "rep_type":         "Noon",
+                "service":          "Email",
+                "alert_detail":     None,
+                "rta":              None,
+                "scraped_at":       None,
+                "flag_code":        vp.flag if vp else None,
+                "build_date":       str(vp.year_built) if (vp and vp.year_built) else None,
+                "length":           round(vp.length_overall, 2) if (vp and vp.length_overall) else None,
+                "breadth":          round(vp.beam, 2) if (vp and vp.beam) else None,
+                "depth":            round(vp.depth_m, 2) if (vp and vp.depth_m) else None,
+                "draft":            round(vp.design_draft, 3) if (vp and vp.design_draft) else None,
+                "gross_tonnage":    round(vp.gross_tonnage, 0) if (vp and vp.gross_tonnage) else None,
+                "engine_builder":   vp.me_engine_type if vp else None,
+                "power_mcr":        round(vp.me_engine_mcr_kw, 0) if (vp and vp.me_engine_mcr_kw) else None,
+                "rpm_mcr":          round(vp.me_mcr_rpm, 1) if (vp and vp.me_mcr_rpm) else None,
+                "teu":              None,
+                "email":            None,
+                "fax":              None,
+                "phone":            None
+            })
+            
+        return formatted_records
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fleet voyages error: {e}")
 
