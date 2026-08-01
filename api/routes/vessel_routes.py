@@ -742,36 +742,11 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
                 return "RUN"
                 
             eta_val = data.get("ETA")
-            if eta_val and str(eta_val).startswith("0000"): eta_val = None
-            
             etd_val = data.get("ETD")
-            if etd_val and str(etd_val).startswith("0000"): etd_val = None
             
             last_port = data.get("Departure Port_Orig. Port")
             if not last_port:
                 last_port = ""
-            
-            # Fallback for empty last_port or eta_val from recent historical reports
-            if not last_port.strip() or not eta_val:
-                past_reports = db.query(RawNoonReport).filter(
-                    RawNoonReport.vessel_imo == "9486295"
-                ).order_by(RawNoonReport.id.desc()).limit(10).all()
-                
-                for pr in past_reports:
-                    p_data = pr.raw_json or {}
-                    
-                    if not last_port.strip():
-                        p_last_port = p_data.get("Departure Port_Orig. Port")
-                        if p_last_port and str(p_last_port).strip():
-                            last_port = p_last_port
-                            
-                    if not eta_val:
-                        p_eta = p_data.get("ETA")
-                        if p_eta and not str(p_eta).startswith("0000"):
-                            eta_val = p_eta
-                            
-                    if last_port.strip() and eta_val:
-                        break
                     
             formatted_records.append({
                 "vessel_name":      "AMNS TUFMAX",
