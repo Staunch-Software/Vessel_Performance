@@ -627,7 +627,7 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
     and the data table.
     """
     try:
-        from backend.models import FleetStatusData, VesselParticulars, NoonReportData
+        from backend.models import FleetStatusData, VesselParticulars, RawNoonReport
         from sqlalchemy import func
 
         # Subquery: latest scraped_at per vessel_name
@@ -706,53 +706,49 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
             for r in records
         ]
         
-        # Manually append AMNS TUFMAX from NoonReportData since it comes from emails, not WNI fleet status
-        latest_tufmax_sub = (
-            db.query(func.max(NoonReportData.log_date).label("max_date"))
-            .filter(NoonReportData.vessel_imo == "9944625")
-            .scalar_subquery()
-        )
-        
+        # Manually append AMNS TUFMAX from RawNoonReport since its full data is stored in raw JSON
         tufmax_record = (
-            db.query(NoonReportData, VesselParticulars)
-            .filter(NoonReportData.vessel_imo == "9944625")
-            .filter(NoonReportData.log_date == latest_tufmax_sub)
-            .outerjoin(VesselParticulars, VesselParticulars.vessel_imo == NoonReportData.vessel_imo)
+            db.query(RawNoonReport, VesselParticulars)
+            .filter(RawNoonReport.vessel_imo == "9486295")
+            .outerjoin(VesselParticulars, VesselParticulars.vessel_imo == RawNoonReport.vessel_imo)
+            .order_by(RawNoonReport.id.desc())
             .first()
         )
         
         if tufmax_record:
-            nr = tufmax_record.NoonReportData
+            raw = tufmax_record.RawNoonReport
             vp = tufmax_record.VesselParticulars
+            data = raw.raw_json or {}
             
-            lat_str = None
-            if nr.lat_degree is not None and nr.lat_minutes is not None:
-                lat_val = nr.lat_degree + (nr.lat_minutes / 60.0)
-                if nr.lat_direction == "S": lat_val = -lat_val
-                lat_str = str(round(lat_val, 4))
-                
-            lon_str = None
-            if nr.lon_degree is not None and nr.lon_minutes is not None:
-                lon_val = nr.lon_degree + (nr.lon_minutes / 60.0)
-                if nr.lon_direction == "W": lon_val = -lon_val
-                lon_str = str(round(lon_val, 4))
-                
+            def parse_dms(coord_str):
+                if not coord_str: return None
+                try:
+                    parts = str(coord_str).strip().replace(" ", "-").split("-")
+                    deg = float(parts[0])
+                    mins = float(parts[1])
+                    direction = parts[2].upper() if len(parts) > 2 else ""
+                    dec = deg + (mins / 60.0)
+                    if direction in ['S', 'W']: dec = -dec
+                    return str(round(dec, 4))
+                except:
+                    return None
+                    
             formatted_records.append({
                 "vessel_name":      "AMNS TUFMAX",
-                "imo":              "9944625",
+                "imo":              "9486295",
                 "callsign":         vp.call_sign if vp else None,
                 "ship_type":        vp.vessel_type if vp else "Bulk Carrier",
-                "lat":              lat_str,
-                "lon":              lon_str,
-                "speed":            str(nr.speed_og) if nr.speed_og else None,
+                "lat":              parse_dms(data.get("Position_Lat")),
+                "lon":              parse_dms(data.get("Position_Long")),
+                "speed":            str(data.get("ME_Speed_log_24h_Avg")) if data.get("ME_Speed_log_24h_Avg") else None,
                 "heading":          None,
-                "status":           nr.log_type,
-                "pos_date":         nr.log_date.strftime("%Y-%m-%d %H:%M:%S") if nr.log_date else None,
+                "status":           data.get("Event Type") or "Noon",
+                "pos_date":         data.get("Date"),
                 "last_port":        None,
                 "etd":              None,
-                "next_port":        nr.to_port,
-                "eta":              nr.eta.strftime("%Y-%m-%d %H:%M:%S") if nr.eta else None,
-                "voyage_number":    nr.leg_number,
+                "next_port":        data.get("To_Port_To_Port") or data.get("From_Port_To_Port"),
+                "eta":              data.get("ETA"),
+                "voyage_number":    data.get("Voyage Number_#"),
                 "port_alert":       None,
                 "coastal_storm":    None,
                 "ocean_storm":      None,
@@ -760,7 +756,7 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
                 "pos_diff":         None,
                 "report_missing":   None,
                 "dwt":              vp.deadweight if vp else None,
-                "rep_time":         nr.log_date.strftime("%H:%M") if nr.log_date else None,
+                "rep_time":         data.get("Date", "").split(" ")[-1] if " " in data.get("Date", "") else None,
                 "rep_type":         "Noon",
                 "service":          "Email",
                 "alert_detail":     None,
