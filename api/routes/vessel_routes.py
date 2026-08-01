@@ -768,7 +768,7 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
                 "ship_type":        str(vp.vessel_type).upper() if vp and vp.vessel_type else "BULK CARRIER",
                 "lat":              parse_dms(data.get("Position_Lat")),
                 "lon":              parse_dms(data.get("Position_Long")),
-                "speed":            str(data.get("ME_Speed_log_24h_Avg")) if data.get("ME_Speed_log_24h_Avg") else None,
+                "speed":            str(data["Speed_Reported Spd. (kts)"]) if "Speed_Reported Spd. (kts)" in data and data["Speed_Reported Spd. (kts)"] is not None else str(data["Speed_TW Spd. (kts)"]) if "Speed_TW Spd. (kts)" in data and data["Speed_TW Spd. (kts)"] is not None else None,
                 "heading":          str(data.get("Vessel Heading_Heading")) if data.get("Vessel Heading_Heading") is not None else None,
                 "status":           map_status(data.get("Event Type")),
                 "pos_date":         data.get("Date"),
