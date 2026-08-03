@@ -380,10 +380,12 @@ def _save_fleet_status(route_data: dict, vessel_id: str, imo: str, l2_data: dict
         destination = destination.upper() if destination else None
         route_name = route_name.upper() if route_name else None
 
-        # Fallback: if departure port not provided, extract from route name
-        # e.g. "060L HAMBANTOTA TO PARADIP" -> departure="HAMBANTOTA"
-        if not departure and route_name and " TO " in route_name:
+        # Prefer extracting ports from route name to match user expectations
+        # e.g. "VOY 067 L VIZAG TO HAZIRA" -> departure="VIZAG", destination="HAZIRA"
+        if route_name and " TO " in route_name:
             parts = route_name.split(" TO ")
+            dest_parsed = parts[-1].strip() if parts else None
+            
             before_to = parts[0].strip()
             # Strip voyage number tokens from the front
             tokens = before_to.split()
@@ -396,14 +398,10 @@ def _save_fleet_status(route_data: dict, vessel_id: str, imo: str, l2_data: dict
                     continue
                 skipping_voy = False
                 port_tokens.append(tok)
-            if port_tokens:
-                departure = " ".join(port_tokens)
-
-        # Fallback: if destination port not provided, extract from route name
-        # e.g. "VOY 067 L VIZAG TO HAZIRA" -> destination="HAZIRA"
-        if not destination and route_name and " TO " in route_name:
-            parts = route_name.split(" TO ")
-            destination = parts[-1].strip() if parts else None
+            dep_parsed = " ".join(port_tokens) if port_tokens else None
+            
+            departure = dep_parsed if dep_parsed else departure
+            destination = dest_parsed if dest_parsed else destination
         
         # Extract voyage number: everything before " TO " in the route name
         # e.g. "VOY 067 L VIZAG TO HAZIRA" -> "067 L"
