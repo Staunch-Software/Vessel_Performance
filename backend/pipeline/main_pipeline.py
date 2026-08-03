@@ -1338,6 +1338,15 @@ def run_fleet_status_only():
 
             browser.close()
 
+            # --- Wartsila Routes Scrape ---
+            try:
+                from .wartsila_scraper import fetch_wartsila_routes
+                _log.info("[FLEET_SCHED]  Starting Wartsila route scrape for AMNS vessels...")
+                fetch_wartsila_routes()
+                _log.info("[FLEET_SCHED]  Wartsila route scrape complete.")
+            except Exception as we:
+                _log.error(f"[FLEET_SCHED]  Wartsila route scrape failed: {we}", exc_info=True)
+
     except Exception as e:
         _log.error(f"[FLEET_SCHED]  Scrape failed: {e}", exc_info=True)
 

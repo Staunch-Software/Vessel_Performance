@@ -21,7 +21,7 @@
   height: 100%;
   background: var(--wni-bg);
   color: var(--wni-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  font-family: 'Inter', sans-serif;
   overflow: hidden;
 }
 
@@ -198,7 +198,7 @@
   color: #fff !important;
   border: 1px solid var(--wni-border) !important;
   border-radius: 6px !important;
-  font-family: sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 0.8rem;
 }
 
@@ -284,13 +284,6 @@
   letter-spacing: 1px;
 }
 
-/* "General Information" group header */
-.fsm-th-general-group {
-  background: #0d121c !important;
-  color: #e2e8f0 !important;
-  border-bottom: 1px solid var(--wni-border) !important;
-  letter-spacing: 1px;
-}
 
 /* Row 2: All sub-headers */
 .fsm-table thead tr:nth-child(2) th {
@@ -740,7 +733,7 @@
 .fsm-popup-inner {
   min-width: 260px;
   font-size: 0.79rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 .fsm-popup-title {
@@ -790,13 +783,6 @@
   color: #64748b;
 }
 
-/* ── General Information group header (now hidden from table) ── */
-.fsm-th-gen-group {
-  background: #081208 !important;
-  color: #86efac !important;
-  border-bottom: 1px solid var(--wni-border) !important;
-  letter-spacing: 1px;
-}
 
 /* ── Drag Handle ──────────────────────────────────────────────── */
 .fsm-drag-handle {

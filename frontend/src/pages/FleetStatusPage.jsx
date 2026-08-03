@@ -128,8 +128,7 @@ async function exportExcel(data) {
     'Detail', // A
     'Alert', '', '', '', '', '', // B-G (6 columns)
     'AIS Information', '', '', '', '', // H-L (5 columns)
-    'Report Information', '', '', '', '', '', // M-R (6 columns)
-    'General Information' // S-AJ (18 columns)
+    'Report Information', '', '', '', '', '' // M-R (6 columns)
   ]
 
   // 2. Column Configurations (Row 2 headers and widths)
@@ -159,20 +158,6 @@ async function exportExcel(data) {
     { header: 'ETA', key: 'eta', width: 18 },
     { header: 'Lat', key: 'lat', width: 14 },
     { header: 'Lon', key: 'lon', width: 14 },
-    
-    // General Information (18)
-    { header: 'IMO', key: 'imo', width: 12 },
-    { header: 'Ship Type', key: 'ship_type', width: 18 },
-    { header: 'Callsign', key: 'callsign', width: 12 },
-    { header: 'Flag Code', key: 'flag_code', width: 14 },
-    { header: 'Build Date', key: 'build_date', width: 12 },
-    { header: 'Length(m)', key: 'length', width: 12 },
-    { header: 'Breadth(m)', key: 'breadth', width: 12 },
-    { header: 'Depth(m)', key: 'depth', width: 12 },
-    { header: 'Draft(m)', key: 'draft', width: 12 },
-    { header: 'DWT(tons)', key: 'dwt', width: 15 },
-    { header: 'Gross Tonnage(tons)', key: 'gross_tonnage', width: 22 },
-    { header: 'Engine Builder', key: 'engine_builder', width: 28 },
     { header: 'Power at MCR(kW)', key: 'power_mcr', width: 20 },
     { header: 'RPM at MCR', key: 'rpm_mcr', width: 15 },
     { header: 'TEU', key: 'teu', width: 10 },
@@ -520,7 +505,6 @@ function VesselModal({ vessel, onClose }) {
 
   const tabs = [
     { id: 'ais',     label: 'AIS / Position' },
-    { id: 'general', label: 'General Information' },
     { id: 'alerts',  label: 'Alerts' },
   ]
 
@@ -580,32 +564,7 @@ function VesselModal({ vessel, onClose }) {
             </div>
           )}
 
-          {activeTab === 'general' && (
-            <div className="fsm-tab-pane">
-              <div className="fsm-info-grid">
-                {[
-                  ['Build Date',        fmt(vessel.build_date)],
-                  ['Length (m)',        fmt(vessel.length)],
-                  ['Breadth (m)',       fmt(vessel.breadth)],
-                  ['Depth (m)',         fmt(vessel.depth)],
-                  ['Draft (m)',         fmt(vessel.draft)],
-                  ['Gross Tonnage',     fmt(vessel.gross_tonnage)],
-                  ['Engine Builder',    fmt(vessel.engine_builder)],
-                  ['Power at MCR (kW)', fmt(vessel.power_mcr)],
-                  ['RPM at MCR',        fmt(vessel.rpm_mcr)],
-                  ['TEU',               fmt(vessel.teu)],
-                  ['Email',             fmt(vessel.email)],
-                  ['Fax',               fmt(vessel.fax)],
-                  ['Phone',             fmt(vessel.phone)],
-                ].map(([label, val]) => (
-                  <div className="fsm-info-item" key={label}>
-                    <span className="fsm-info-label">{label}</span>
-                    <span className="fsm-info-value">{val}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           {activeTab === 'alerts' && (
             <div className="fsm-tab-pane">
@@ -761,7 +720,7 @@ export default function FleetStatusPage() {
       <div className="fsm-topbar">
         <div>
           <div className="fsm-title">Fleet Status Monitoring</div>
-          <div className="fsm-subtitle">Powered by Weathernews</div>
+
         </div>
         {/* Search box */}
         <div className="fsm-search-wrap">
@@ -827,7 +786,6 @@ export default function FleetStatusPage() {
                   {/* AIS: 5 cols now includes Voyage No. */}
                   <th colSpan={5} className="fsm-th-ais-group">AIS Information</th>
                   <th colSpan={6} className="fsm-th-report-group">Report Information</th>
-                  <th colSpan={18} className="fsm-th-general-group">General Information</th>
                 </tr>
                 <tr>
                   {/* Alert (6) */}
@@ -850,25 +808,6 @@ export default function FleetStatusPage() {
                   <th className="fsm-th-report fsm-sortable" onClick={() => handleSort('eta')}>ETA{sortIcon('eta')}</th>
                   <th className="fsm-th-report">Lat</th>
                   <th className="fsm-th-report">Lon</th>
-                  {/* General Information (18) */}
-                  <th className="fsm-th-general">IMO</th>
-                  <th className="fsm-th-general">Ship Type</th>
-                  <th className="fsm-th-general">Callsign</th>
-                  <th className="fsm-th-general">Flag Code</th>
-                  <th className="fsm-th-general fsm-sortable" onClick={() => handleSort('build_date')}>Build Date{sortIcon('build_date')}</th>
-                  <th className="fsm-th-general">Length (m)</th>
-                  <th className="fsm-th-general">Breadth (m)</th>
-                  <th className="fsm-th-general">Depth (m)</th>
-                  <th className="fsm-th-general">Draft (m)</th>
-                  <th className="fsm-th-general fsm-sortable" onClick={() => handleSort('dwt')}>DWT (tons){sortIcon('dwt')}</th>
-                  <th className="fsm-th-general">Gross Tonnage (tons)</th>
-                  <th className="fsm-th-general">Engine Builder</th>
-                  <th className="fsm-th-general">Power at MCR (kW)</th>
-                  <th className="fsm-th-general">RPM at MCR</th>
-                  <th className="fsm-th-general">TEU</th>
-                  <th className="fsm-th-general">Email</th>
-                  <th className="fsm-th-general">Fax</th>
-                  <th className="fsm-th-general">Phone</th>
                 </tr>
               </thead>
               <tbody>
@@ -917,25 +856,6 @@ export default function FleetStatusPage() {
                     <td className="fsm-date-cell">{formatDate(v.eta)}</td>
                     <td>{formatLat(v.lat)}</td>
                     <td>{formatLon(v.lon)}</td>
-                    {/* General Information */}
-                    <td>{fmt(v.imo)}</td>
-                    <td>{fmt(v.ship_type)}</td>
-                    <td>{fmt(v.callsign)}</td>
-                    <td>{fmt(v.flag_code)}</td>
-                    <td>{fmt(v.build_date)}</td>
-                    <td>{fmt(v.length)}</td>
-                    <td>{fmt(v.breadth)}</td>
-                    <td>{fmt(v.depth)}</td>
-                    <td>{fmt(v.draft)}</td>
-                    <td>{fmt(v.dwt)}</td>
-                    <td>{fmt(v.gross_tonnage)}</td>
-                    <td>{fmt(v.engine_builder)}</td>
-                    <td>{fmt(v.power_mcr)}</td>
-                    <td>{fmt(v.rpm_mcr)}</td>
-                    <td>{fmt(v.teu)}</td>
-                    <td>{fmt(v.email)}</td>
-                    <td>{fmt(v.fax)}</td>
-                    <td>{fmt(v.phone)}</td>
                   </tr>
                 ))}
               </tbody>
