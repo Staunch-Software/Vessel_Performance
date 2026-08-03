@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 WARTSILA_USERNAME = os.getenv("WARTSILA_USERNAME", "techdevops@ozellar.com")
 WARTSILA_PASSWORD = os.getenv("WARTSILA_PASSWORD", "G$788329274973ad")
