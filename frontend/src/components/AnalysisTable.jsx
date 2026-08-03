@@ -204,11 +204,11 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
 
 
 // ── Memoized Row ───────────────────────────────────────────────────────────────
-// colCount is passed so that React.memo re-renders rows when the column layout
-// changes (e.g. a category filter tab is selected). Without this, TanStack
-// Table's cached row references would fool memo into skipping re-render and the
-// body would show stale cells while the header already reflects the new columns.
-const TableRow = memo(({ row, idx, isSelected, sr, onClick, colCount: _colCount }) => {
+// `columns` array reference is passed so that React.memo re-renders rows when
+// the column layout changes (e.g. swapping, renaming, adding/removing columns).
+// Without this, TanStack Table's cached row references might fool memo into skipping
+// re-render and the body would show stale cells while the header already reflects new columns.
+const TableRow = memo(({ row, idx, isSelected, sr, onClick, columns }) => {
   return (
     <tr
       className={isSelected ? 'selected' : ''}
@@ -322,8 +322,6 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
     )
   }
 
-  const colCount = columns.length
-
   return (
     <div className="table-container">
       <table className="analysis-table">
@@ -349,7 +347,7 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
                 isSelected={selectedIds.has(row.id)}
                 sr={sr}
                 onClick={handleRowClick}
-                colCount={colCount}
+                columns={columns}
               />
             )
           })}
