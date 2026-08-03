@@ -392,10 +392,13 @@ def _save_fleet_status(route_data: dict, vessel_id: str, imo: str, l2_data: dict
             port_tokens = []
             skipping_voy = True
             for tok in tokens:
-                if skipping_voy and (tok.isdigit() or (len(tok) <= 4 and not tok.isalpha())):
-                    continue  # skip voyage number like "060L"
-                if skipping_voy and tok in ("VOY", "VYG"):
-                    continue
+                if skipping_voy:
+                    if tok in ("VOY", "VYG"):
+                        continue
+                    if any(char.isdigit() for char in tok):
+                        continue  # e.g. "067", "060L"
+                    if len(tok) <= 2:
+                        continue  # e.g. "L", "B"
                 skipping_voy = False
                 port_tokens.append(tok)
             dep_parsed = " ".join(port_tokens) if port_tokens else None
