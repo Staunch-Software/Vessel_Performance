@@ -120,149 +120,108 @@ async function exportExcel(data) {
 
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet('Fleet Status', {
-    views: [{ state: 'frozen', ySplit: 2, xSplit: 1 }]
+    views: [{ state: 'frozen', ySplit: 2, xSplit: 1 }] // freeze Vessel Name col + 2 header rows
   })
 
-  // 1. Group Headers (Row 1)
-  sheet.getRow(1).values = [
-    'Detail', // A
-    'Alert', '', '', '', '', '', // B-G (6 columns)
-    'AIS Information', '', '', '', '', // H-L (5 columns)
-    'Report Information', '', '', '', '', '' // M-R (6 columns)
-  ]
-
-  // 2. Column Configurations (Row 2 headers and widths)
+  // 1. Define column widths and keys ONLY — no header (header writes to row 1 and conflicts)
   sheet.columns = [
-    // Detail (1)
-    { header: 'Vessel Name', key: 'vessel_name', width: 22 },
-    
-    // Alert (6)
-    { header: 'Port Alert', key: 'port_alert', width: 15 },
-    { header: 'Coastal Storm', key: 'coastal_storm', width: 15 },
-    { header: 'Ocean Storm', key: 'ocean_storm', width: 15 },
-    { header: 'Tropical Cyclone', key: 'tropical_cyclone', width: 18 },
-    { header: 'Pos Diff', key: 'pos_diff', width: 12 },
-
-    
-    // AIS Information (5)
-    { header: 'Voyage No.', key: 'voyage_number', width: 14 },
-    { header: 'Speed (kts)', key: 'speed', width: 12 },
-    { header: 'Heading (deg)', key: 'heading', width: 14 },
-    { header: 'Pos.Date', key: 'pos_date', width: 18 },
-    { header: 'Status', key: 'status', width: 12 },
-    
-    // Report Information (6)
-    { header: 'Last Port', key: 'last_port', width: 20 },
-    { header: 'ETD', key: 'etd', width: 18 },
-    { header: 'Next Port', key: 'next_port', width: 20 },
-    { header: 'ETA', key: 'eta', width: 18 },
-    { header: 'Lat', key: 'lat', width: 14 },
-    { header: 'Lon', key: 'lon', width: 14 },
-    { header: 'Power at MCR(kW)', key: 'power_mcr', width: 20 },
-    { header: 'RPM at MCR', key: 'rpm_mcr', width: 15 },
-    { header: 'TEU', key: 'teu', width: 10 },
-    { header: 'Email', key: 'email', width: 22 },
-    { header: 'Fax', key: 'fax', width: 18 },
-    { header: 'Phone', key: 'phone', width: 20 }
+    { key: 'vessel_name',    width: 22 }, // A
+    { key: 'port_alert',     width: 14 }, // B
+    { key: 'coastal_storm',  width: 15 }, // C
+    { key: 'ocean_storm',    width: 14 }, // D
+    { key: 'tropical_cyclone', width: 18 }, // E
+    { key: 'pos_diff',       width: 12 }, // F
+    { key: 'voyage_number',  width: 14 }, // G
+    { key: 'speed',          width: 12 }, // H
+    { key: 'heading',        width: 14 }, // I
+    { key: 'pos_date',       width: 20 }, // J
+    { key: 'status',         width: 14 }, // K
+    { key: 'last_port',      width: 20 }, // L
+    { key: 'etd',            width: 20 }, // M
+    { key: 'next_port',      width: 20 }, // N
+    { key: 'eta',            width: 20 }, // O
+    { key: 'lat',            width: 14 }, // P
+    { key: 'lon',            width: 14 }, // Q
   ]
 
-  // 3. Merging Row 1 Group Headers
-  sheet.mergeCells('B1:G1') // Alert
-  sheet.mergeCells('H1:L1') // AIS Info
-  sheet.mergeCells('M1:R1') // Report Info
-  sheet.mergeCells('S1:AJ1') // General Info
+  // 2. Row 1 — Group headers (merged)
+  sheet.mergeCells('B1:F1') // Alert (5 cols)
+  sheet.mergeCells('G1:K1') // AIS Information (5 cols)
+  sheet.mergeCells('L1:Q1') // Report Information (6 cols)
 
-  // 4. Styling Row 1 (Group Headers)
-  const groupStyle = {
-    font: { bold: true, color: { argb: 'FFFFFFFF' } },
-    alignment: { horizontal: 'center', vertical: 'middle' },
-    border: {
+  const setGroupStyle = (cellRef, label, bgColor) => {
+    const cell = sheet.getCell(cellRef)
+    cell.value = label
+    cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
+    cell.font  = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    cell.border = {
       bottom: { style: 'medium', color: { argb: 'FF000000' } },
-      right: { style: 'thin', color: { argb: 'FF334155' } }
+      right:  { style: 'thin',   color: { argb: 'FF334155' } }
     }
   }
 
-  const setGroupStyle = (cellRef, bgColor) => {
-    const cell = sheet.getCell(cellRef)
-    cell.value = cell.value // Re-assign to ensure it holds
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
-    cell.font = groupStyle.font
-    cell.alignment = groupStyle.alignment
-    cell.border = groupStyle.border
-  }
+  setGroupStyle('A1', 'Vessel Name',        'FF1E293B') // Slate 800
+  setGroupStyle('B1', 'Alert',              'FF7F1D1D') // Red 900
+  setGroupStyle('G1', 'AIS Information',    'FF1E3A8A') // Blue 900
+  setGroupStyle('L1', 'Report Information', 'FF14532D') // Green 900
 
-  setGroupStyle('A1', 'FF1E293B') // Detail (Slate 800)
-  setGroupStyle('B1', 'FF7F1D1D') // Alert (Red 900)
-  setGroupStyle('H1', 'FF1E3A8A') // AIS Info (Blue 900)
-  setGroupStyle('M1', 'FF14532D') // Report Info (Green 900)
-  setGroupStyle('S1', 'FF334155') // General Info (Slate 700)
+  sheet.getRow(1).height = 24
 
-  // 5. Styling Row 2 (Column Headers)
-  sheet.getRow(2).eachCell((cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } } // Slate 900
-    cell.font = { bold: true, color: { argb: 'FF94A3B8' } } // Slate 400
+  // 3. Row 2 — Sub-headers written manually so they always appear
+  const subHeaders = [
+    'Vessel Name',
+    'Port Alert', 'Coastal Storm', 'Ocean Storm', 'Tropical Cyclone', 'Pos Diff',
+    'Voyage No.', 'Speed (kts)', 'Heading (deg)', 'Pos. Date', 'Status',
+    'Last Port', 'ETD', 'Next Port', 'ETA', 'Lat', 'Lon',
+  ]
+  const row2 = sheet.getRow(2)
+  subHeaders.forEach((label, idx) => {
+    const cell = row2.getCell(idx + 1)
+    cell.value     = label
+    cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }
+    cell.font      = { bold: true, color: { argb: 'FF94A3B8' }, size: 10 }
     cell.alignment = { vertical: 'middle', horizontal: 'left' }
-    cell.border = { bottom: { style: 'thin', color: { argb: 'FF334155' } } }
+    cell.border    = { bottom: { style: 'thin', color: { argb: 'FF334155' } } }
   })
-  
-  // Make row 1 and 2 a bit taller
-  sheet.getRow(1).height = 25
-  sheet.getRow(2).height = 20
+  row2.height = 20
 
-  // Helper for alert display (Yes or detail text instead of just boolean)
+  // 4. Helper for alert display
   const fmtAlert = (val) => {
     const v = String(val || '').trim().toLowerCase()
     if (v === 'null' || v === 'none' || v === 'false' || v === '0' || !v) return '-'
     return val
   }
 
-  // 6. Append Data Rows
-  data.forEach(r => {
+  // 5. Append Data Rows
+  data.forEach((r) => {
     sheet.addRow({
-      vessel_name: fmt(r.vessel_name),
-      port_alert: fmtAlert(r.port_alert),
-      coastal_storm: fmtAlert(r.coastal_storm),
-      ocean_storm: fmtAlert(r.ocean_storm),
+      vessel_name:      fmt(r.vessel_name),
+      port_alert:       fmtAlert(r.port_alert),
+      coastal_storm:    fmtAlert(r.coastal_storm),
+      ocean_storm:      fmtAlert(r.ocean_storm),
       tropical_cyclone: fmtAlert(r.tropical_cyclone),
-      pos_diff: fmtAlert(r.pos_diff),
-
-      voyage_number: fmt(r.voyage_number),
-      speed: formatDecimal(r.speed, 1),
-      heading: formatDecimal(r.heading, 1),
-      pos_date: formatDate(r.pos_date),
-      status: fmt(r.status),
-      last_port: cleanPort(r.last_port),
-      etd: formatDate(r.etd),
-      next_port: cleanPort(r.next_port),
-      eta: formatDate(r.eta),
-      lat: formatLat(r.lat),
-      lon: formatLon(r.lon),
-      imo: fmt(r.imo),
-      ship_type: fmt(r.ship_type),
-      callsign: fmt(r.callsign),
-      flag_code: fmt(r.flag_code),
-      build_date: fmt(r.build_date),
-      length: fmt(r.length),
-      breadth: fmt(r.breadth),
-      depth: fmt(r.depth),
-      draft: fmt(r.draft),
-      dwt: fmt(r.dwt),
-      gross_tonnage: fmt(r.gross_tonnage),
-      engine_builder: fmt(r.engine_builder),
-      power_mcr: fmt(r.power_mcr),
-      rpm_mcr: fmt(r.rpm_mcr),
-      teu: fmt(r.teu),
-      email: fmt(r.email),
-      fax: fmt(r.fax),
-      phone: fmt(r.phone)
+      pos_diff:         fmtAlert(r.pos_diff),
+      voyage_number:    fmt(r.voyage_number),
+      speed:            formatDecimal(r.speed, 1),
+      heading:          formatDecimal(r.heading, 1),
+      pos_date:         formatDate(r.pos_date),
+      status:           fmt(r.status),
+      last_port:        cleanPort(r.last_port),
+      etd:              formatDate(r.etd),
+      next_port:        cleanPort(r.next_port),
+      eta:              formatDate(r.eta),
+      lat:              formatLat(r.lat),
+      lon:              formatLon(r.lon),
     })
   })
 
-  // 7. Generate and Save File
+  // 6. Generate and Save File
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   saveAs(blob, `Fleet_Status_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
+
 
 // ── MapLibre Map Component ──────────────────────────────────────────────────
 function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
