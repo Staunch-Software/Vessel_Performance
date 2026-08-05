@@ -1606,7 +1606,7 @@ class VesselColumnDefault(Base):
 
     id           = Column(Integer, primary_key=True, autoincrement=True)
     vessel_imo   = Column(String(20), ForeignKey("vessels.imo_number", ondelete="CASCADE"),
-                          nullable=False, index=True)
+                          nullable=True, index=True)
     source       = Column(String(20), nullable=False)          # 'mari_apps' | 'wni'
     column_prefs = Column(JSONB, nullable=False, default={})   # {visible: [...], order: [...]}
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

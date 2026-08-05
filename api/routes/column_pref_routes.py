@@ -26,7 +26,7 @@ class ColumnPrefPayload(BaseModel):
 
 
 class VesselColumnDefaultPayload(BaseModel):
-    vessel_imo: str
+    vessel_imo: Optional[str] = None
     source: str
     column_prefs: Dict[str, Any]
 
@@ -40,16 +40,23 @@ def get_column_prefs(
     current_user: User = Depends(get_current_user),
 ):
     """Get the current user's column preferences for a source (+ optional vessel)."""
-    q = db.query(UserColumnPreference).filter(
-        UserColumnPreference.user_id == current_user.id,
-        UserColumnPreference.source  == source,
-    )
+    # First check for specific vessel
+    pref = None
     if vessel_imo:
-        q = q.filter(UserColumnPreference.vessel_imo == vessel_imo)
-    else:
-        q = q.filter(UserColumnPreference.vessel_imo.is_(None))
+        pref = db.query(UserColumnPreference).filter(
+            UserColumnPreference.user_id == current_user.id,
+            UserColumnPreference.source  == source,
+            UserColumnPreference.vessel_imo == vessel_imo
+        ).first()
 
-    pref = q.first()
+    # Fallback to user's global preference
+    if not pref:
+        pref = db.query(UserColumnPreference).filter(
+            UserColumnPreference.user_id == current_user.id,
+            UserColumnPreference.source  == source,
+            UserColumnPreference.vessel_imo.is_(None)
+        ).first()
+
     return pref.column_prefs if pref else {}
 
 
@@ -87,16 +94,27 @@ def save_column_prefs(
 # ── GET /vessel-column-defaults  [All Users] 
 @router.get("/vessel-column-defaults")
 def get_vessel_column_defaults(
-    vessel_imo: str,
     source: str,
+    vessel_imo: Optional[str] = None,
     db: Session = Depends(get_db_for_auth),
     current_user: User = Depends(get_current_user),
 ):
-    """Retrieve the vessel-level column default (allowed for all authenticated users)."""
-    rec = db.query(VesselColumnDefault).filter(
-        VesselColumnDefault.vessel_imo == vessel_imo,
-        VesselColumnDefault.source     == source,
-    ).first()
+    """Retrieve the vessel-level column default (allowed for all authenticated users). Fallback to global if vessel_imo not found."""
+    # First check specific vessel
+    rec = None
+    if vessel_imo:
+        rec = db.query(VesselColumnDefault).filter(
+            VesselColumnDefault.vessel_imo == vessel_imo,
+            VesselColumnDefault.source     == source,
+        ).first()
+    
+    # Fallback to global if no specific default
+    if not rec:
+        rec = db.query(VesselColumnDefault).filter(
+            VesselColumnDefault.vessel_imo.is_(None),
+            VesselColumnDefault.source     == source,
+        ).first()
+
     return rec.column_prefs if rec else {}
 
 
@@ -107,11 +125,14 @@ def save_vessel_column_defaults(
     db: Session = Depends(get_db_for_auth),
     _admin: User = Depends(require_admin),
 ):
-    """Admin: set the default column layout for a specific vessel (upsert)."""
-    existing = db.query(VesselColumnDefault).filter(
-        VesselColumnDefault.vessel_imo == payload.vessel_imo,
-        VesselColumnDefault.source     == payload.source,
-    ).first()
+    """Admin: set the default column layout for a specific vessel or globally (upsert)."""
+    q = db.query(VesselColumnDefault).filter(VesselColumnDefault.source == payload.source)
+    if payload.vessel_imo:
+        q = q.filter(VesselColumnDefault.vessel_imo == payload.vessel_imo)
+    else:
+        q = q.filter(VesselColumnDefault.vessel_imo.is_(None))
+        
+    existing = q.first()
     if existing:
         existing.column_prefs = payload.column_prefs
     else:

@@ -156,6 +156,7 @@ export default function ColumnPicker({
   const [search,     setSearch]    = useState('')
   const [saving,     setSaving]    = useState(false)
   const [loading,    setLoading]   = useState(true)
+  const [scope,      setScope]     = useState('vessel') // 'vessel' | 'global'
   const backdropRef = useRef(null)
 
   const isAdmin = currentUser?.role === 'admin'
@@ -173,7 +174,7 @@ export default function ColumnPicker({
   }, [onClose])
 
   // Load columns for the picker's selected source + restore its visibility prefs
-  const loadCols = useCallback(async (source, modeIsAdmin) => {
+  const loadCols = useCallback(async (source, modeIsAdmin, currentScope) => {
     setLoading(true)
     try {
       const fetched = await fetchExpandedColumns(source)
@@ -184,9 +185,10 @@ export default function ColumnPicker({
       
       let finalCols = withPerf
       let activeVisible = new Set()
+      const activeImo = currentScope === 'global' ? null : vesselImo
 
-      if (source === pageSource) {
-        // If viewing the active page source, we can use the pre-fetched sets
+      if (source === pageSource && currentScope === 'vessel') {
+        // If viewing the active page source for this vessel, we can use the pre-fetched sets
         if (modeIsAdmin) {
           const defs = pageDefaultsRef.current
           activeVisible = defs && defs.size > 0 
@@ -201,17 +203,17 @@ export default function ColumnPicker({
           activeVisible = new Set(pageVisRef.current)
         }
       } else {
-        // Fetching for the inactive tab
+        // Fetching for inactive tab or global scope
         if (modeIsAdmin) {
-          const defaults = await fetchVesselColumnDefaults(source, vesselImo).catch(() => ({}))
+          const defaults = await fetchVesselColumnDefaults(source, activeImo).catch(() => ({}))
           const defSet = new Set(defaults.visible || [])
           activeVisible = defSet.size > 0 
             ? defSet
             : new Set(withPerf.map(c => c.db_column))
         } else {
           const [defaults, userPrefs] = await Promise.all([
-            fetchVesselColumnDefaults(source, vesselImo).catch(() => ({})),
-            fetchUserColumnPrefs(source, vesselImo).catch(() => ({}))
+            fetchVesselColumnDefaults(source, activeImo).catch(() => ({})),
+            fetchUserColumnPrefs(source, activeImo).catch(() => ({}))
           ])
           const defSet = new Set(defaults.visible || [])
           const adminAllowed = defSet.size > 0 ? defSet : new Set(withPerf.map(c => c.db_column))
@@ -240,7 +242,7 @@ export default function ColumnPicker({
     }
   }, [pageSource, vesselImo])
 
-  useEffect(() => { loadCols(src, modeIsAdmin) }, [src, modeIsAdmin, loadCols])
+  useEffect(() => { loadCols(src, modeIsAdmin, scope) }, [src, modeIsAdmin, scope, loadCols])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -301,13 +303,14 @@ export default function ColumnPicker({
       next.has(dbCol) ? next.delete(dbCol) : next.add(dbCol)
       
       const payload = { visible: [...next] }
+      const activeImo = scope === 'global' ? null : vesselImo
       
       if (modeIsAdmin) {
-        saveVesselColumnDefaults(src, vesselImo, payload).catch(console.error)
-        if (src === pageSource) onAdminDefaultsChanged?.(next)
+        saveVesselColumnDefaults(src, activeImo, payload).catch(console.error)
+        if (src === pageSource && scope === 'vessel') onAdminDefaultsChanged?.(next)
       } else {
-        saveUserColumnPrefs(src, vesselImo, payload).catch(console.error)
-        if (src === pageSource) onPageSetVisible(next)
+        saveUserColumnPrefs(src, activeImo, payload).catch(console.error)
+        if (src === pageSource && scope === 'vessel') onPageSetVisible(next)
       }
       return next
     })
@@ -330,13 +333,14 @@ export default function ColumnPicker({
       colsToAdd.forEach(c => next.add(c))
       
       const payload = { visible: [...next] }
+      const activeImo = scope === 'global' ? null : vesselImo
       
       if (modeIsAdmin) {
-        saveVesselColumnDefaults(src, vesselImo, payload).catch(console.error)
-        if (src === pageSource) onAdminDefaultsChanged?.(next)
+        saveVesselColumnDefaults(src, activeImo, payload).catch(console.error)
+        if (src === pageSource && scope === 'vessel') onAdminDefaultsChanged?.(next)
       } else {
-        saveUserColumnPrefs(src, vesselImo, payload).catch(console.error)
-        if (src === pageSource) onPageSetVisible(next)
+        saveUserColumnPrefs(src, activeImo, payload).catch(console.error)
+        if (src === pageSource && scope === 'vessel') onPageSetVisible(next)
       }
       return next
     })
@@ -346,7 +350,7 @@ export default function ColumnPicker({
     setSaving(true)
     try {
       await resetColumnOrder(src)
-      await loadCols(src, modeIsAdmin)
+      await loadCols(src, modeIsAdmin, scope)
       if (src === pageSource) onOrderChanged?.()
     } finally {
       setSaving(false)
@@ -404,17 +408,33 @@ export default function ColumnPicker({
                 padding: '6px 10px',
                 borderRadius: '6px',
                 border: `1px solid ${modeIsAdmin ? 'rgba(245, 158, 11, 0.3)' : 'rgba(56, 189, 248, 0.2)'}`,
-                marginTop: '4px'
+                marginTop: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
               }}>
-                {modeIsAdmin ? 'Configuring defaults for: ' : 'Viewing approved columns for: '}
-                <span style={{ 
-                  color: modeIsAdmin ? '#ef4444' : '#38bdf8', 
-                  fontWeight: 'bold',
-                  fontSize: 13,
-                  marginLeft: 4
-                }}>
-                  {vesselName || vesselImo || 'All Vessels'}
-                </span>
+                <div>
+                  {modeIsAdmin ? 'Configuring defaults for: ' : 'Viewing approved columns for: '}
+                  <span style={{ 
+                    color: modeIsAdmin ? '#ef4444' : '#38bdf8', 
+                    fontWeight: 'bold',
+                    fontSize: 13,
+                    marginLeft: 4
+                  }}>
+                    {scope === 'global' ? 'All Vessels (Global)' : (vesselName || vesselImo || 'All Vessels')}
+                  </span>
+                </div>
+                
+                {/* Mini Segmented Control */}
+                <div className={`cp-mini-scope ${modeIsAdmin ? 'admin-mode' : 'user-mode'}`} data-active={scope}>
+                  <div className="cp-mini-indicator"></div>
+                  <div className={`cp-mini-tab ${scope === 'vessel' ? 'active' : ''}`} onClick={() => setScope('vessel')}>
+                    This Vessel
+                  </div>
+                  <div className={`cp-mini-tab ${scope === 'global' ? 'active' : ''}`} onClick={() => setScope('global')}>
+                    Global
+                  </div>
+                </div>
               </div>
             </div>
             <button className="cp-close" onClick={onClose}><X size={15} /></button>

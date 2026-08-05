@@ -644,7 +644,7 @@
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
-  font-family: Inter, sans-serif;
+  font-family: 'Inter', sans-serif !important;
   text-shadow: 1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000;
   white-space: nowrap;
   pointer-events: none;
@@ -710,6 +710,11 @@
 }
 
 /* ── Override MapLibre default popup — dark theme ───────────────── */
+/* Force map container and all children to use Inter */
+.maplibregl-map, .maplibregl-popup, .maplibregl-ctrl {
+  font-family: 'Inter', sans-serif !important;
+}
+
 .fsm-vessel-popup {
   z-index: 9999 !important;
 }
