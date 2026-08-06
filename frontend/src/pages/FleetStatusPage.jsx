@@ -223,11 +223,191 @@ async function exportExcel(data) {
 }
 
 
+// ── Map Style Definitions ────────────────────────────────────────────────────
+const MAP_STYLES = {
+  Dark: {
+    label: 'Dark Map',
+    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    isDark: true,
+  },
+  Light: {
+    label: 'Light Map',
+    style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    isDark: false,
+  },
+  Satellite: {
+    label: 'Satellite Map',
+    style: {
+      version: 8,
+      sources: {
+        'esri-satellite': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          ],
+          tileSize: 256,
+          attribution: '© Esri',
+        },
+      },
+      layers: [{
+        id: 'esri-satellite-layer',
+        type: 'raster',
+        source: 'esri-satellite',
+        minzoom: 0,
+        maxzoom: 20,
+      }],
+    },
+    isDark: true,
+  },
+  Nautical: {
+    label: 'Nautical Chart',
+    style: {
+      version: 8,
+      sources: {
+        'osm-base': {
+          type: 'raster',
+          tiles: [
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          ],
+          tileSize: 256,
+          attribution: '© OpenStreetMap contributors',
+        },
+        'openseamap': {
+          type: 'raster',
+          tiles: [
+            'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+          ],
+          tileSize: 256,
+          attribution: '© OpenSeaMap contributors',
+        },
+      },
+      layers: [
+        { id: 'osm-base-layer',    type: 'raster', source: 'osm-base',   minzoom: 0, maxzoom: 20 },
+        { id: 'openseamap-layer',  type: 'raster', source: 'openseamap', minzoom: 0, maxzoom: 20 },
+      ],
+    },
+    isDark: false,
+  },
+}
+
+// ── Shared helper: apply/update vessel track layers on the map ───────────────
+// Extracted so both the "vessel selected" effect and the "style changed" callback
+// can call the same logic without duplication.
+function applyTrackToMap(map, data) {
+    try {
+      // Only keep LineString features — skip individual Point (actual_point) features
+      // so we draw clean route lines without thousands of dot markers.
+      // We also adjust longitudes to prevent straight lines cutting across the map at the antimeridian.
+      const lineOnly = {
+        type: 'FeatureCollection',
+        features: data.features
+          .filter(f => f.geometry && f.geometry.type === 'LineString')
+          .map(f => {
+            const coords = f.geometry.coordinates
+            if (!coords || coords.length === 0) return f
+
+            const newCoords = [[...coords[0]]]
+            for (let i = 1; i < coords.length; i++) {
+              const prevLon = newCoords[i - 1][0]
+              let currLon = coords[i][0]
+              const diff = currLon - prevLon
+              
+              if (diff > 180) {
+                currLon -= 360
+              } else if (diff < -180) {
+                currLon += 360
+              }
+              
+              newCoords.push([currLon, coords[i][1]])
+            }
+
+            return {
+              ...f,
+              geometry: {
+                ...f.geometry,
+                coordinates: newCoords
+              }
+            }
+          }),
+      }
+
+    if (map.getSource('vessel-track')) {
+      map.getSource('vessel-track').setData(lineOnly)
+    } else {
+      map.addSource('vessel-track', { type: 'geojson', data: lineOnly })
+
+      // Historical AIS track — white dashed line
+      map.addLayer({
+        id:     'vessel-track-actual',
+        type:   'line',
+        source: 'vessel-track',
+        filter: ['==', ['get', 'routetype'], 'actual'],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint:  { 'line-color': '#ffffff', 'line-width': 2, 'line-dasharray': [2, 2] },
+      })
+
+      // Future / planned route — yellow dashed line
+      map.addLayer({
+        id:     'vessel-track-future',
+        type:   'line',
+        source: 'vessel-track',
+        filter: ['in', ['get', 'routetype'], ['literal', ['future', 'intention']]],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint:  { 'line-color': '#eab308', 'line-width': 2, 'line-dasharray': [4, 4] },
+      })
+
+      // Next voyage route — purple dashed line
+      map.addLayer({
+        id:     'vessel-track-next-voyage',
+        type:   'line',
+        source: 'vessel-track',
+        filter: ['==', ['get', 'routetype'], 'next_voyage'],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint:  { 'line-color': '#a855f7', 'line-width': 2, 'line-dasharray': [4, 4] },
+      })
+
+      // Any other route types — orange solid line
+      map.addLayer({
+        id:     'vessel-track-other',
+        type:   'line',
+        source: 'vessel-track',
+        filter: ['!', ['in', ['get', 'routetype'], ['literal', ['actual', 'future', 'intention', 'next_voyage']]]],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint:  { 'line-color': '#f97316', 'line-width': 2 },
+      })
+    }
+  } catch (e) {
+    console.warn('Track layer error:', e)
+  }
+}
+
 // ── MapLibre Map Component ──────────────────────────────────────────────────
 function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
+  const [activeStyleKey, setActiveStyleKey] = useState(() => {
+    return localStorage.getItem('vp_fsm_map_style') || 'Dark'
+  })
+  
+  useEffect(() => {
+    localStorage.setItem('vp_fsm_map_style', activeStyleKey)
+  }, [activeStyleKey])
+
+  const [showLayers, setShowLayers] = useState(false)
   const mapContainerRef = useRef(null)
   const mapRef          = useRef(null)
   const markersRef      = useRef({})
+
+  // Keep a ref to the current selected vessel so track can be re-applied after style changes
+  const selectedVesselRef = useRef(null)
+
+  // Helper: apply dark water colors (Dark style only)
+  const applyDarkWater = useCallback((map, isDark) => {
+    if (!isDark) return
+    try {
+      if (map.getLayer('water'))     map.setPaintProperty('water',     'fill-color', '#0a1628')
+      if (map.getLayer('landcover')) map.setPaintProperty('landcover', 'fill-color', '#152238')
+      if (map.getLayer('waterway'))  map.setPaintProperty('waterway',  'fill-color', '#0a1628')
+    } catch (_) {}
+  }, [])
 
   // Initialize map once
   useEffect(() => {
@@ -235,24 +415,51 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
     if (!mapContainerRef.current || mapRef.current || !maplibregl) return
     mapRef.current = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: MAP_STYLES.Dark.style,
       center: [55.0, 10.0],
       zoom: 3,
-      minZoom: 1,   // Cannot zoom out beyond world overview
-      maxZoom: 10,  // Cannot zoom in beyond city-level detail
+      minZoom: 1,
+      maxZoom: 10,
       attributionControl: false,
     })
-    mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right')  // maplibregl in scope from above
+    mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right')
     mapRef.current.on('styledata', () => {
       const map = mapRef.current
       if (!map) return
-      try {
-        if (map.getLayer('water'))     map.setPaintProperty('water',     'fill-color', '#0a1628')
-        if (map.getLayer('landcover')) map.setPaintProperty('landcover', 'fill-color', '#152238')
-        if (map.getLayer('waterway'))  map.setPaintProperty('waterway',  'fill-color', '#0a1628')
-      } catch (_) {}
+      applyDarkWater(map, MAP_STYLES[activeStyleKey]?.isDark)
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Handle style switching
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const styleConfig = MAP_STYLES[activeStyleKey]
+    if (!styleConfig) return
+
+    // setStyle triggers a full style reload — sources/layers added dynamically
+    // (vessel tracks) will be stripped. We listen for 'styledata' to re-apply them.
+    map.setStyle(styleConfig.style)
+
+    const onStyleLoaded = () => {
+      applyDarkWater(map, styleConfig.isDark)
+      // Re-draw the vessel track if a vessel is selected
+      if (selectedVesselRef.current?.imo) {
+        fetchVesselTrack(selectedVesselRef.current.imo)
+          .then(data => {
+            if (!mapRef.current) return
+            applyTrackToMap(mapRef.current, data)
+          })
+          .catch(() => {})
+      }
+    }
+
+    // 'styledata' fires when the style has been applied
+    map.once('styledata', onStyleLoaded)
+    return () => { map.off('styledata', onStyleLoaded) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStyleKey])
 
   // Rebuild markers whenever vessels list changes
   useEffect(() => {
@@ -384,66 +591,17 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
 
     if (!selectedVessel.imo) return
 
-    const applyTrack = (map, data) => {
-      try {
-        // Only keep LineString features — skip individual Point (actual_point) features
-        // so we draw clean route lines without thousands of dot markers
-        const lineOnly = {
-          type: 'FeatureCollection',
-          features: data.features.filter(
-            f => f.geometry && f.geometry.type === 'LineString'
-          ),
-        }
-
-        if (map.getSource('vessel-track')) {
-          map.getSource('vessel-track').setData(lineOnly)
-        } else {
-          map.addSource('vessel-track', { type: 'geojson', data: lineOnly })
-
-          // Historical AIS track — white dashed line
-          map.addLayer({
-            id:     'vessel-track-actual',
-            type:   'line',
-            source: 'vessel-track',
-            filter: ['==', ['get', 'routetype'], 'actual'],
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint:  { 'line-color': '#ffffff', 'line-width': 2, 'line-dasharray': [2, 2] },
-          })
-
-          // Future / planned route — yellow dashed line
-          map.addLayer({
-            id:     'vessel-track-future',
-            type:   'line',
-            source: 'vessel-track',
-            filter: ['in', ['get', 'routetype'], ['literal', ['future', 'intention']]],
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint:  { 'line-color': '#eab308', 'line-width': 2, 'line-dasharray': [4, 4] },
-          })
-
-          // Any other route types — orange solid line
-          map.addLayer({
-            id:     'vessel-track-other',
-            type:   'line',
-            source: 'vessel-track',
-            filter: ['!', ['in', ['get', 'routetype'], ['literal', ['actual', 'future', 'intention']]]],
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint:  { 'line-color': '#f97316', 'line-width': 2 },
-          })
-        }
-      } catch (e) {
-        console.warn('Track layer error:', e)
-      }
-    }
+    // Update the ref so style-switch re-draws know the current vessel
+    selectedVesselRef.current = selectedVessel
 
     fetchVesselTrack(selectedVessel.imo)
       .then(data => {
         const map = mapRef.current
         if (!map) return
-        // No marker snapping — vessel stays at its real DB lat/lon
         if (map.isStyleLoaded()) {
-          applyTrack(map, data)
+          applyTrackToMap(map, data)
         } else {
-          map.once('load', () => applyTrack(map, data))
+          map.once('load', () => applyTrackToMap(map, data))
         }
       })
       .catch(() => {
@@ -454,7 +612,43 @@ function MapLibreMap({ vessels, selectedVessel, onVesselClick }) {
       })
   }, [selectedVessel])
 
-  return <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+
+      {/* ── Map Style Switcher (Collapsible Layers) ────────────────────────── */}
+      <div className="fsm-layer-control" onMouseLeave={() => setShowLayers(false)}>
+        <button
+          className="fsm-layer-toggle"
+          title="Map Layers"
+          onClick={() => setShowLayers(!showLayers)}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 12 12 17 22 12"></polyline>
+            <polyline points="2 17 12 22 22 17"></polyline>
+          </svg>
+        </button>
+        {showLayers && (
+          <div className="fsm-layer-menu">
+            {Object.entries(MAP_STYLES).map(([key, cfg]) => (
+              <button
+                key={key}
+                className={`fsm-layer-item${activeStyleKey === key ? ' active' : ''}`}
+                title={cfg.label}
+                onClick={() => {
+                  setActiveStyleKey(key)
+                  setShowLayers(false)
+                }}
+              >
+                {cfg.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // ── Vessel Details Modal ─────────────────────────────────────────────────────

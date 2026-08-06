@@ -206,6 +206,94 @@
   background-color: var(--wni-header-bg) !important;
 }
 
+/* ── Map Layer Control ───────────────────────────────────────────── */
+.fsm-layer-control {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.fsm-layer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #334155;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s;
+}
+
+.fsm-layer-toggle:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.fsm-layer-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  min-width: 140px;
+  position: relative;
+}
+
+.fsm-layer-menu::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: -6px;
+  width: 10px;
+  height: 10px;
+  background: #ffffff;
+  border-left: 1px solid #d1d5db;
+  border-bottom: 1px solid #d1d5db;
+  transform: rotate(45deg);
+}
+
+.fsm-layer-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  color: #334155;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  z-index: 1;
+}
+
+.fsm-layer-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.fsm-layer-item.active {
+  background: #e0f2fe;
+  color: #0284c7;
+  font-weight: 600;
+}
+
 /* ── Data table card ──────────────────────────────────────────── */
 .fsm-table-card {
   background: #000;

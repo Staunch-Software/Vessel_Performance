@@ -164,8 +164,11 @@ def fetch_wartsila_routes():
         page.on("request", handle_request)
         
         try:
-            log.info("[WARTSILA] Navigating to Wartsila FOS...")
-            page.goto("https://fos.wartsila.com/monitoring", wait_until="domcontentloaded")
+            try:
+                log.info("[WARTSILA] Navigating to Wartsila FOS...")
+                page.goto("https://fos.wartsila.com/monitoring", wait_until="domcontentloaded", timeout=30000)
+            except Exception as e:
+                log.info(f"[WARTSILA] Navigation interrupted (likely a redirect), continuing... Details: {e}")
             page.wait_for_timeout(5000)
             
             # Login flow
@@ -214,7 +217,10 @@ def fetch_wartsila_routes():
                 try:
                     page.reload(wait_until="domcontentloaded")
                 except Exception:
-                    page.goto("https://fos.wartsila.com/monitoring", wait_until="domcontentloaded")
+                    try:
+                        page.goto("https://fos.wartsila.com/monitoring", wait_until="domcontentloaded", timeout=30000)
+                    except Exception as e:
+                        log.info(f"[WARTSILA] Navigation interrupted (likely a redirect), continuing... Details: {e}")
                 page.wait_for_timeout(3000)
                 
             log.info("[WARTSILA] Waiting for page load and token capture...")
