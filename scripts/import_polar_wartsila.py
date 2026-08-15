@@ -2,6 +2,16 @@ import sys
 import os
 import pandas as pd
 from datetime import datetime
+import re
+
+def parse_coord(coord_str):
+    if not isinstance(coord_str, str):
+        return None, None, None
+    match = re.search(r'(\d+)\D+(\d+\.?\d*)\D+([NSEW])', coord_str, re.IGNORECASE)
+    if match:
+        return str(match.group(1)), str(match.group(2)), match.group(3).upper()
+    return None, None, None
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -137,7 +147,9 @@ def main():
                 log_date=dt,
                 distance_og=dist,
                 log_duration=dur,
-                to_port=to_port
+                to_port=to_port,
+                me_lfo=str(lfo) if lfo is not None else None,
+                ae_mdo=str(mgo) if mgo is not None else None
             )
             db.add(noon)
             
@@ -160,6 +172,9 @@ def main():
             )
             db.add(analysis)
             
+            lat_deg, lat_min, lat_dir = parse_coord(row.get('LAT'))
+            lon_deg, lon_min, lon_dir = parse_coord(row.get('LON'))
+
             # 4. Insert into expanded_wni_data
             sql = text("""
                 INSERT INTO expanded_wni_data (
@@ -169,10 +184,18 @@ def main():
                     "wnix_m_e_fuel_consumption_vlsfo_hfo_mt",
                     "wnix_a_e_fuel_consumption_vlsfo_lfo_mt",
                     "wnix_total_fuel_consumption_lfo_mt",
-                    "VoyageMeta_to_port_operational_LF"
+                    "VoyageMeta_to_port_operational_LF",
+                    "VoyageMeta_latitude_lat_degree_operational_LF",
+                    "VoyageMeta_latitude_lat_minutes_operational_LF",
+                    "VoyageMeta_latitude_lat_direction_operational_LF",
+                    "VoyageMeta_longitude_lon_degree_operational_LF",
+                    "VoyageMeta_longitude_lon_minutes_operational_LF",
+                    "VoyageMeta_longitude_lon_direction_operational_LF"
                 ) VALUES (
                     :raw_id, :imo, :src, :date_val, :ev_type, :voy, :lc,
-                    :dur, :dist, :lfo, :mgo, :tot_lfo, :to_port
+                    :dur, :dist, :lfo, :mgo, :tot_lfo, :to_port,
+                    :lat_deg, :lat_min, :lat_dir,
+                    :lon_deg, :lon_min, :lon_dir
                 )
             """)
             db.execute(sql, {
@@ -188,7 +211,13 @@ def main():
                 "lfo": str(lfo) if lfo is not None else None,
                 "mgo": str(mgo) if mgo is not None else None,
                 "tot_lfo": str((lfo or 0) + (mgo or 0)),
-                "to_port": to_port
+                "to_port": to_port,
+                "lat_deg": lat_deg,
+                "lat_min": lat_min,
+                "lat_dir": lat_dir,
+                "lon_deg": lon_deg,
+                "lon_min": lon_min,
+                "lon_dir": lon_dir
             })
 
             inserted_count += 1

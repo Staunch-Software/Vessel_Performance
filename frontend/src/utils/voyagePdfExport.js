@@ -340,8 +340,8 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     doc.setFont('helvetica', 'normal')
     doc.text('CP Warranty', 70, y + 38, { align: 'right' })
     doc.text(`about ${fmt(cpW.speed_kn)} Knots`, 90, y + 38, { align: 'center' })
-    doc.text(`about ${fmt(cpW.fo_mt_day)} MT/day`, 130, y + 38, { align: 'center' })
-    doc.text(`about ${fmt(cpW.go_mt_day)} MT/day`, 170, y + 38, { align: 'center' })
+    doc.text(`about ${fmt(cpW.fo_mtpd)} MT/day`, 130, y + 38, { align: 'center' })
+    doc.text(`about ${fmt(cpW.dogo_mtpd)} MT/day`, 170, y + 38, { align: 'center' })
 }
 
 /** Page 2 — Speed & Consumption Calculation */
@@ -413,9 +413,11 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
       ['Time on Route [Hours]',         fmt(goodDur, 2), '-',   fmt(totalDur, 2), '-'],
       ['Average Speed [Knots]',         fmt(goodSpeed, 2), '-', fmt(totalSpeed, 2), '-'],
       ['FO Consumption [MT]',           fmt(goodFO, 2), '-',    fmt(totalFO, 2), '-'],
-      ['Averaged Daily FO Consumption', fmt(goodDailyFO, 2), '-', fmt(totalDailyFO, 2), '-'],
       ['GO Consumption [MT]',           fmt(goodGO, 2), '-',    fmt(totalGO, 2), '-'],
+      ['Total Fuel Consumption [MT]',   fmt(goodFO + goodGO, 2), '-', fmt(totalFO + totalGO, 2), '-'],
+      ['Averaged Daily FO Consumption', fmt(goodDailyFO, 2), '-', fmt(totalDailyFO, 2), '-'],
       ['Averaged Daily GO Consumption', fmt(goodDailyGO, 2), '-', fmt(totalDailyGO, 2), '-'],
+      ['Averaged Daily Total Consumption', fmt(goodDailyFO + goodDailyGO, 2), '-', fmt(totalDailyFO + totalDailyGO, 2), '-'],
     ],
     theme: 'grid',
     headStyles: { fillColor: WHITE, textColor: 0, lineWidth: 0.1, lineColor: 0, fontSize: 8, fontStyle: 'bold', halign: 'center' },
@@ -468,6 +470,12 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text(splitText, 14, y)
   y += splitText.length * 4 + 4
   
+  // Math logic for time calculation
+  const a = goodSpeed > 0 ? totalDist / goodSpeed : 0
+  const b = (wSpeed - 0.5) > 0 ? totalDist / (wSpeed - 0.5) : 0
+  const c = wSpeed > 0 ? totalDist / wSpeed : 0
+  const tLoss = cp.loss?.time_h || 0
+
   // Formula table
   doc.rect(14, y, W - 28, 30)
   let fy = y + 5
@@ -478,7 +486,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text('Total Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
   doc.text('Good Weather Performance Speed', 115, fy + 4, { align: 'center' })
-  doc.text('(a)', 160, fy + 3)
+  doc.text(`= ${fmt(totalDist, 0)} / ${fmt(goodSpeed, 2)} = ${fmt(a, 2)} Hours (a)`, 138, fy + 3)
   fy += 10
   
   doc.text('Total Time at Warranted Speed - 0.5 knots', 18, fy + 3)
@@ -486,7 +494,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text('Total Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
   doc.text('Warranted Speed - 0.5 knots', 115, fy + 4, { align: 'center' })
-  doc.text('(b)', 160, fy + 3)
+  doc.text(`= ${fmt(totalDist, 0)} / ${fmt(wSpeed - 0.5, 2)} = ${fmt(b, 2)} Hours (b)`, 138, fy + 3)
   fy += 10
 
   doc.text('Total Time at Warranted Speed', 18, fy + 3)
@@ -494,48 +502,20 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text('Total Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
   doc.text('Warranted Speed', 115, fy + 4, { align: 'center' })
-  doc.text('(c)', 160, fy + 3)
+  doc.text(`= ${fmt(totalDist, 0)} / ${fmt(wSpeed, 2)} = ${fmt(c, 2)} Hours (c)`, 138, fy + 3)
   
   y += 36
-  doc.text('Time Lost = (a) - (b)', 18, y)
-  doc.text('Time Gained = (c) - (a)', 60, y)
-  y += 10
-  // Math logic
-  const a = goodSpeed > 0 ? totalDist / goodSpeed : 0
-  const b = (wSpeed - 0.5) > 0 ? totalDist / (wSpeed - 0.5) : 0
-  const c = wSpeed > 0 ? totalDist / wSpeed : 0
-  const tLoss = cp.loss?.time_h || 0
   
   if (wSpeed === 0) {
     doc.setFont('helvetica', 'italic')
-    doc.text('No Warranted Speed data available for calculation.', 18, y + 2)
+    doc.text('No Warranted Speed data available for calculation.', 18, y)
     doc.setFont('helvetica', 'normal')
   } else if (tLoss > 0) {
-    doc.text('Time Lost', 18, y + 2)
-    doc.text('=', 40, y + 2)
-    doc.text(fmt(totalDist, 0), 60, y - 1, { align: 'center' })
-    doc.line(50, y, 70, y)
-    doc.text(fmt(goodSpeed, 2), 60, y + 3, { align: 'center' })
-    
-    doc.text('-', 75, y + 2)
-    doc.text(fmt(totalDist, 0), 95, y - 1, { align: 'center' })
-    doc.line(85, y, 105, y)
-    doc.text(fmt(wSpeed - 0.5, 2), 95, y + 3, { align: 'center' })
-    
-    doc.text(`=     ${fmt(a, 2)} - ${fmt(b, 2)}      =    ${fmt(a - b, 2)} Hours`, 115, y + 2)
+    doc.text('Time Lost = (a) - (b)', 18, y)
+    doc.text(`=  ${fmt(a, 2)} - ${fmt(b, 2)}  =  ${fmt(a - b, 2)} Hours`, 55, y)
   } else {
-    doc.text('Time Gained', 18, y + 2)
-    doc.text('=', 40, y + 2)
-    doc.text(fmt(totalDist, 0), 60, y - 1, { align: 'center' })
-    doc.line(50, y, 70, y)
-    doc.text(fmt(wSpeed, 2), 60, y + 3, { align: 'center' })
-    
-    doc.text('-', 75, y + 2)
-    doc.text(fmt(totalDist, 0), 95, y - 1, { align: 'center' })
-    doc.line(85, y, 105, y)
-    doc.text(fmt(goodSpeed, 2), 95, y + 3, { align: 'center' })
-    
-    doc.text(`=     ${fmt(c, 2)} - ${fmt(a, 2)}      =    ${fmt(Math.abs(c - a), 2)} Hours`, 115, y + 2)
+    doc.text('Time Gained = (c) - (a)', 18, y)
+    doc.text(`=  ${fmt(c, 2)} - ${fmt(a, 2)}  =  ${fmt(Math.abs(c - a), 2)} Hours`, 55, y)
   }
   
   y += 10
@@ -562,10 +542,10 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   y = sectionTitle(doc, y, 'C. Consumption Calculation')
   y += 5
 
-  const cpW = cpData?.warranty || {}
+  const cpW = cpData?.results?.[0]?.warranty || {}
   const wSpeed = +(cpW.speed_kn || 0)
-  const foW = +(cpW.fo_mt_day || 0)
-  const goW = +(cpW.go_mt_day || 0)
+  const foW = +(cpW.fo_mtpd || 0)
+  const goW = +(cpW.dogo_mtpd || 0)
 
   const totalDist = seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   
@@ -923,7 +903,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
   const good = calcSum(goodRows)
   const adverse = calcSum(adverseRows)
 
-  const cpSpeed = cpData?.results?.[0]?.speed || 0
+  const cpSpeed = cpData?.results?.[0]?.warranty?.speed_kn || 0
   const formatCoord = (deg, min, dir) => deg != null ? `${deg}°${fmt(min, 1)}'${dir || ''}` : '—'
 
   for (let i = 0; i < seriesRows.length; i += ROWS_PER_PAGE) {
@@ -1074,9 +1054,9 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
   let y = addHeader(doc, voyageNo, routeId, reportDate, 'Fuel Consumption Analysis')
   const W = doc.internal.pageSize.getWidth()
 
-  const cpW = cpData?.warranty || {}
-  const foW = +(cpW.fo_mt_day || 0)
-  const goW = +(cpW.go_mt_day || 0)
+  const cpW = cpData?.results?.[0]?.warranty || {}
+  const foW = +(cpW.fo_mtpd || 0)
+  const goW = +(cpW.dogo_mtpd || 0)
 
   // ── 1. Top Header Box ──
   doc.setDrawColor(0)
@@ -1476,8 +1456,9 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   const datestamp  = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
   const paddedVoy  = String(voyageNo).padStart(6, '0')
   const routeId    = `sid${datestamp}_${paddedVoy}`
-  const safeSource = (source && source !== 'all') ? source.toLowerCase() : 'all_sources'
-  const filename   = `${safeSource}_${vesselImo}_${voyageNo}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_')
+  const fromPort = sum?.From_Port ? sum.From_Port.trim() : 'Unknown'
+  const toPort = sum?.To_Port ? sum.To_Port.trim() : 'Unknown'
+  const filename = `${vesselName} ${voyageNo} ${fromPort} to ${toPort}.pdf`.replace(/[^a-zA-Z0-9 _.-]/g, '_')
 
   // ── 3. Create jsPDF instance (A4) ────────────────────────────────────────
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
