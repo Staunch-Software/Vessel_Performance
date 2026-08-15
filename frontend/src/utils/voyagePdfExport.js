@@ -656,10 +656,10 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   
   y += 45
   
-  // (1) FO Block
+  // Total Consumption Block
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
-  doc.text('(1) FO', 14, y)
+  doc.text('Total Consumption', 14, y)
   y += 5
   
   if (wSpeed === 0) {
@@ -750,98 +750,6 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      }
      doc.setTextColor(0, 0, 0)
      y += 10
-  }
-
-  // (2) GO Block
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.text('(2) GO', 14, y)
-  y += 5
-  
-  if (wSpeed === 0) {
-     doc.setFont('helvetica', 'italic')
-     doc.text('No Warranted Speed data available for calculation.', 22, y + 2)
-     doc.setFont('helvetica', 'normal')
-  } else {
-     doc.setFont('helvetica', 'normal')
-     doc.setFontSize(7)
-     const d_go = (distE / gwSpeedB) * (goodDailyGOB / 24)
-     const e_go = (distE / effSpd) * (goMax / 24)
-     const f_go = (distE / wSpeed) * (goMin / 24)
-
-     // D
-     let blockY = y
-     doc.text('Entire Voyage Consumption using', 22, blockY + 2)
-     doc.text('vessel Good Weather Consumption', 22, blockY + 5)
-     doc.text('=', 72, blockY + 4)
-     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
-     doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(gwSpeedB, 2), 92, blockY + 5.5, { align: 'center' })
-     doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goodDailyGOB, 2), 128, blockY + 1.5, { align: 'center' })
-     doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(d_go, 2)} MT`, 145, blockY + 4)
-     doc.text("(d')", 175, blockY + 4)
-
-     blockY += 10
-     // E
-     doc.text('Maximum Warranted Consumption', 22, blockY + 2)
-     doc.text('for over-consumption', 22, blockY + 5)
-     doc.text('=', 72, blockY + 4)
-     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
-     doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(effSpd, 2), 92, blockY + 5.5, { align: 'center' })
-     doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goMax, 2), 128, blockY + 1.5, { align: 'center' })
-     doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(e_go, 2)} MT`, 145, blockY + 4)
-     doc.text("(e')", 175, blockY + 4)
-
-     blockY += 10
-     // F
-     doc.text('Minimum Warranted Consumption', 22, blockY + 2)
-     doc.text('for fuel saving', 22, blockY + 5)
-     doc.text('=', 72, blockY + 4)
-     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
-     doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(wSpeed, 2), 92, blockY + 5.5, { align: 'center' })
-     doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goMin, 2), 128, blockY + 1.5, { align: 'center' })
-     doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(f_go, 2)} MT`, 145, blockY + 4)
-     doc.text("(f')", 175, blockY + 4)
-
-     blockY += 10
-     const goLoss = cp.loss?.dogo_mt || 0
-     if (goLoss > 0) {
-        doc.text(`GO Over-consumption = (d') - (e')  =  ${fmt(d_go, 2)}  -  ${fmt(e_go, 2)}  =  ${fmt(goLoss, 2)} MT`, 40, blockY + 2)
-     } else if (goLoss < 0) {
-        doc.text(`GO Saving = (f') - (d')  =  ${fmt(f_go, 2)}  -  ${fmt(d_go, 2)}  =  ${fmt(Math.abs(goLoss), 2)} MT`, 40, blockY + 2)
-     }
-     y = blockY + 4
-     
-     // GO Conclusion
-     doc.setDrawColor(0)
-     doc.setFillColor(goLoss > 0 ? 255 : (goLoss < 0 ? 34 : 255), goLoss > 0 ? 0 : (goLoss < 0 ? 211 : 255), goLoss > 0 ? 0 : (goLoss < 0 ? 153 : 255))
-     if (goLoss === 0) {
-        doc.rect(22, y, W - 44, 4)
-        doc.setTextColor(0, 0, 0)
-     } else {
-        doc.rect(22, y, W - 44, 4, 'F')
-        doc.setTextColor(255, 255, 255)
-     }
-     doc.setFont('helvetica', 'bold')
-     if (goLoss > 0) {
-        doc.text(`Conclusion: ${goLoss.toFixed(2)} MT GO Over-consumption`, W / 2, y + 3, { align: 'center' })
-     } else if (goLoss < 0) {
-        doc.text(`Conclusion: ${Math.abs(goLoss).toFixed(2)} MT GO Saving`, W / 2, y + 3, { align: 'center' })
-     } else {
-        doc.text(`Conclusion: No GO Over-consumption/Saving`, W / 2, y + 3, { align: 'center' })
-     }
-     doc.setTextColor(0, 0, 0)
   }
 }
 
