@@ -268,14 +268,10 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
       doc.setTextColor(255, 255, 255)
       doc.text(`${tLoss.toFixed(2)} hrs`, 90, y + 17.5, { align: 'center' })
     } else if (tLoss < 0) {
-      doc.setDrawColor(0, 0, 255)
-      doc.setLineWidth(1.2)
-      doc.line(80, y + 21, 100, y + 21)
-      doc.setDrawColor(0, 0, 0)
-      doc.setLineWidth(0.4)
-      doc.setTextColor(0, 0, 0)
-      doc.setFont('helvetica', 'bold')
-      doc.text(`${Math.abs(tLoss).toFixed(2)} hrs`, 90, y + 25, { align: 'center' })
+      doc.setFillColor(0, 153, 0)
+      doc.rect(80, y + 21, 20, 5, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.text(`${Math.abs(tLoss).toFixed(2)} hrs`, 90, y + 24.5, { align: 'center' })
     }
     doc.setTextColor(0, 0, 0)
     
@@ -288,14 +284,10 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
       doc.setTextColor(255, 255, 255)
       doc.text(`${foLoss.toFixed(2)} MT`, 130, y + 17.5, { align: 'center' })
     } else if (foLoss < 0) {
-      doc.setDrawColor(0, 0, 255)
-      doc.setLineWidth(1.2)
-      doc.line(120, y + 21, 140, y + 21)
-      doc.setDrawColor(0, 0, 0)
-      doc.setLineWidth(0.4)
-      doc.setTextColor(0, 0, 0)
-      doc.setFont('helvetica', 'bold')
-      doc.text(`${Math.abs(foLoss).toFixed(2)} MT`, 130, y + 25, { align: 'center' })
+      doc.setFillColor(0, 153, 0)
+      doc.rect(120, y + 21, 20, 5, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.text(`${Math.abs(foLoss).toFixed(2)} MT`, 130, y + 24.5, { align: 'center' })
     } else {
       doc.setTextColor(0, 0, 0)
       doc.setFont('helvetica', 'normal')
@@ -316,14 +308,10 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
       doc.setTextColor(255, 255, 255)
       doc.text(`${goLoss.toFixed(2)} MT`, 170, y + 17.5, { align: 'center' })
     } else if (goLoss < 0) {
-      doc.setDrawColor(0, 0, 255)
-      doc.setLineWidth(1.2)
-      doc.line(160, y + 21, 180, y + 21)
-      doc.setDrawColor(0, 0, 0)
-      doc.setLineWidth(0.4)
-      doc.setTextColor(0, 0, 0)
-      doc.setFont('helvetica', 'bold')
-      doc.text(`${Math.abs(goLoss).toFixed(2)} MT`, 170, y + 25, { align: 'center' })
+      doc.setFillColor(0, 153, 0)
+      doc.rect(160, y + 21, 20, 5, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.text(`${Math.abs(goLoss).toFixed(2)} MT`, 170, y + 24.5, { align: 'center' })
     } else {
       doc.setTextColor(0, 0, 0)
       doc.setFont('helvetica', 'normal')
@@ -367,10 +355,13 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   y += 4
 
   // Compute good weather rows
+  const cpGD = cp.good_wx_def || {}
+  const maxBf = +(cpGD.wind) || 4
+  const maxWh = +(cpGD.sea_state) || 1.25
   const goodRows = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= 4 && wh <= 1.25
+    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
   })
   const allRows = seriesRows
 
@@ -552,7 +543,7 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   const goodRows = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= 4 && wh <= 1.25
+    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
   })
   const goodDist  = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const goodDur   = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
@@ -821,7 +812,7 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
 }
 
 /** Page 4 — Speed & Weather Analysis Summary */
-function buildSummaryTablePage(doc, sum, seriesRows, routeId, reportDate, voyageNo) {
+function buildSummaryTablePage(doc, sum, seriesRows, cpData, routeId, reportDate, voyageNo) {
   doc.addPage()
   let y = addHeader(doc, voyageNo, routeId, reportDate, 'Speed and Weather Analysis')
   const W = doc.internal.pageSize.getWidth()
@@ -839,8 +830,8 @@ function buildSummaryTablePage(doc, sum, seriesRows, routeId, reportDate, voyage
   const totalDist  = seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const totalDur   = seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
   const totalFO    = seriesRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const goodRows   = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) <= 4 && (+(r.Sig_Wave_Ht_m) || 0) <= 1.25)
-  const adverseRows = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) > 4 || (+(r.Sig_Wave_Ht_m) || 0) > 1.25)
+  const goodRows   = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && (+(r.Sig_Wave_Ht_m) || 0) <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25))
+  const adverseRows = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) > (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) || (+(r.Sig_Wave_Ht_m) || 0) > (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25))
   const goodDist   = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const goodDur    = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
   const goodFO     = goodRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
@@ -886,7 +877,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
   const goodRows = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= 4 && wh <= 1.25
+    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
   })
   const adverseRows = seriesRows.filter(r => !goodRows.includes(r))
 
@@ -1036,7 +1027,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
           const rowData = pageRows[data.row.index]
           const bf = +bfScale(rowData.True_Wind_Spd_ms) || 0
           const wh = +(rowData.Sig_Wave_Ht_m) || 0
-          if (bf <= 4 && wh <= 1.25) {
+          if (bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)) {
             data.cell.styles.fillColor = [255, 242, 204]
           }
         }
@@ -1090,12 +1081,12 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
   const goodRows    = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= 4 && wh <= 1.25
+    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
   })
   const advRows     = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf > 4 || wh > 1.25
+    return bf > (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) || wh > (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
   })
   
   const goodDist    = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
@@ -1225,7 +1216,7 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
         const rowData = seriesRows[data.row.index]
         const bf = rowData.BF_Wind != null ? +rowData.BF_Wind : (+bfScale(rowData.True_Wind_Spd_ms) || 0)
         const wh = +(rowData.Sig_Wave_Ht_m) || 0
-        if (bf <= 4 && wh <= 1.25) {
+        if (bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)) {
           data.cell.styles.fillColor = [255, 242, 204]
         } else {
           data.cell.styles.fillColor = [255, 255, 255]
@@ -1456,9 +1447,24 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   const datestamp  = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
   const paddedVoy  = String(voyageNo).padStart(6, '0')
   const routeId    = `sid${datestamp}_${paddedVoy}`
-  const fromPort = sum?.From_Port ? sum.From_Port.trim() : 'Unknown'
-  const toPort = sum?.To_Port ? sum.To_Port.trim() : 'Unknown'
-  const filename = `${vesselName} ${voyageNo} ${fromPort} to ${toPort}.pdf`.replace(/[^a-zA-Z0-9 _.-]/g, '_')
+  const fromPort = sum?.From_Port ? sum.From_Port.trim() : ''
+  const toPort = sum?.To_Port ? sum.To_Port.trim() : ''
+  
+  let routeStr = ''
+  if (fromPort && toPort) {
+    routeStr = `${fromPort} to ${toPort}`
+  } else if (fromPort) {
+    routeStr = `From ${fromPort}`
+  } else if (toPort) {
+    routeStr = `To ${toPort}`
+  }
+
+  const voyagePrefix = String(voyageNo).toUpperCase().includes(String(vesselName).toUpperCase()) 
+    ? voyageNo 
+    : `${vesselName} ${voyageNo}`
+
+  const baseName = routeStr ? `${voyagePrefix} ${routeStr}` : voyagePrefix
+  const filename = `${baseName}.pdf`.replace(/[^a-zA-Z0-9 _.-]/g, '_')
 
   // ── 3. Create jsPDF instance (A4) ────────────────────────────────────────
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
@@ -1467,7 +1473,7 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate)
   buildSpeedConsPage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
   buildMethodologyPage1(doc, sum, series, cpData, routeId, reportDate, voyageNo)
-  buildSummaryTablePage(doc, sum, series, routeId, reportDate, voyageNo)
+  buildSummaryTablePage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
 
   if (series.length > 0) {
     buildPositionPages(doc, sum, series, cpData, vesselName, routeId, reportDate, voyageNo)
