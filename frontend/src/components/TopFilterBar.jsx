@@ -384,6 +384,8 @@ export default function TopFilterBar({
                 memoryStore.setItem('vp_last_vessel_logbook', newImo)
                 if (newImo === '9486295') {
                   onSourceChange('wni')
+                } else if (newImo === '9521813') {
+                  onSourceChange('Wartsila FOS')
                 }
               }}>
               {vessels.map(v => <option key={v.imo_number} value={v.imo_number}>{v.vessel_name}</option>)}

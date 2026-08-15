@@ -37,6 +37,9 @@ def get_columns(
 ):
     """Return all column metadata for a given source, ordered by the user-defined
     order (user_sort_order) when set, falling back to the default sort_order."""
+    if source == 'Wartsila FOS':
+        source = 'wni'
+        
     order_key = func.coalesce(
         ExpandedColumnMetadata.user_sort_order,
         ExpandedColumnMetadata.sort_order,
