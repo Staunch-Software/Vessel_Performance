@@ -224,7 +224,11 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  const gwText = `Wind Beaufort Force ${cpGD.wind || '4'}, Significant wave height ${cpGD.sea_state || '1.25'} meters (Douglas Sea State 3), no adverse current`
+  // cpGD.wind/sea_state are already human-formatted strings from the backend
+  // ("BF 4", "Sig.Wave 3.0m") — don't prepend "Wind Beaufort Force"/"Significant
+  // wave height" in front of them, that duplicates the wording (produced
+  // "Significant wave height Sig.Wave 3.0m meters").
+  const gwText = `Wind ${cpGD.wind || 'BF 4'}, Sea State ${cpGD.sea_state || 'Sig.Wave 3.0m'} (Douglas Sea State 3), no adverse current`
   doc.text(gwText, W / 2, y + 11, { align: 'center' })
   
   y += 20
@@ -354,16 +358,22 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text("The following days were analyzed as 'Good Weather Days'.", 14, y)
   y += 4
 
-  // Compute good weather rows
-  const cpGD = cp.good_wx_def || {}
-  const maxBf = +(cpGD.wind) || 4
-  const maxWh = +(cpGD.sea_state) || 1.25
+  // Good/All weather figures come straight from the backend's cp.good_wx /
+  // cp.entire aggregates (same source as the CP Performance table, Section B,
+  // and Section C) — NOT a local re-filter of seriesRows. That local filter
+  // used to read good_wx_def.wind/sea_state as numbers, but those fields are
+  // human-readable strings ("BF 4", "Sig.Wave 3.0m"); `+"Sig.Wave 3.0m"` is
+  // NaN, so it silently fell back to a hardcoded 1.25m wave cutoff instead of
+  // the real 3.0m fair-weather threshold (backend FAIR_WAVE_MAX_M) — pulling
+  // in a much smaller/wrong subset of "good weather" days and producing
+  // numbers that didn't match the rest of the report. Only the displayed date
+  // range below still needs a day-level filter (the API doesn't return one),
+  // so that one filter is kept but with the correct 3.0/4.0 thresholds.
   const goodRows = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
+    return bf <= 4.0 && wh <= 3.0
   })
-  const allRows = seriesRows
 
   let dateRangeStr = '—'
   if (goodRows.length > 0) {
@@ -374,23 +384,23 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text(dateRangeStr, 14, y)
   y += 6
 
-  const totalDist  = allRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
-  const totalDur   = allRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const totalFO    = allRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const totalGO    = allRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
-  
-  const goodDist   = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
-  const goodDur    = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const goodFO     = goodRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const goodGO     = goodRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
+  const totalDist  = cp.entire?.distance_nm ?? seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
+  const totalDur   = cp.entire?.time_h ?? seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
+  const totalFO    = cp.entire?.fo_mt ?? seriesRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
+  const totalGO    = cp.entire?.dogo_mt ?? seriesRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
 
-  const totalSpeed = totalDur > 0 ? totalDist / totalDur : 0
-  const goodSpeed  = goodDur > 0 ? goodDist / goodDur : 0
-  
-  const goodDailyFO = goodDur > 0 ? goodFO / (goodDur / 24) : 0
+  const goodDist   = cp.good_wx?.distance_nm ?? 0
+  const goodDur    = cp.good_wx?.time_h ?? 0
+  const goodFO     = cp.good_wx?.fo_mt ?? 0
+  const goodGO     = cp.good_wx?.dogo_mt ?? 0
+
+  const totalSpeed = cp.entire?.avg_speed_kn ?? (totalDur > 0 ? totalDist / totalDur : 0)
+  const goodSpeed  = cp.good_wx?.avg_speed_kn ?? (goodDur > 0 ? goodDist / goodDur : 0)
+
+  const goodDailyFO  = cp.good_wx?.daily_fo ?? (goodDur > 0 ? goodFO / (goodDur / 24) : 0)
   const totalDailyFO = totalDur > 0 ? totalFO / (totalDur / 24) : 0
-  
-  const goodDailyGO = goodDur > 0 ? goodGO / (goodDur / 24) : 0
+
+  const goodDailyGO  = cp.good_wx?.daily_dogo ?? (goodDur > 0 ? goodGO / (goodDur / 24) : 0)
   const totalDailyGO = totalDur > 0 ? totalGO / (totalDur / 24) : 0
 
   autoTable(doc, {
@@ -854,8 +864,8 @@ function buildSummaryTablePage(doc, sum, seriesRows, cpData, routeId, reportDate
   const totalDist  = seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const totalDur   = seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
   const totalFO    = seriesRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const goodRows   = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && (+(r.Sig_Wave_Ht_m) || 0) <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25))
-  const adverseRows = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) > (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) || (+(r.Sig_Wave_Ht_m) || 0) > (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25))
+  const goodRows   = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) <= 4.0 && (+(r.Sig_Wave_Ht_m) || 0) <= 3.0)
+  const adverseRows = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) > 4.0 || (+(r.Sig_Wave_Ht_m) || 0) > 3.0)
   const goodDist   = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const goodDur    = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
   const goodFO     = goodRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
@@ -901,7 +911,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
   const goodRows = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
+    return bf <= 4.0 && wh <= 3.0
   })
   const adverseRows = seriesRows.filter(r => !goodRows.includes(r))
 
@@ -1051,7 +1061,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
           const rowData = pageRows[data.row.index]
           const bf = +bfScale(rowData.True_Wind_Spd_ms) || 0
           const wh = +(rowData.Sig_Wave_Ht_m) || 0
-          if (bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)) {
+          if (bf <= 4.0 && wh <= 3.0) {
             data.cell.styles.fillColor = [255, 242, 204]
           }
         }
@@ -1105,12 +1115,12 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
   const goodRows    = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
+    return bf <= 4.0 && wh <= 3.0
   })
   const advRows     = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf > (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) || wh > (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
+    return bf > 4.0 || wh > 3.0
   })
   
   const goodDist    = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
@@ -1240,7 +1250,7 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
         const rowData = seriesRows[data.row.index]
         const bf = rowData.BF_Wind != null ? +rowData.BF_Wind : (+bfScale(rowData.True_Wind_Spd_ms) || 0)
         const wh = +(rowData.Sig_Wave_Ht_m) || 0
-        if (bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)) {
+        if (bf <= 4.0 && wh <= 3.0) {
           data.cell.styles.fillColor = [255, 242, 204]
         } else {
           data.cell.styles.fillColor = [255, 255, 255]
