@@ -670,11 +670,16 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   } else {
      doc.setFont('helvetica', 'normal')
      doc.setFontSize(7)
-     // Same backend-sourced a_h/b_h/c_h (good weather / allowance / full warranted speed
-     // time-equivalents) used for FO — see Section B and cp_calculator.compute_cp_voyage_table.
-     const d_fo = (distE / gwSpeedB) * (goodDailyFOB / 24)
-     const e_fo = (distE / effSpd) * (foMax / 24)
-     const f_fo = (distE / wSpeed) * (foMin / 24)
+     // Total = FO + GO combined, matching the "Total Consumption" heading —
+     // NOT FO alone. Same backend-sourced a_h/b_h/c_h time-equivalents used
+     // for Section B — see cp_calculator.compute_cp_voyage_table.
+     const goodDailyTotalB = goodDailyFOB + goodDailyGOB
+     const totalW    = foW + goW
+     const totalMax   = totalW * (1 + tolPct / 100)
+     const totalMin   = totalW * (1 - tolPct / 100)
+     const d_tot = (distE / gwSpeedB) * (goodDailyTotalB / 24)
+     const e_tot = (distE / effSpd) * (totalMax / 24)
+     const f_tot = (distE / wSpeed) * (totalMin / 24)
 
      // D
      let blockY = y
@@ -685,10 +690,10 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
      doc.text(fmt(gwSpeedB, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goodDailyFOB, 2), 128, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(goodDailyTotalB, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(d_fo, 2)} MT`, 145, blockY + 4)
+     doc.text(`=  ${fmt(d_tot, 2)} MT`, 145, blockY + 4)
      doc.text("(d')", 175, blockY + 4)
 
      blockY += 10
@@ -700,10 +705,10 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
      doc.text(fmt(effSpd, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
-     doc.text(fmt(foMax, 2), 128, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(totalMax, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(e_fo, 2)} MT`, 145, blockY + 4)
+     doc.text(`=  ${fmt(e_tot, 2)} MT`, 145, blockY + 4)
      doc.text("(e')", 175, blockY + 4)
 
      blockY += 10
@@ -715,25 +720,25 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
      doc.text(fmt(wSpeed, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
-     doc.text(fmt(foMin, 2), 128, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(totalMin, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(f_fo, 2)} MT`, 145, blockY + 4)
+     doc.text(`=  ${fmt(f_tot, 2)} MT`, 145, blockY + 4)
      doc.text("(f')", 175, blockY + 4)
 
      blockY += 10
-     const foLoss = cp.loss?.fo_mt || 0
-     if (foLoss > 0) {
-        doc.text(`FO Over-consumption = (d') - (e')  =  ${fmt(d_fo, 2)}  -  ${fmt(e_fo, 2)}  =  ${fmt(foLoss, 2)} MT`, 40, blockY + 2)
-     } else if (foLoss < 0) {
-        doc.text(`FO Saving = (f') - (d')  =  ${fmt(f_fo, 2)}  -  ${fmt(d_fo, 2)}  =  ${fmt(Math.abs(foLoss), 2)} MT`, 40, blockY + 2)
+     const totalLoss = (cp.loss?.fo_mt || 0) + (cp.loss?.dogo_mt || 0)
+     if (totalLoss > 0) {
+        doc.text(`Over-consumption = (d') - (e')  =  ${fmt(d_tot, 2)}  -  ${fmt(e_tot, 2)}  =  ${fmt(totalLoss, 2)} MT`, 40, blockY + 2)
+     } else if (totalLoss < 0) {
+        doc.text(`Saving = (f') - (d')  =  ${fmt(f_tot, 2)}  -  ${fmt(d_tot, 2)}  =  ${fmt(Math.abs(totalLoss), 2)} MT`, 40, blockY + 2)
      }
      y = blockY + 4
-     
-     // FO Conclusion
+
+     // Total Consumption Conclusion
      doc.setDrawColor(0)
-     doc.setFillColor(foLoss > 0 ? 255 : (foLoss < 0 ? 34 : 255), foLoss > 0 ? 0 : (foLoss < 0 ? 211 : 255), foLoss > 0 ? 0 : (foLoss < 0 ? 153 : 255))
-     if (foLoss === 0) {
+     doc.setFillColor(totalLoss > 0 ? 255 : (totalLoss < 0 ? 34 : 255), totalLoss > 0 ? 0 : (totalLoss < 0 ? 211 : 255), totalLoss > 0 ? 0 : (totalLoss < 0 ? 153 : 255))
+     if (totalLoss === 0) {
         doc.rect(22, y, W - 44, 4)
         doc.setTextColor(0, 0, 0)
      } else {
@@ -741,12 +746,12 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
         doc.setTextColor(255, 255, 255)
      }
      doc.setFont('helvetica', 'bold')
-     if (foLoss > 0) {
-        doc.text(`Conclusion: ${foLoss.toFixed(2)} MT FO Over-consumption`, W / 2, y + 3, { align: 'center' })
-     } else if (foLoss < 0) {
-        doc.text(`Conclusion: ${Math.abs(foLoss).toFixed(2)} MT FO Saving`, W / 2, y + 3, { align: 'center' })
+     if (totalLoss > 0) {
+        doc.text(`Conclusion: ${totalLoss.toFixed(2)} MT Over-consumption`, W / 2, y + 3, { align: 'center' })
+     } else if (totalLoss < 0) {
+        doc.text(`Conclusion: ${Math.abs(totalLoss).toFixed(2)} MT Saving`, W / 2, y + 3, { align: 'center' })
      } else {
-        doc.text(`Conclusion: No FO Over-consumption/Saving`, W / 2, y + 3, { align: 'center' })
+        doc.text(`Conclusion: No Over-consumption/Saving`, W / 2, y + 3, { align: 'center' })
      }
      doc.setTextColor(0, 0, 0)
      y += 10
