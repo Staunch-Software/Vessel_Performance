@@ -406,8 +406,6 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
       ['FO Consumption [MT]',           fmt(goodFO, 2), '-',    fmt(totalFO, 2), '-'],
       ['GO Consumption [MT]',           fmt(goodGO, 2), '-',    fmt(totalGO, 2), '-'],
       ['Total Fuel Consumption [MT]',   fmt(goodFO + goodGO, 2), '-', fmt(totalFO + totalGO, 2), '-'],
-      ['Averaged Daily FO Consumption', fmt(goodDailyFO, 2), '-', fmt(totalDailyFO, 2), '-'],
-      ['Averaged Daily GO Consumption', fmt(goodDailyGO, 2), '-', fmt(totalDailyGO, 2), '-'],
       ['Averaged Daily Total Consumption', fmt(goodDailyFO + goodDailyGO, 2), '-', fmt(totalDailyFO + totalDailyGO, 2), '-'],
     ],
     theme: 'grid',
@@ -455,37 +453,53 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   y += 5
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  
-  const p1 = "Time loss or gained is calculated by comparing (a) Total Time at Good weather Performance Speed to (b) and (c) listed below. Time loss calculation (b) applies minus 0.5 knot allowance for 'about', an effective warranted speed of " + fmt(wSpeed - 0.5, 2) + " knots has been used, while no allowance in (c) time gained calculation."
+
+  // Use the SAME inputs the backend's good_wx/entire aggregates are built from
+  // (cp.good_wx.avg_speed_kn, cp.entire.distance_nm, cp.allowance.speed_kn) so this
+  // section is internally consistent — one set of (a)/(b)/(c) numbers feeding both
+  // the formula text and the conclusion banner, never two different calculations.
+  //
+  // Two separate comparisons, per CP convention:
+  //   Time Lost   = (a) - (b)  — (b) gets the 'about' allowance, benefit of the doubt to the vessel
+  //   Time Gained = (c) - (a)  — (c) uses the full warranted speed, no allowance, to claim a saving
+  // Only one of these can be positive at a time (or neither, inside the tolerance band) —
+  // whichever is positive is the conclusion.
+  const tolKn    = cp.allowance?.speed_kn != null ? +cp.allowance.speed_kn : 0.5
+  const gwSpeedB = cp.good_wx?.avg_speed_kn || 0
+  const distE    = cp.entire?.distance_nm || totalDist
+  const effSpd   = wSpeed - tolKn
+
+  const p1 = "Time loss or gained is calculated by comparing (a) Total Time at Good Weather Performance Speed to (b) and (c) listed below. Time loss calculation (b) applies minus " + fmt(tolKn, 2) + " knot allowance for 'about', an effective warranted speed of " + fmt(effSpd, 2) + " knots has been used, while no allowance in (c) time gained calculation."
   const splitText = doc.splitTextToSize(p1, W - 28)
   doc.text(splitText, 14, y)
   y += splitText.length * 4 + 4
-  
+
   // Math logic for time calculation
-  const a = goodSpeed > 0 ? totalDist / goodSpeed : 0
-  const b = (wSpeed - 0.5) > 0 ? totalDist / (wSpeed - 0.5) : 0
-  const c = wSpeed > 0 ? totalDist / wSpeed : 0
-  const tLoss = cp.loss?.time_h || 0
+  const a = gwSpeedB > 0 ? distE / gwSpeedB : 0
+  const b = effSpd > 0 ? distE / effSpd : 0
+  const c = wSpeed > 0 ? distE / wSpeed : 0
+  const timeLost   = a - b
+  const timeGained = c - a
 
   // Formula table
   doc.rect(14, y, W - 28, 30)
   let fy = y + 5
   doc.setFontSize(7.5)
-  
+
   doc.text('Total Time at Good Weather Performance Speed', 18, fy + 3)
   doc.text('=', 85, fy + 3)
   doc.text('Total Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
   doc.text('Good Weather Performance Speed', 115, fy + 4, { align: 'center' })
-  doc.text(`= ${fmt(totalDist, 0)} / ${fmt(goodSpeed, 2)} = ${fmt(a, 2)} Hours (a)`, 138, fy + 3)
+  doc.text(`= ${fmt(distE, 0)} / ${fmt(gwSpeedB, 2)} = ${fmt(a, 2)} Hours (a)`, 138, fy + 3)
   fy += 10
-  
-  doc.text('Total Time at Warranted Speed - 0.5 knots', 18, fy + 3)
+
+  doc.text(`Total Time at Warranted Speed - ${fmt(tolKn, 2)} knots`, 18, fy + 3)
   doc.text('=', 85, fy + 3)
   doc.text('Total Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
-  doc.text('Warranted Speed - 0.5 knots', 115, fy + 4, { align: 'center' })
-  doc.text(`= ${fmt(totalDist, 0)} / ${fmt(wSpeed - 0.5, 2)} = ${fmt(b, 2)} Hours (b)`, 138, fy + 3)
+  doc.text(`Warranted Speed - ${fmt(tolKn, 2)} knots`, 115, fy + 4, { align: 'center' })
+  doc.text(`= ${fmt(distE, 0)} / ${fmt(effSpd, 2)} = ${fmt(b, 2)} Hours (b)`, 138, fy + 3)
   fy += 10
 
   doc.text('Total Time at Warranted Speed', 18, fy + 3)
@@ -493,33 +507,41 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text('Total Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
   doc.text('Warranted Speed', 115, fy + 4, { align: 'center' })
-  doc.text(`= ${fmt(totalDist, 0)} / ${fmt(wSpeed, 2)} = ${fmt(c, 2)} Hours (c)`, 138, fy + 3)
-  
+  doc.text(`= ${fmt(distE, 0)} / ${fmt(wSpeed, 2)} = ${fmt(c, 2)} Hours (c)`, 138, fy + 3)
+
   y += 36
-  
+
+  // Whichever of timeLost / timeGained is positive is the conclusion — same numbers,
+  // same decision, feeding both the formula line below and the banner.
+  let concludedHours = 0
+  let concludedIsLoss = false
   if (wSpeed === 0) {
     doc.setFont('helvetica', 'italic')
     doc.text('No Warranted Speed data available for calculation.', 18, y)
     doc.setFont('helvetica', 'normal')
-  } else if (tLoss > 0) {
+  } else if (timeLost > 0) {
+    concludedIsLoss = true
+    concludedHours = timeLost
     doc.text('Time Lost = (a) - (b)', 18, y)
-    doc.text(`=  ${fmt(a, 2)} - ${fmt(b, 2)}  =  ${fmt(a - b, 2)} Hours`, 55, y)
+    doc.text(`=  ${fmt(a, 2)} - ${fmt(b, 2)}  =  ${fmt(timeLost, 2)} Hours`, 55, y)
   } else {
+    concludedIsLoss = false
+    concludedHours = Math.max(timeGained, 0)
     doc.text('Time Gained = (c) - (a)', 18, y)
-    doc.text(`=  ${fmt(c, 2)} - ${fmt(a, 2)}  =  ${fmt(Math.abs(c - a), 2)} Hours`, 55, y)
+    doc.text(`=  ${fmt(c, 2)} - ${fmt(a, 2)}  =  ${fmt(concludedHours, 2)} Hours`, 55, y)
   }
-  
+
   y += 10
-  doc.setFillColor(tLoss > 0 ? 255 : 34, tLoss > 0 ? 0 : 211, tLoss > 0 ? 0 : 153)
+  doc.setFillColor(concludedIsLoss ? 255 : 34, concludedIsLoss ? 0 : 211, concludedIsLoss ? 0 : 153)
   doc.rect(14, y, W - 28, 6, 'F')
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
-  if (tLoss > 0) {
-    doc.text(`Conclusion: ${tLoss.toFixed(2)} Hours Lost`, W / 2, y + 4.2, { align: 'center' })
-  } else if (tLoss < 0) {
-    doc.text(`Conclusion: ${Math.abs(tLoss).toFixed(2)} Hours Gained`, W / 2, y + 4.2, { align: 'center' })
+  if (wSpeed === 0) {
+    doc.text('Conclusion: No Warranted Speed data available.', W / 2, y + 4.2, { align: 'center' })
+  } else if (concludedIsLoss) {
+    doc.text(`Conclusion: ${concludedHours.toFixed(2)} Hours Lost`, W / 2, y + 4.2, { align: 'center' })
   } else {
-    doc.text(`Conclusion: 0.00 Hours Gained`, W / 2, y + 4.2, { align: 'center' })
+    doc.text(`Conclusion: ${concludedHours.toFixed(2)} Hours Gained`, W / 2, y + 4.2, { align: 'center' })
   }
   doc.setTextColor(0, 0, 0)
 }
@@ -533,40 +555,40 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   y = sectionTitle(doc, y, 'C. Consumption Calculation')
   y += 5
 
-  const cpW = cpData?.results?.[0]?.warranty || {}
-  const wSpeed = +(cpW.speed_kn || 0)
-  const foW = +(cpW.fo_mtpd || 0)
-  const goW = +(cpW.dogo_mtpd || 0)
+  const cp   = cpData?.results?.[0] || {}
+  const cpW  = cp.warranty || {}
+  const wSpeed  = +(cpW.speed_kn || 0)
+  const foW     = +(cpW.fo_mtpd || 0)
+  const goW     = +(cpW.dogo_mtpd || 0)
+  const tolKn   = cp.allowance?.speed_kn != null ? +cp.allowance.speed_kn : 0.5
+  const tolPct  = cp.allowance?.cons_pct != null ? +cp.allowance.cons_pct : 5.0
 
-  const totalDist = seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
-  
-  const goodRows = seriesRows.filter(r => {
-    const bf = +bfScale(r.True_Wind_Spd_ms) || 0
-    const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
-  })
-  const goodDist  = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
-  const goodDur   = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const goodSpeed = goodDur > 0 ? goodDist / goodDur : 0
-  const goodFO    = goodRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const goodGO    = goodRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
+  // Same backend-sourced inputs the Loss/Saving fo_mt/dogo_mt figures (shown in the
+  // Charter-Party Performance table) are built from — good_wx avg speed/daily rates +
+  // entire voyage distance + the actual configured allowance — so this section's
+  // formula and its conclusion always resolve to those same numbers.
+  const gwSpeedB = cp.good_wx?.avg_speed_kn || 0
+  const distE    = cp.entire?.distance_nm || seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
+  const effSpd   = wSpeed - tolKn
+  const goodDailyFOB = cp.good_wx?.daily_fo ?? 0
+  const goodDailyGOB = cp.good_wx?.daily_dogo ?? 0
 
-  const foMax = foW * 1.05
-  const foMin = foW * 0.95
-  const goMax = goW * 1.05
-  const goMin = goW * 0.95
+  const foMax = foW * (1 + tolPct / 100)
+  const foMin = foW * (1 - tolPct / 100)
+  const goMax = goW * (1 + tolPct / 100)
+  const goMin = goW * (1 - tolPct / 100)
 
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.text('Unless otherwise specified, the fuel over-consumption assessment as well as fuel under-consumption assessment', 14, y)
+  doc.text(`Unless otherwise specified, the fuel over-consumption assessment as well as fuel under-consumption assessment`, 14, y)
   y += 4
-  doc.text('employ a 5% tolerance. Effective warranted consumption', 14, y)
+  doc.text(`employ a ${fmt(tolPct, 1)}% tolerance. Effective warranted consumption`, 14, y)
   y += 5
-  
+
   if (wSpeed > 0) {
-    doc.text(`Fuel over-consumption: ${fmt(foMax, 2)} MT (a plus 5% tolerance applied) and ${fmt(goMax, 2)} MT DO/GO (a plus 5% tolerance applied)`, 14, y)
+    doc.text(`Fuel over-consumption: ${fmt(foMax, 2)} MT (a plus ${fmt(tolPct, 1)}% tolerance applied) and ${fmt(goMax, 2)} MT DO/GO (a plus ${fmt(tolPct, 1)}% tolerance applied)`, 14, y)
     y += 4
-    doc.text(`Fuel under-consumption: ${fmt(foMin, 2)} MT (a minus 5% tolerance applied) and ${fmt(goMin, 2)} MT DO/GO (a minus 5% tolerance applied)`, 14, y)
+    doc.text(`Fuel under-consumption: ${fmt(foMin, 2)} MT (a minus ${fmt(tolPct, 1)}% tolerance applied) and ${fmt(goMin, 2)} MT DO/GO (a minus ${fmt(tolPct, 1)}% tolerance applied)`, 14, y)
     y += 6
   }
 
@@ -638,46 +660,48 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   } else {
      doc.setFont('helvetica', 'normal')
      doc.setFontSize(7)
-     const d_fo = (totalDist / goodSpeed) * (goodFO / goodDur)
-     const e_fo = (totalDist / (wSpeed - 0.5)) * (foMax / 24)
-     const f_fo = (totalDist / wSpeed) * (foMin / 24)
-     
+     // Same backend-sourced a_h/b_h/c_h (good weather / allowance / full warranted speed
+     // time-equivalents) used for FO — see Section B and cp_calculator.compute_cp_voyage_table.
+     const d_fo = (distE / gwSpeedB) * (goodDailyFOB / 24)
+     const e_fo = (distE / effSpd) * (foMax / 24)
+     const f_fo = (distE / wSpeed) * (foMin / 24)
+
      // D
      let blockY = y
      doc.text('Entire Voyage Consumption using', 22, blockY + 2)
      doc.text('vessel Good Weather Consumption', 22, blockY + 5)
      doc.text('=', 72, blockY + 4)
-     doc.text(fmt(totalDist, 0), 92, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(goodSpeed, 2), 92, blockY + 5.5, { align: 'center' })
+     doc.text(fmt(gwSpeedB, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goodFO, 2), 128, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(goodDailyFOB, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text(fmt(goodDur, 1), 128, blockY + 5.5, { align: 'center' })
+     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
      doc.text(`=  ${fmt(d_fo, 2)} MT`, 145, blockY + 4)
      doc.text("(d')", 175, blockY + 4)
-     
+
      blockY += 10
      // E
      doc.text('Maximum Warranted Consumption', 22, blockY + 2)
      doc.text('for over-consumption', 22, blockY + 5)
      doc.text('=', 72, blockY + 4)
-     doc.text(fmt(totalDist, 0), 92, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(wSpeed - 0.5, 2), 92, blockY + 5.5, { align: 'center' })
+     doc.text(fmt(effSpd, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
      doc.text(fmt(foMax, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
      doc.text(`=  ${fmt(e_fo, 2)} MT`, 145, blockY + 4)
      doc.text("(e')", 175, blockY + 4)
-     
+
      blockY += 10
      // F
      doc.text('Minimum Warranted Consumption', 22, blockY + 2)
      doc.text('for fuel saving', 22, blockY + 5)
      doc.text('=', 72, blockY + 4)
-     doc.text(fmt(totalDist, 0), 92, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
      doc.text(fmt(wSpeed, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
@@ -686,9 +710,9 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
      doc.text(`=  ${fmt(f_fo, 2)} MT`, 145, blockY + 4)
      doc.text("(f')", 175, blockY + 4)
-     
+
      blockY += 10
-     const foLoss = cpData.loss?.fo_mt || 0
+     const foLoss = cp.loss?.fo_mt || 0
      if (foLoss > 0) {
         doc.text(`FO Over-consumption = (d') - (e')  =  ${fmt(d_fo, 2)}  -  ${fmt(e_fo, 2)}  =  ${fmt(foLoss, 2)} MT`, 40, blockY + 2)
      } else if (foLoss < 0) {
@@ -731,46 +755,46 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   } else {
      doc.setFont('helvetica', 'normal')
      doc.setFontSize(7)
-     const d_go = (totalDist / goodSpeed) * (goodGO / goodDur)
-     const e_go = (totalDist / (wSpeed - 0.5)) * (goMax / 24)
-     const f_go = (totalDist / wSpeed) * (goMin / 24)
-     
+     const d_go = (distE / gwSpeedB) * (goodDailyGOB / 24)
+     const e_go = (distE / effSpd) * (goMax / 24)
+     const f_go = (distE / wSpeed) * (goMin / 24)
+
      // D
      let blockY = y
      doc.text('Entire Voyage Consumption using', 22, blockY + 2)
      doc.text('vessel Good Weather Consumption', 22, blockY + 5)
      doc.text('=', 72, blockY + 4)
-     doc.text(fmt(totalDist, 0), 92, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(goodSpeed, 2), 92, blockY + 5.5, { align: 'center' })
+     doc.text(fmt(gwSpeedB, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goodGO, 2), 128, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(goodDailyGOB, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text(fmt(goodDur, 1), 128, blockY + 5.5, { align: 'center' })
+     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
      doc.text(`=  ${fmt(d_go, 2)} MT`, 145, blockY + 4)
      doc.text("(d')", 175, blockY + 4)
-     
+
      blockY += 10
      // E
      doc.text('Maximum Warranted Consumption', 22, blockY + 2)
      doc.text('for over-consumption', 22, blockY + 5)
      doc.text('=', 72, blockY + 4)
-     doc.text(fmt(totalDist, 0), 92, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(wSpeed - 0.5, 2), 92, blockY + 5.5, { align: 'center' })
+     doc.text(fmt(effSpd, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
      doc.text(fmt(goMax, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
      doc.text(`=  ${fmt(e_go, 2)} MT`, 145, blockY + 4)
      doc.text("(e')", 175, blockY + 4)
-     
+
      blockY += 10
      // F
      doc.text('Minimum Warranted Consumption', 22, blockY + 2)
      doc.text('for fuel saving', 22, blockY + 5)
      doc.text('=', 72, blockY + 4)
-     doc.text(fmt(totalDist, 0), 92, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
      doc.text(fmt(wSpeed, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
@@ -779,9 +803,9 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
      doc.text(`=  ${fmt(f_go, 2)} MT`, 145, blockY + 4)
      doc.text("(f')", 175, blockY + 4)
-     
+
      blockY += 10
-     const goLoss = cpData.loss?.go_mt || 0
+     const goLoss = cp.loss?.dogo_mt || 0
      if (goLoss > 0) {
         doc.text(`GO Over-consumption = (d') - (e')  =  ${fmt(d_go, 2)}  -  ${fmt(e_go, 2)}  =  ${fmt(goLoss, 2)} MT`, 40, blockY + 2)
      } else if (goLoss < 0) {

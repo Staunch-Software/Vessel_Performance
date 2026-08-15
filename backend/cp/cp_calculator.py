@@ -348,20 +348,67 @@ def compute_cp_voyage_table(rows, cp_by_cond):
             tol_kn  = _num(cfg.get("speed_tol_kn"))  or 0.0
             tol_pct = _num(cfg.get("cons_tol_pct")) or 0.0
 
-            # Loss(+) / Saving(-) — good-weather performance vs warranty (allowance applied),
-            # extrapolated across the entire-voyage distance/duration.
+            # Loss(+) / Saving(-) — good-weather performance vs warranty, extrapolated
+            # across the entire-voyage distance/duration. Two separate comparisons,
+            # per CP convention (matches the PDF voyage report's Time Calculation):
+            #   Time Lost   = (a) - (b)  — (b) uses warranted speed minus the 'about'
+            #                              allowance (tol_kn), benefit of the doubt to the vessel
+            #   Time Gained = (c) - (a)  — (c) uses the full warranted speed, no allowance,
+            #                              to claim a saving
+            # Whichever is positive is the result; if neither is, it's 0 (within tolerance).
             gw_speed = good_wx["avg_speed_kn"]
             dist_e   = entire["distance_nm"]
-            days_e   = entire["days"]
             time_ls = fo_ls = dogo_ls = None
+            a_h = b_h = c_h = None
             if w_spd and gw_speed and dist_e:
                 eff_spd = w_spd - tol_kn
-                time_ls = round(dist_e / gw_speed - dist_e / eff_spd, 2)
-            if w_fo is not None and good_wx["daily_fo"] is not None and days_e:
-                time_e = entire["time_h"]
-                fo_ls = round((good_wx["daily_fo"] - w_fo * (1 + tol_pct/100.0)) * days_e, 2)
-            if w_dogo is not None and good_wx["daily_dogo"] is not None and days_e:
-                dogo_ls = round((good_wx["daily_dogo"] - w_dogo * (1 + tol_pct/100.0)) * days_e, 2)
+                a_h = dist_e / gw_speed
+                b_h = dist_e / eff_spd if eff_spd else None
+                c_h = dist_e / w_spd
+                time_lost   = (a_h - b_h) if b_h else None
+                time_gained = c_h - a_h
+                if time_lost is not None and time_lost > 0:
+                    time_ls = round(time_lost, 2)
+                elif time_gained > 0:
+                    time_ls = round(-time_gained, 2)
+                else:
+                    time_ls = 0.0
+
+            # Fuel Over-consumption(+) / Saving(-) — same two-formula convention as
+            # time above (matches the PDF voyage report's Consumption Calculation):
+            #   Over-consumption = (d) - (e)  — (e) extrapolates the MAX warranted
+            #                                   consumption (+tol%) over (b_h), the
+            #                                   tolerant/allowance speed time — benefit
+            #                                   of the doubt to the vessel
+            #   Saving           = (f) - (d)  — (f) extrapolates the MIN warranted
+            #                                   consumption (-tol%) over (c_h), the full
+            #                                   warranted-speed time, no allowance
+            # (d) is the entire-voyage-equivalent consumption at the observed good-weather
+            # rate, extrapolated over (a_h) — the same good-weather-speed time used for (a).
+            if a_h is not None and good_wx["daily_fo"] is not None:
+                d_fo = a_h * (good_wx["daily_fo"] / 24.0)
+                e_fo = b_h * (w_fo * (1 + tol_pct/100.0) / 24.0) if (w_fo is not None and b_h) else None
+                f_fo = c_h * (w_fo * (1 - tol_pct/100.0) / 24.0) if (w_fo is not None and c_h) else None
+                fo_over = (d_fo - e_fo) if e_fo is not None else None
+                fo_save = (f_fo - d_fo) if f_fo is not None else None
+                if fo_over is not None and fo_over > 0:
+                    fo_ls = round(fo_over, 2)
+                elif fo_save is not None and fo_save > 0:
+                    fo_ls = round(-fo_save, 2)
+                elif fo_over is not None or fo_save is not None:
+                    fo_ls = 0.0
+            if a_h is not None and good_wx["daily_dogo"] is not None:
+                d_go = a_h * (good_wx["daily_dogo"] / 24.0)
+                e_go = b_h * (w_dogo * (1 + tol_pct/100.0) / 24.0) if (w_dogo is not None and b_h) else None
+                f_go = c_h * (w_dogo * (1 - tol_pct/100.0) / 24.0) if (w_dogo is not None and c_h) else None
+                go_over = (d_go - e_go) if e_go is not None else None
+                go_save = (f_go - d_go) if f_go is not None else None
+                if go_over is not None and go_over > 0:
+                    dogo_ls = round(go_over, 2)
+                elif go_save is not None and go_save > 0:
+                    dogo_ls = round(-go_save, 2)
+                elif go_over is not None or go_save is not None:
+                    dogo_ls = 0.0
 
             ratio = round(good_wx["time_h"] / entire["time_h"] * 100, 1) if entire["time_h"] else 0.0
 
