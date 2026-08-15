@@ -545,6 +545,14 @@ export default function TopFilterBar({
                   checked={source === 'wni'} onChange={() => onSourceChange('wni')} />
                 Excel
               </label>
+            ) : vessels.find(v => v.imo_number === selectedVessel)?.vessel_name === 'AMNS POLAR' ? (
+              [['all', 'All'], ['Wartsila FOS', 'Wartsila']].map(([val, label]) => (
+                <label key={val} className={`radio-option source-pill${source === val ? ' active' : ''}`}>
+                  <input type="radio" name="source" value={val}
+                    checked={source === val} onChange={() => onSourceChange(val)} />
+                  {label}
+                </label>
+              ))
             ) : (
               [['all','All'], ['wni','WNI'], ['mari_apps','MariApps']].map(([val, label]) => (
                 <label key={val} className={`radio-option source-pill${source === val ? ' active' : ''}`}>

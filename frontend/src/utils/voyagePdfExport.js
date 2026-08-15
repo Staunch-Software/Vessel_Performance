@@ -40,23 +40,23 @@ const fmt = (v, d = 2) => {
 }
 
 const fmtDate = (iso) => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (isNaN(d)) return iso
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  if (!iso || typeof iso !== 'string' || iso.length < 10) return iso || '—'
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const yr = iso.substring(0, 4)
+  const m = parseInt(iso.substring(5, 7), 10) - 1
+  const day = iso.substring(8, 10)
+  return `${day} ${months[m]} ${yr}`
 }
 
 const fmtDateTime = (iso) => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (isNaN(d)) return iso
+  if (!iso || typeof iso !== 'string' || iso.length < 16) return iso || '—'
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
-  const m = months[d.getUTCMonth()]
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  const yr = d.getUTCFullYear()
-  const hr = String(d.getUTCHours()).padStart(2, '0')
-  const min = String(d.getUTCMinutes()).padStart(2, '0')
-  return `${m} ${day}, ${yr} ${hr}:${min}UTC`
+  const yr = iso.substring(0, 4)
+  const m = parseInt(iso.substring(5, 7), 10) - 1
+  const day = iso.substring(8, 10)
+  const hr = iso.substring(11, 13)
+  const min = iso.substring(14, 16)
+  return `${months[m]} ${day}, ${yr} ${hr}:${min}UTC`
 }
 
 const windDir = (deg) => {
@@ -1032,8 +1032,8 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
       ],
       body: pageRows.map((r, idx) => [
         (idx === 0 && i === 0) ? '1' : '',
-        r.Date ? new Date(r.Date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }) : '—',
-        r.Date ? (r.Date.substring(11, 16) || '12:00') : '—',
+        r.Date && typeof r.Date === 'string' && r.Date.length >= 10 ? `${r.Date.substring(8, 10)}/${r.Date.substring(5, 7)}` : '—',
+        r.Date && typeof r.Date === 'string' && r.Date.length >= 16 ? r.Date.substring(11, 16) : '—',
         formatCoord(r.lat_degree, r.lat_minutes, r.lat_direction),
         formatCoord(r.lon_degree, r.lon_minutes, r.lon_direction),
         fmt(cpSpeed, 2),
@@ -1220,8 +1220,8 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
       const formatCoord = (deg, min, dir) => deg != null ? `${deg}°${fmt(min, 1)}'${dir || ''}` : '—'
       return [
         '1', // Seg (default to 1 per layout)
-        r.Date ? new Date(r.Date).toLocaleDateString('en-GB', {day:'2-digit',month:'2-digit'}) : '—',
-        r.Date ? (r.Date.substring(11,16) || '12:00') : '—',
+        r.Date && typeof r.Date === 'string' && r.Date.length >= 10 ? `${r.Date.substring(8, 10)}/${r.Date.substring(5, 7)}` : '—',
+        r.Date && typeof r.Date === 'string' && r.Date.length >= 16 ? r.Date.substring(11, 16) : '—',
         formatCoord(r.lat_degree, r.lat_minutes, r.lat_direction),
         formatCoord(r.lon_degree, r.lon_minutes, r.lon_direction), // LAT, LON
         fmt(foW, 2), fmt(goW, 2), // CP
@@ -1273,10 +1273,10 @@ function buildMessageTrafficPages(doc, seriesRows, routeId, reportDate, voyageNo
   let startY = 0;
 
   seriesRows.forEach((r, idx) => {
-    const dt = r.Date ? new Date(r.Date) : null;
-    const dateStr = dt
-      ? dt.toLocaleDateString('en-GB', { month: '2-digit', day: '2-digit', year: 'numeric' }).replace(/\//g, '/') + ' ' + dt.toTimeString().substring(0, 5)
-      : '—';
+    let dateStr = '—'
+    if (r.Date && typeof r.Date === 'string' && r.Date.length >= 16) {
+      dateStr = `${r.Date.substring(8, 10)}/${r.Date.substring(5, 7)}/${r.Date.substring(0, 4)} ${r.Date.substring(11, 16)}`
+    }
 
     const msgLines = [
       `[== Start of Message]`,

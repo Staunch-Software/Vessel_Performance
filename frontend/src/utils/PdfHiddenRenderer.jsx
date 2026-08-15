@@ -82,7 +82,7 @@ function PdfAssetsRenderer({ sum, seriesRows, cpData, onComplete }) {
     
     return {
       index: idx,
-      name: r.Date ? new Date(r.Date).toLocaleDateString('en-GB', {day:'2-digit',month:'2-digit'}) : '',
+      name: r.Date && typeof r.Date === 'string' && r.Date.length >= 10 ? `${r.Date.substring(8, 10)}/${r.Date.substring(5, 7)}` : '',
       sog: +(r.SOG_kn || 0),
       fo: +(r.ME_FOC_MT || 0),
       dogo: +(r.AE_FOC_MT || 0) + +(r.Boiler_FOC_MT || 0),

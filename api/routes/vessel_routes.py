@@ -433,10 +433,54 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
     ).filter(
         AnalysisData.Voyage_No == str(voyage_no),
         AnalysisData.vessel_imo == str(vessel_imo)
-    ).order_by(AnalysisData.Date.asc()).all()
-    
-    out = []
+    ).order_by(AnalysisData.Date.asc(), AnalysisData.Time_UTC.asc()).all()
+    bosps = []
+    eosps = []
     for row in results:
+        ad = row[0]
+        noon = row[1]
+        mariapps = row[2]
+        source_model = noon if noon else (mariapps if mariapps else None)
+        
+        # Get log type
+        ltype = getattr(source_model, 'log_type', getattr(source_model, 'event_type', None)) if source_model else getattr(ad, 'event_type', None)
+        ltype = (ltype or "").upper()
+        
+        if "BOSP" in ltype:
+            bosps.append(ad)
+        if "EOSP" in ltype:
+            eosps.append(ad)
+            
+    eosp_record = eosps[-1] if eosps else None
+    bosp_record = None
+    if bosps:
+        if eosp_record:
+            eosp_dt = f"{eosp_record.Date}T{eosp_record.Time_UTC or '00:00'}"
+            valid_bosps = [b for b in bosps if f"{b.Date}T{b.Time_UTC or '00:00'}" <= eosp_dt]
+            if valid_bosps:
+                bosp_record = valid_bosps[0]
+        else:
+            bosp_record = bosps[0]
+            
+    dep_record = bosp_record if bosp_record else (results[0][0] if results else None)
+    arr_record = eosp_record if eosp_record else (results[-1][0] if results else None)
+
+    valid_results = []
+    
+    dep_dt = f"{dep_record.Date}T{dep_record.Time_UTC or '00:00'}" if dep_record else ""
+    arr_dt = f"{arr_record.Date}T{arr_record.Time_UTC or '00:00'}" if arr_record else ""
+    
+    for row in results:
+        ad = row[0]
+        if dep_record and arr_record:
+            ad_dt = f"{ad.Date}T{ad.Time_UTC or '00:00'}"
+            if dep_dt <= ad_dt <= arr_dt:
+                valid_results.append(row)
+        else:
+            valid_results = results
+
+    out = []
+    for row in valid_results:
         ad = row[0]
         noon = row[1]
         mariapps = row[2]
@@ -444,8 +488,17 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
         # Determine the source model to fetch lat/lon and event_type
         source_model = noon if noon else (mariapps if mariapps else None)
         
+        local_date_str = None
+        if source_model and hasattr(source_model, 'log_date') and source_model.log_date:
+            local_date_str = str(source_model.log_date)[:10]
+        else:
+            local_date_str = ad.Date.isoformat() if ad.Date else None
+            
+        utc_time = ad.Time_UTC or "00:00"
+        combined_date = f"{local_date_str}T{utc_time}:00Z" if local_date_str else None
+
         out.append({
-            "Date": ad.Date.isoformat() if ad.Date else None,
+            "Date": combined_date,
             "Voyage_No": ad.Voyage_No,
             "Loading_Cond": ad.Loading_Cond,
             "From_Port": ad.From_Port,
@@ -498,30 +551,95 @@ def get_voyage_summary(voyage_no: str, vessel_imo: str, db: Session = Depends(ge
     Returns aggregated voyage-level summary for the detail page.
     Computes departure/arrival times, totals, and averages from all records.
     """
-    records = db.query(AnalysisData).filter(
+    query_results = db.query(
+        AnalysisData,
+        NoonReportData.log_type.label("wni_type"),
+        RawMariAppsLog.log_type.label("mari_type"),
+        NoonReportData.log_date.label("wni_date"),
+        RawMariAppsLog.log_date.label("mari_date")
+    ).outerjoin(
+        NoonReportData, AnalysisData.raw_report_id == NoonReportData.raw_report_id
+    ).outerjoin(
+        RawMariAppsLog, AnalysisData.raw_mariapps_id == RawMariAppsLog.id
+    ).filter(
         AnalysisData.Voyage_No == str(voyage_no),
         AnalysisData.vessel_imo == str(vessel_imo)
-    ).order_by(AnalysisData.Date.asc()).all()
+    ).order_by(AnalysisData.Date.asc(), AnalysisData.Time_UTC.asc()).all()
 
-    if not records:
+    if not query_results:
         raise HTTPException(status_code=404, detail="No voyage records found")
 
-    first = records[0]   # earliest record = departure
-    last  = records[-1]  # latest record  = arrival
+    records = []
+    bosps = []
+    eosps = []
 
-    total_me_foc   = sum(r.ME_FOC_MT  or 0 for r in records)
-    total_ae_foc   = sum(r.AE_FOC_MT  or 0 for r in records)
-    total_distance = sum(r.Distance_nm or 0 for r in records)
-    total_duration = sum(r.Duration_h  or 0 for r in records)
+    for r, wni_type, mari_type, wni_date, mari_date in query_results:
+        # Favor the local log date (from source table) to match the UI precisely
+        local_date_str = None
+        if wni_date:
+            local_date_str = str(wni_date)
+        elif mari_date:
+            local_date_str = str(mari_date)
+            
+        if local_date_str and len(local_date_str) >= 10:
+            local_date_str = local_date_str[:10]
+        else:
+            local_date_str = r.Date.isoformat() if r.Date else None
+            
+        # Attach temporarily for summary building
+        r._local_date_str = local_date_str
+        records.append(r)
+
+        ltype = (wni_type or mari_type or "").upper()
+        if "BOSP" in ltype:
+            bosps.append(r)
+        if "EOSP" in ltype:
+            eosps.append(r)
+
+    first = records[0]   # fallback earliest record
+    last  = records[-1]  # fallback latest record
+
+    eosp_record = eosps[-1] if eosps else None
+    
+    bosp_record = None
+    if bosps:
+        if eosp_record:
+            # Only accept a BOSP if it happened before or at the same time as EOSP
+            eosp_dt = f"{eosp_record.Date}T{eosp_record.Time_UTC or '00:00'}"
+            valid_bosps = [b for b in bosps if f"{b.Date}T{b.Time_UTC or '00:00'}" <= eosp_dt]
+            if valid_bosps:
+                bosp_record = valid_bosps[0]
+        else:
+            bosp_record = bosps[0]
+
+    dep_record = bosp_record if bosp_record else first
+    arr_record = eosp_record if eosp_record else last
+    
+    dep_dt = f"{dep_record.Date}T{dep_record.Time_UTC or '00:00'}" if dep_record else ""
+    arr_dt = f"{arr_record.Date}T{arr_record.Time_UTC or '00:00'}" if arr_record else ""
+    
+    valid_records = []
+    if dep_record and arr_record:
+        for r in records:
+            r_dt = f"{r.Date}T{r.Time_UTC or '00:00'}"
+            if dep_dt <= r_dt <= arr_dt:
+                valid_records.append(r)
+    else:
+        valid_records = records
+
+    total_me_foc   = sum(r.ME_FOC_MT  or 0 for r in valid_records)
+    total_ae_foc   = sum(r.AE_FOC_MT  or 0 for r in valid_records)
+    total_distance = sum(r.Distance_nm or 0 for r in valid_records)
+    total_duration = sum(r.Duration_h  or 0 for r in valid_records)
 
     avg_speed = total_distance / total_duration if total_duration > 0 else None
     avg_sfoc  = (
-        sum(r.SFOC_gkWh or 0 for r in records) / len(records)
-        if records else None
+        sum(r.SFOC_gkWh or 0 for r in valid_records) / len(valid_records)
+        if valid_records else None
     )
     avg_power = (
-        sum(r.Shaft_Power_kW or 0 for r in records) / len(records)
-        if records else None
+        sum(r.Shaft_Power_kW or 0 for r in valid_records) / len(valid_records)
+        if valid_records else None
     )
 
     return {
@@ -532,10 +650,10 @@ def get_voyage_summary(voyage_no: str, vessel_imo: str, db: Session = Depends(ge
         "From_Port":       first.From_Port,
         "To_Port":         last.To_Port,
 
-        # ✅ Departure & Arrival — derived from first/last records
-        "Departure_Time":  first.Date.strftime("%d %b %Y %H:%M") if first.Date else None,
-        "Arrival_Date":    last.Date.isoformat() if last.Date else None,
-        "Arrival_Time":    last.Date.strftime("%d %b %Y %H:%M") if last.Date else None,
+        # ✅ Departure & Arrival — derived from BOSP/EOSP records (fallback first/last)
+        "Departure_Time":  f"{dep_record._local_date_str}T{dep_record.Time_UTC or '00:00'}:00Z" if getattr(dep_record, '_local_date_str', None) else None,
+        "Arrival_Date":    arr_record._local_date_str if getattr(arr_record, '_local_date_str', None) else None,
+        "Arrival_Time":    f"{arr_record._local_date_str}T{arr_record.Time_UTC or '00:00'}:00Z" if getattr(arr_record, '_local_date_str', None) else None,
 
         # ✅ Draft — from first (departure) record
         "Draft_Fwd_m":     first.Draft_Fwd_m,

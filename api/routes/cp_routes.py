@@ -110,16 +110,18 @@ _DOGO_EXPR = "(" + "+".join(_numexpr(f"n.{c}") for c in _DOGO_COLS) + ")"
 _SOURCE_SQL = {
     "wni": ("JOIN noon_report_data n ON n.raw_report_id = a.raw_report_id", "wni"),
     "mari_apps": ("JOIN mariapps_reports_data n ON n.raw_report_id = a.raw_mariapps_id", "mari_apps"),
+    "Wartsila FOS": ("JOIN noon_report_data n ON n.raw_report_id = a.raw_report_id", "Wartsila FOS"),
 }
 
 
 def _rows_for_source(db, imo, source, vlist, loading_cond=None):
     join, src = _SOURCE_SQL[source]
     sql = f"""
-        SELECT a."Voyage_No", a."Loading_Cond", a."Date", a."From_Port", a."To_Port",
+        SELECT a."Voyage_No", a."Loading_Cond", a."Date", a."Time_UTC", a."From_Port", a."To_Port",
                a."Distance_nm", a."Duration_h", a."SOG_kn", a."STW_kn", a."BF_Wind",
                a."Sig_Wave_Ht_m", a."Current_Spd_kn", a.source_id,
-               {_FO_EXPR} AS fo_mt, {_DOGO_EXPR} AS dogo_mt
+               {_FO_EXPR} AS fo_mt, {_DOGO_EXPR} AS dogo_mt,
+               n.log_type AS event_type
         FROM analysis_data a
         {join}
         WHERE a.vessel_imo = :imo AND a.source_id = :src
@@ -139,8 +141,49 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
             sql += " AND a.\"Loading_Cond\" ILIKE :lc"
             params["lc"] = loading_cond
             
-    sql += ' ORDER BY a."Voyage_No", a."Date"'
-    return [dict(m) for m in db.execute(text(sql), params).mappings().all()]
+    sql += ' ORDER BY a."Voyage_No", a."Date", a."Time_UTC"'
+    raw_rows = [dict(m) for m in db.execute(text(sql), params).mappings().all()]
+    
+    # Filter rows strictly by BOSP and EOSP (to match get_voyage_summary)
+    valid_rows = []
+    
+    # Group by Voyage_No to apply bounds per voyage
+    by_voyage = {}
+    for r in raw_rows:
+        by_voyage.setdefault(r["Voyage_No"], []).append(r)
+        
+    for v_no, v_rows in by_voyage.items():
+        bosps = [r for r in v_rows if r["event_type"] and "BOSP" in r["event_type"].upper()]
+        eosps = [r for r in v_rows if r["event_type"] and "EOSP" in r["event_type"].upper()]
+        
+        eosp_record = eosps[-1] if eosps else None
+        bosp_record = None
+        if bosps:
+            if eosp_record:
+                eosp_dt = f"{eosp_record['Date']}T{eosp_record['Time_UTC'] or '00:00'}"
+                valid_bosps = [b for b in bosps if f"{b['Date']}T{b['Time_UTC'] or '00:00'}" <= eosp_dt]
+                if valid_bosps:
+                    bosp_record = valid_bosps[0]
+            else:
+                bosp_record = bosps[0]
+                
+        first = v_rows[0] if v_rows else None
+        last = v_rows[-1] if v_rows else None
+        
+        dep_record = bosp_record if bosp_record else first
+        arr_record = eosp_record if eosp_record else last
+        
+        if dep_record and arr_record:
+            dep_dt = f"{dep_record['Date']}T{dep_record['Time_UTC'] or '00:00'}"
+            arr_dt = f"{arr_record['Date']}T{arr_record['Time_UTC'] or '00:00'}"
+            for r in v_rows:
+                r_dt = f"{r['Date']}T{r['Time_UTC'] or '00:00'}"
+                if dep_dt <= r_dt <= arr_dt:
+                    valid_rows.append(r)
+        else:
+            valid_rows.extend(v_rows)
+            
+    return valid_rows
 
 
 # Same FO/DO-GO grade classification convention as import_cp_description.py / cp_compliance_v2.
@@ -204,7 +247,7 @@ def cp_performance(
 
     vlist = [v.strip() for v in voyages.split(",")] if voyages else None
     vlist = [v for v in vlist if v] if vlist else None
-    sources = [source] if source in _SOURCE_SQL else ["wni", "mari_apps"]
+    sources = [source] if source in _SOURCE_SQL else list(_SOURCE_SQL.keys())
 
     rows = []
     try:
