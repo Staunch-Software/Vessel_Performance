@@ -185,10 +185,10 @@ def main():
                     "wnix_a_e_fuel_consumption_vlsfo_lfo_mt",
                     "wnix_total_fuel_consumption_lfo_mt",
                     "VoyageMeta_to_port_operational_LF",
-                    "VoyageMeta_latitude_lat_degree_operational_LF",
+                    "VoyageMeta_latitude_operational_LF",
                     "VoyageMeta_latitude_lat_minutes_operational_LF",
                     "VoyageMeta_latitude_lat_direction_operational_LF",
-                    "VoyageMeta_longitude_lon_degree_operational_LF",
+                    "VoyageMeta_longitude_operational_LF",
                     "VoyageMeta_longitude_lon_minutes_operational_LF",
                     "VoyageMeta_longitude_lon_direction_operational_LF"
                 ) VALUES (
