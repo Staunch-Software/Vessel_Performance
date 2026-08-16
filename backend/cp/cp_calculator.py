@@ -62,9 +62,13 @@ def _distance_ok(r):
 
 
 def _is_fair_weather(r):
-    """WNI good-weather: BF <= 4 AND Hs <= 3.0. Missing either criterion → not fair."""
+    """WNI good-weather: BF <= 4 AND Hs <= 3.0. Missing just one criterion → not
+    fair (can't verify). Missing BOTH → treat as good weather (approved by
+    client 2026-08) rather than penalise a voyage for a logging gap."""
     bf = _num(r.get("BF_Wind"))
     hs = _num(r.get("Sig_Wave_Ht_m"))
+    if bf is None and hs is None:
+        return True
     if bf is None or hs is None:
         return False
     return bf <= FAIR_BF_MAX and hs <= FAIR_WAVE_MAX_M
@@ -299,13 +303,21 @@ def _agg_wni(rows):
 
 
 def _segments(vrows):
-    """Split a voyage's (date-ordered) rows into segments by destination-port runs."""
-    segs, cur, cur_port = [], [], object()
+    """Split a voyage's (date-ordered) rows into segments at real EOSP events —
+    NOT whenever the daily destination-port label changes. The destination label
+    on a "Noon at sea" report can be corrected mid-passage before the ship has
+    actually arrived anywhere (a diverted/re-routed voyage), which used to create
+    a fake extra segment for a port the vessel never called at. A segment here
+    is one BOSP→EOSP passage; the caller (cp_routes._rows_for_source) already
+    trims off any trailing rows past the last EOSP (an unfinished/ongoing next
+    leg), so every row set handed to compute_cp_voyage_table ends on a real EOSP.
+    """
+    segs, cur = [], []
     for r in vrows:
-        port = (r.get("To_Port") or "").strip()
-        if cur and port != cur_port:
-            segs.append(cur); cur = []
-        cur.append(r); cur_port = port
+        cur.append(r)
+        if "EOSP" in (r.get("event_type") or "").upper():
+            segs.append(cur)
+            cur = []
     if cur:
         segs.append(cur)
     return segs
@@ -412,8 +424,19 @@ def compute_cp_voyage_table(rows, cp_by_cond):
 
             ratio = round(good_wx["time_h"] / entire["time_h"] * 100, 1) if entire["time_h"] else 0.0
 
+            # Arrival port/date are finalised from the segment's actual EOSP row,
+            # not the last "steaming" row — an EOSP report usually carries zero
+            # distance/duration for that day (it marks the end of the passage),
+            # so it gets filtered out of `steaming` entirely. Pulling from `seg`
+            # (the full segment, before that filter) is what makes this land on
+            # the real arrival port/date instead of whatever the last plausible
+            # sailing day happened to say.
+            eosp_rows = [r for r in seg if "EOSP" in (r.get("event_type") or "").upper()]
+            eosp_row = eosp_rows[-1] if eosp_rows else None
+
             dep = (steaming[0].get("From_Port") or "").strip() or "—"
-            arr = (steaming[-1].get("To_Port") or "").strip() or "—"
+            arr = ((eosp_row.get("To_Port") if eosp_row else None)
+                   or (steaming[-1].get("To_Port") if steaming else None) or "").strip() or "—"
 
             out.append({
                 "voyage_no":      voyage_no,
@@ -423,7 +446,8 @@ def compute_cp_voyage_table(rows, cp_by_cond):
                 "departure_port": dep,
                 "arrival_port":   arr,
                 "atd":            str(steaming[0].get("Date") or ""),
-                "ata":            str(steaming[-1].get("Date") or ""),
+                "ata":            str((eosp_row.get("Date") if eosp_row else None)
+                                       or (steaming[-1].get("Date") if steaming else "") or ""),
                 "loss": {
                     "time_h": time_ls, "fo_mt": fo_ls, "dogo_mt": dogo_ls, "ratio_pct": ratio,
                 },
