@@ -1,5 +1,6 @@
 import sys
 import os
+import hashlib
 import pandas as pd
 from datetime import datetime
 import re
@@ -74,7 +75,8 @@ def main():
         db.commit()
 
         inserted_count = 0
-        
+        duplicate_count = 0
+
         for index, row in df.iterrows():
             if pd.isna(row.get('NOON TIME')):
                 continue
@@ -127,12 +129,26 @@ def main():
                 else:
                     event_type = 'Noon at port'
 
+            # Fingerprint dedup — same convention as the WNI/MariApps pipelines
+            # (backend/pipeline/processor.py): SHA256 of IMO|timestamp|event type.
+            # This script wipes all Wartsila FOS rows before each run, so within
+            # a single clean run this only bites if the source Excel itself has
+            # a duplicate row; it's the safety net against a corrupted/duplicated
+            # source file, a re-run that didn't fully clear first, or overlapping
+            # concurrent runs — none of which were previously caught at all.
+            fp_str = f"{imo}|{dt.isoformat()}|{event_type.strip().upper()}"
+            fingerprint = hashlib.sha256(fp_str.encode()).hexdigest()
+            if db.query(RawNoonReport).filter(RawNoonReport.fingerprint == fingerprint).first():
+                duplicate_count += 1
+                continue
+
             # 1. Create Raw record
             raw = RawNoonReport(
                 vessel_imo=imo,
                 source_id=source_id,
                 raw_json="{}",
-                file_name="AMNS_POLAR_Excel"
+                file_name="AMNS_POLAR_Excel",
+                fingerprint=fingerprint
             )
             db.add(raw)
             db.commit()
@@ -224,6 +240,7 @@ def main():
 
         db.commit()
         print(f"Successfully inserted {inserted_count} valid records (Raw+Noon+Analysis).")
+        print(f"Skipped {duplicate_count} duplicate row(s) (same IMO+timestamp+event already seen).")
 
     except Exception as e:
         db.rollback()
