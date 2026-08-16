@@ -303,21 +303,37 @@ def _agg_wni(rows):
 
 
 def _segments(vrows):
-    """Split a voyage's (date-ordered) rows into segments at real EOSP events —
-    NOT whenever the daily destination-port label changes. The destination label
-    on a "Noon at sea" report can be corrected mid-passage before the ship has
-    actually arrived anywhere (a diverted/re-routed voyage), which used to create
-    a fake extra segment for a port the vessel never called at. A segment here
-    is one BOSP→EOSP passage; the caller (cp_routes._rows_for_source) already
-    trims off any trailing rows past the last EOSP (an unfinished/ongoing next
-    leg), so every row set handed to compute_cp_voyage_table ends on a real EOSP.
+    """Split a voyage's (date-ordered) rows into segments at real BOSP→EOSP
+    passages — NOT whenever the daily destination-port label changes, and NOT
+    on every single EOSP-tagged row by itself. The destination label on a
+    "Noon at sea" report can be corrected mid-passage before the ship has
+    actually arrived anywhere (a diverted/re-routed voyage), which used to
+    create a fake extra segment for a port the vessel never called at.
+
+    A segment only closes when a NEW BOSP (departure) shows up after it has
+    already seen at least one EOSP — not the moment any EOSP appears. This
+    absorbs the case where the same real arrival gets logged with more than
+    one EOSP-tagged row (e.g. a corrected/re-submitted arrival report) with no
+    genuine departure in between: they all stay in the same segment instead of
+    each one starting a fresh (spurious, near-duplicate) segment. Within a
+    segment, compute_cp_voyage_table already picks the LAST EOSP row for the
+    arrival_port/ata, so the corrected/final arrival naturally wins.
+
+    The caller (cp_routes._rows_for_source) already trims off any trailing
+    rows past the last EOSP (an unfinished/ongoing next leg), so every row set
+    handed to compute_cp_voyage_table ends on a real EOSP.
     """
     segs, cur = [], []
+    seen_eosp = False
     for r in vrows:
-        cur.append(r)
-        if "EOSP" in (r.get("event_type") or "").upper():
+        ev = (r.get("event_type") or "").upper()
+        if "BOSP" in ev and seen_eosp and cur:
             segs.append(cur)
             cur = []
+            seen_eosp = False
+        cur.append(r)
+        if "EOSP" in ev:
+            seen_eosp = True
     if cur:
         segs.append(cur)
     return segs
