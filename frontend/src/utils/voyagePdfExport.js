@@ -5,10 +5,15 @@
  *
  * Page Structure:
  *   Page 1   — Cover / Voyage Header
- *   Page 2   — Speed & Consumption Summary (Good Wx / All Wx)
- *   Page 3   — Consumption Calculation Methodology
- *   Page 4   — Speed & Weather Analysis Summary Table
- *   Pages 5+ — Positions & Weather Detail (8 rows / page)
+ *   Page 2   — CP Performance Charts: (A) Good-Weather Speed & Fuel/Day vs CP
+ *              Warranty + allowance bands, trended across this vessel's full
+ *              history for this voyage's loading condition, and (B) Time &
+ *              Fuel Loss/Saving per voyage, all conditions combined (see
+ *              CPChartsRenderer.jsx)
+ *   Page 3   — Speed & Consumption Summary (Good Wx / All Wx)
+ *   Page 4   — Consumption Calculation Methodology
+ *   Page 5   — Speed & Weather Analysis Summary Table
+ *   Pages 6+ — Positions & Weather Detail (8 rows / page)
  *   Next     — Fuel Consumption Analysis
  *   Next     — Message Traffic (one section per report record)
  *   Last 2   — CP Compliance Audit Methodology (static)
@@ -17,6 +22,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { capturePdfAssets } from './PdfHiddenRenderer'
+import { captureCPCharts } from './CPChartsRenderer'
 import {
   fetchVoyageSummary,
   fetchVoyageSeries,
@@ -344,12 +350,8 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   const W = doc.internal.pageSize.getWidth()
   const cp = cpData?.results?.[0] || {}
 
-  // Route label
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.text(`${sum.From_Port || '—'} to ${sum.To_Port || '—'} (Economical speed)`, W / 2, y, { align: 'center' })
-  y += 8
-
+  // Route label now lives on the CP Charts page (page 2) instead — see
+  // CPChartsRenderer.jsx's routeCaption — so it isn't repeated here.
   y = sectionTitle(doc, y, 'A. Good Weather Analysis')
   y += 5
   
@@ -1377,14 +1379,21 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   onProgress?.('Fetching voyage summary…')
 
   // ── 1. Fetch all data in parallel ────────────────────────────────────────
-  const [sum, series, cpData] = await Promise.all([
+  // cpDataAll is UNFILTERED by voyageNos/loadingCond — it's the vessel+source's
+  // full CP history, used only to give the CP charts a real multi-voyage trend
+  // to plot even when this report itself was downloaded for a single voyage.
+  const [sum, series, cpData, cpDataAll] = await Promise.all([
     fetchVoyageSummary(voyageNo, vesselImo).catch(() => ({})),
     fetchVoyageSeries(voyageNo, vesselImo).catch(() => []),
     fetchCPPerformance(vesselImo, voyageNos, source === 'all' ? undefined : source, loadingCond === 'all' ? undefined : loadingCond).catch(() => null),
+    fetchCPPerformance(vesselImo, undefined, source === 'all' ? undefined : source, undefined).catch(() => null),
   ])
 
   onProgress?.('Rendering charts & maps...')
-  const pdfAssets = await capturePdfAssets(sum, series, cpData)
+  const [pdfAssets, cpCharts] = await Promise.all([
+    capturePdfAssets(sum, series, cpData),
+    captureCPCharts(cpDataAll, voyageNo),
+  ])
 
   onProgress?.('Building PDF…')
 
@@ -1418,6 +1427,7 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
 
   // ── 4. Build all pages ────────────────────────────────────────────────────
   buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate)
+  buildCPChartsPage(doc, cpCharts)
   buildSpeedConsPage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
   buildMethodologyPage1(doc, sum, series, cpData, routeId, reportDate, voyageNo)
   buildSummaryTablePage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
@@ -1443,6 +1453,22 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   doc.save(filename)
 
   return { filename, pages: totalPages }
+}
+
+/**
+ * CP Performance charts — page 2, BEFORE Speed and Consumption Calculation.
+ * One combined page holding both: (A) Good-Weather speed & fuel/day vs CP
+ * warranty + allowance bands, trended across this vessel's full history for
+ * this voyage's own loading condition, and (B) the combined Time/Fuel
+ * Loss(-)/Saving(+) diverging bar chart across all of this vessel's voyages,
+ * both conditions together (never split by condition — see cp_calculator).
+ */
+function buildCPChartsPage(doc, cpCharts) {
+  if (!cpCharts?.chartsDataUrl) return
+  doc.addPage('a4', 'portrait')
+  // The charts DOM was 1000x1400 (ratio 1:1.4), same full-bleed pattern as buildChartsPage —
+  // the title is rendered inside the captured image itself, so no separate header here.
+  doc.addImage(cpCharts.chartsDataUrl, 'JPEG', 0, 0, 210, 297)
 }
 
 function buildChartsPage(doc, imgDataUrl) {
