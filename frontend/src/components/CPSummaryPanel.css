@@ -23,6 +23,31 @@
 }
 .cp-panel-sub { font-weight: 400; color: #64748b; font-size: 11px; }
 .cp-tot { margin-left: auto; font-weight: 400; font-size: 11px; color: #94a3b8; }
+
+.cp-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  background: transparent;
+  border: 1px solid var(--border, #2d4a6a);
+  border-radius: 5px;
+  color: var(--text-muted, #94a3b8);
+  font-size: 11px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.cp-export-btn:hover:not(:disabled) {
+  color: #38bdf8;
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+}
+.cp-export-btn.spinning,
+.cp-export-btn:disabled {
+  color: #38bdf8;
+  cursor: default;
+}
 .cp-panel-msg { font-size: 11px; color: #94a3b8; padding: 3px 0; }
 .cp-panel-msg.cp-err  { color: #f87171; }
 .cp-panel-msg.cp-warn { color: #fbbf24; }
