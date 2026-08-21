@@ -88,7 +88,7 @@ export default function CPComplianceSection({ imo, hideWhenNotPiloted = false, v
     <div className="cpc-card">
       <div className="cpc-card-title">
         <Gauge size={13} /> Compliance Evaluation
-        <span className="cpc-card-meta">Phase 3a pilot — AM KIRTI &amp; GCL FOS only</span>
+        <span className="cpc-card-meta">Fleet-wide (widened from the AM KIRTI &amp; GCL FOS pilot)</span>
       </div>
 
       {isPilotVessel && (
@@ -105,8 +105,8 @@ export default function CPComplianceSection({ imo, hideWhenNotPiloted = false, v
 
       {!isPilotVessel && (
         <div className="cpc-empty">
-          This vessel is not part of the Phase 3a compliance pilot yet — only AM KIRTI and GCL FOS
-          are evaluated so far, pending review before fleet-wide rollout.
+          This vessel isn't enabled for Compliance Evaluation yet — check PILOT_VESSEL_IMOS
+          in backend/cp/cp_compliance_v2.py.
         </div>
       )}
       {isPilotVessel && loading && (

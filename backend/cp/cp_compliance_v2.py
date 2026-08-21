@@ -52,10 +52,33 @@ steps as literally specified — each is called out again inline where it applie
 
 from collections import OrderedDict
 
-# Only these two vessels are evaluated in Phase 3a. Enforced again at the route
-# layer (403 for any other IMO) — kept here too so this module is safe to call
-# directly (e.g. from a script or a future workflow) without bypassing the gate.
-PILOT_VESSEL_IMOS = {"9832925", "9532082"}  # AM KIRTI (clean pilot), GCL FOS (messy pilot)
+# Widened from the original 2-vessel Phase 3a pilot (AM KIRTI, GCL FOS) to the full
+# 14-vessel fleet, per manager approval (2026-08-21) once the pilot's results were
+# reviewed. All 14 vessels already have an Active cp_vessel_description record (the
+# warranty data cp_calculator's CP Performance table already uses fleet-wide) — this
+# just widens who ALSO gets the additional Compliant/Non-compliant day/voyage
+# judgment. Expect uneven quality across vessels the pilot didn't cover: e.g. GCL FOS
+# has BF_Wind/Sig_Wave_Ht_m null on most reports ("not computable"), and AMNS TUFMAX's
+# manual Excel import doesn't reliably tag BOSP/EOSP events — those are real source
+# data gaps this module surfaces, not bugs in the widening itself.
+# Enforced again at the route layer (403 for any other IMO) — kept here too so this
+# module is safe to call directly (e.g. from a script or a future workflow).
+PILOT_VESSEL_IMOS = {
+    "9832925",  # AM KIRTI (original clean pilot)
+    "9832913",  # AM TARANG
+    "9792058",  # AM UMANG
+    "9521813",  # AMNS POLAR
+    "9486295",  # AMNS TUFMAX
+    "9628893",  # AMNSI MAXIMUS
+    "9628910",  # AMNSI STALLION
+    "9532082",  # GCL FOS (original messy pilot)
+    "9481697",  # GCL GANGA
+    "9481685",  # GCL NARMADA
+    "9481661",  # GCL SABARMATI
+    "9644500",  # GCL SARASWATI
+    "9481659",  # GCL TAPI
+    "9481219",  # GCL YAMUNA
+}
 
 DIST_CHECK_TOL_PCT = 25.0  # same tolerance as cp_calculator._distance_ok
 
