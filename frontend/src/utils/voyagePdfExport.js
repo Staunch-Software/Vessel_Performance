@@ -527,6 +527,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   // same decision, feeding both the formula line below and the banner.
   let concludedHours = 0
   let concludedIsLoss = false
+  let concludedNeutral = false
   if (wSpeed === 0) {
     doc.setFont('helvetica', 'italic')
     doc.text('No Warranted Speed data available for calculation.', 18, y)
@@ -536,20 +537,36 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
     concludedHours = timeLost
     doc.text('Time Lost = (a) - (b)', 18, y)
     doc.text(`=  ${fmt(a, 2)} - ${fmt(b, 2)}  =  ${fmt(timeLost, 2)} Hours`, 55, y)
-  } else {
+  } else if (timeGained > 0) {
     concludedIsLoss = false
-    concludedHours = Math.max(timeGained, 0)
+    concludedHours = timeGained
     doc.text('Time Gained = (c) - (a)', 18, y)
-    doc.text(`=  ${fmt(c, 2)} - ${fmt(a, 2)}  =  ${fmt(concludedHours, 2)} Hours`, 55, y)
+    doc.text(`=  ${fmt(c, 2)} - ${fmt(a, 2)}  =  ${fmt(timeGained, 2)} Hours`, 55, y)
+  } else {
+    // Neither (a)-(b) nor (c)-(a) is positive — the voyage's actual time falls
+    // inside the tolerance band (between the full-speed and allowance-adjusted
+    // benchmarks). This is genuinely neither a loss nor a gain, so show the true
+    // (negative) arithmetic honestly rather than mislabeling it "Time Gained"
+    // and silently clamping the displayed result to 0.
+    concludedNeutral = true
+    concludedIsLoss = false
+    concludedHours = 0
+    doc.text('Within Tolerance', 18, y)
+    doc.text(`(a) ${fmt(a, 2)} is between (b) ${fmt(b, 2)} and (c) ${fmt(c, 2)}  =  No Claim`, 50, y)
   }
 
   y += 10
-  doc.setFillColor(concludedIsLoss ? 255 : 34, concludedIsLoss ? 0 : 211, concludedIsLoss ? 0 : 153)
+  const bannerR = concludedIsLoss ? 255 : (concludedNeutral ? 120 : 34)
+  const bannerG = concludedIsLoss ? 0   : (concludedNeutral ? 120 : 211)
+  const bannerB = concludedIsLoss ? 0   : (concludedNeutral ? 120 : 153)
+  doc.setFillColor(bannerR, bannerG, bannerB)
   doc.rect(14, y, W - 28, 6, 'F')
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
   if (wSpeed === 0) {
     doc.text('Conclusion: No Warranted Speed data available.', W / 2, y + 4.2, { align: 'center' })
+  } else if (concludedNeutral) {
+    doc.text('Conclusion: Within Tolerance — No Time Lost or Gained', W / 2, y + 4.2, { align: 'center' })
   } else if (concludedIsLoss) {
     doc.text(`Conclusion: ${concludedHours.toFixed(2)} Hours Lost`, W / 2, y + 4.2, { align: 'center' })
   } else {
