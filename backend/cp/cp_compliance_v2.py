@@ -22,10 +22,15 @@ steps as literally specified — each is called out again inline where it applie
      warranted_speed_kn closest to the row's observed speed. This is a heuristic,
      not the literal rule — flag for the client if pilot results look wrong.
   2. Exclusion filter (step 2): the spec excludes canal/river/manoeuvring/drifting/
-     awaiting-orders/tug-assistance events, but analysis_data carries no per-report
-     event/phase flag. We approximate with the existing steaming + distance-sanity
-     filter (same one backend/cp/cp_calculator.py already uses), which excludes
-     zero-distance port entries but NOT canal transits or manoeuvring at speed.
+     awaiting-orders/tug-assistance events. analysis_data has no per-report canal/
+     awaiting-orders/tug-assistance flag, so those still fall back to the steaming +
+     distance-sanity filter (same one backend/cp/cp_calculator.py already uses) and
+     are NOT reliably excluded. Passage-boundary/port-side reports ARE now excluded
+     explicitly by event_type — BOSP, COSP, EOSP, Arrival Report, Departure Report,
+     and Noon at port (see _NON_SEA_PASSAGE_EVENT_TYPES) — since those can carry a
+     small non-zero Distance_nm/Duration_h (a maneuvering/approach fragment) that
+     used to slip past the distance/duration check alone and get judged on a
+     non-representative low-speed fragment.
   3. Good-weather filter (step 3): uses BF_Wind <= weather_max_bf AND
      Sig_Wave_Ht_m <= max_swell_m as a proxy for "Douglas Sea State <= X AND swell
      <= Y" (no separate DSS field exists in analysis_data). Adverse-current
@@ -67,6 +72,25 @@ def _num(v):
 def _is_steaming(r):
     d, h = _num(r.get("Distance_nm")), _num(r.get("Duration_h"))
     return d is not None and d > 0 and h is not None and h > 0
+
+
+# Report types that mark a passage boundary or port-side operation, not a day of actual
+# sea steaming — explicitly requested to be kept out of speed/fuel compliance judgment.
+# BOSP/COSP mark departure, EOSP marks arrival, Arrival/Departure Report are the port-call
+# bookends, and "Noon at port" is by definition not steaming. These are the same normalized
+# labels WNI/MariApps/manual-Excel imports all share (see
+# backend/excel_processing/tufmax_parser.py's TUFMAX_REPORT_TYPE_MAP) — a report can carry
+# one of these event types while still having a small non-zero Distance_nm/Duration_h (a
+# maneuvering/approach fragment), which is exactly what let it slip past the plain
+# steaming check before and get judged on a non-representative low-speed fragment.
+_NON_SEA_PASSAGE_EVENT_TYPES = {
+    "BOSP", "COSP", "EOSP", "ARRIVAL REPORT", "DEPARTURE REPORT", "NOON AT PORT",
+}
+
+
+def _is_sea_passage_event(r):
+    et = str(r.get("event_type") or "").strip().upper()
+    return et not in _NON_SEA_PASSAGE_EVENT_TYPES
 
 
 def _distance_ok(r):
@@ -127,6 +151,56 @@ def _group_consecutive_good_weather_runs(ordered_rows, conditions):
     return runs
 
 
+def _daily_breakdown(rows, conditions, speed_threshold, cons_threshold, qualifying_ids):
+    """
+    Per-report pass/fail detail. Each entry is judged independently against the SAME
+    matched-warranty thresholds as the voyage aggregate — no minimum-period smoothing.
+    `qualifying_ids` marks which rows also contributed to the official voyage-level
+    aggregate (id()-based membership check against the qualifying_rows list).
+
+    Status: 'Excluded (weather)' if the report itself isn't good-weather (a per-day
+    verdict can't be judged fairly outside the CP's own good-weather clause); otherwise
+    'Compliant' / 'Non-compliant' against the voyage's matched warranty thresholds.
+    """
+    out = []
+    for r in rows:
+        hours = _num(r.get("Duration_h")) or 0
+        dist = _num(r.get("Distance_nm")) or 0
+        me = _num(r.get("ME_FOC_MT")) or 0
+        ae = _num(r.get("AE_FOC_MT")) or 0
+        good_wx = _is_good_weather(r, conditions)
+        obs_speed = round(dist / hours, 2) if hours else None
+        obs_cons = round((me + ae) / (hours / 24), 2) if hours else None
+
+        shortfall = excess = None
+        status = "Excluded (weather)"
+        if good_wx:
+            if speed_threshold is not None and obs_speed is not None:
+                shortfall = round(max(0.0, speed_threshold - obs_speed), 2)
+            if cons_threshold is not None and obs_cons is not None:
+                excess = round(max(0.0, obs_cons - cons_threshold), 2)
+            if shortfall is None and excess is None:
+                status = "Not evaluable"
+            else:
+                status = "Non-compliant" if (shortfall or excess) else "Compliant"
+
+        out.append({
+            "date": str(r.get("Date") or ""),
+            "distance_nm": round(dist, 1) if dist else dist,
+            "duration_h": round(hours, 1) if hours else hours,
+            "bf_wind": _num(r.get("BF_Wind")),
+            "sig_wave_ht_m": _num(r.get("Sig_Wave_Ht_m")),
+            "observed_speed_kn": obs_speed,
+            "observed_cons_mtpd": obs_cons,
+            "good_weather": good_wx,
+            "in_qualifying_period": id(r) in qualifying_ids,
+            "speed_shortfall_kn": shortfall,
+            "excess_cons_mtpd": excess,
+            "status": status,
+        })
+    return out
+
+
 def _aggregate(rows):
     dist = sum(_num(r.get("Distance_nm")) or 0 for r in rows)
     hours = sum(_num(r.get("Duration_h")) or 0 for r in rows)
@@ -153,7 +227,7 @@ def evaluate_voyage(voyage_no, rows, sea_warranty_rows, conditions):
     `conditions` = cp_warranty_conditions dict.
     """
     rows = sorted(rows, key=lambda r: str(r.get("Date") or ""))
-    steaming = [r for r in rows if _is_steaming(r) and _distance_ok(r)]
+    steaming = [r for r in rows if _is_steaming(r) and _distance_ok(r) and _is_sea_passage_event(r)]
 
     result = {
         "voyage_no": voyage_no,
@@ -173,6 +247,7 @@ def evaluate_voyage(voyage_no, rows, sea_warranty_rows, conditions):
         "hull_prop_flag": "Not evaluable — last_drydock_date not populated in source data.",
         "claim_value_usd": "Not evaluable — no daily hire rate / bunker price configured.",
         "notes": [],
+        "daily": [],
     }
     if not steaming:
         result["notes"].append("No steaming reports in this voyage.")
@@ -218,26 +293,8 @@ def evaluate_voyage(voyage_no, rows, sea_warranty_rows, conditions):
     dominant_rows = [r for r, cond, w in matched_rows if cond == dominant_cond and w["id"] == dominant_w_id]
     result["good_weather_count"] = sum(1 for r in dominant_rows if _is_good_weather(r, conditions))
 
-    # Step 4: minimum continuous good-weather period test
-    min_hrs = conditions.get("min_good_weather_hrs") or 24
-    runs = _group_consecutive_good_weather_runs(dominant_rows, conditions)
-    qualifying_rows = []
-    for run in runs:
-        if sum(_num(r.get("Duration_h")) or 0 for r in run) >= min_hrs:
-            qualifying_rows.extend(run)
-    result["qualifying_count"] = len(qualifying_rows)
-
-    if not qualifying_rows:
-        result["notes"].append(
-            f"No qualifying good-weather period >= {min_hrs}h — compliance not computable for this voyage."
-        )
-        return result
-
-    # Step 5: observed performance (weighted across qualifying periods)
-    observed = _aggregate(qualifying_rows)
-    result["observed"] = observed
-
-    # Step 6: warranty tolerance thresholds
+    # Step 6: warranty tolerance thresholds (computed before the qualifying-period test so the
+    # daily breakdown below can use them even for voyages with no qualifying aggregate period).
     about = warranty.get("about_clause", True)
     w_speed = _num(warranty.get("warranted_speed_kn"))
     tol_kn = _num(warranty.get("speed_tolerance_kn")) or 0.0
@@ -251,6 +308,34 @@ def evaluate_voyage(voyage_no, rows, sea_warranty_rows, conditions):
         "speed_threshold_kn": round(speed_threshold, 2) if speed_threshold is not None else None,
         "cons_threshold_mtpd": round(cons_threshold, 2) if cons_threshold is not None else None,
     }
+
+    # Step 4: minimum continuous good-weather period test
+    min_hrs = conditions.get("min_good_weather_hrs") or 24
+    runs = _group_consecutive_good_weather_runs(dominant_rows, conditions)
+    qualifying_rows = []
+    for run in runs:
+        if sum(_num(r.get("Duration_h")) or 0 for r in run) >= min_hrs:
+            qualifying_rows.extend(run)
+    result["qualifying_count"] = len(qualifying_rows)
+
+    # Daily breakdown — one entry PER REPORT, each with its own pass/fail verdict against the
+    # same matched-warranty thresholds as the voyage aggregate above. Requested explicitly as a
+    # daily view; note this is noisier than the voyage-level verdict, which the client's own
+    # spec deliberately aggregates over a >=min_good_weather_hrs period to avoid single-day noise
+    # (a maneuvering hour, a partial-day report, etc.) reading as a false breach.
+    qualifying_ids = {id(r) for r in qualifying_rows}
+    result["daily"] = _daily_breakdown(dominant_rows, conditions, speed_threshold, cons_threshold, qualifying_ids)
+
+    if not qualifying_rows:
+        result["notes"].append(
+            f"No qualifying good-weather period >= {min_hrs}h — voyage-level compliance not computable "
+            "(see the daily breakdown for individual report detail)."
+        )
+        return result
+
+    # Step 5: observed performance (weighted across qualifying periods)
+    observed = _aggregate(qualifying_rows)
+    result["observed"] = observed
 
     # Step 7: speed shortfall
     obs_speed = observed["observed_speed_kn"]

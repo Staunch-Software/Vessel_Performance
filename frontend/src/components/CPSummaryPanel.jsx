@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Download, Loader2 } from 'lucide-react'
 import { fetchCPPerformance } from '../api/vesselApi'
 import { generateVoyagePdf } from '../utils/voyagePdfExport'
-import CPComplianceSection from './CPComplianceSection'
 import './CPSummaryPanel.css'
 
 const fmt = (v, d = 2) =>
@@ -227,11 +226,6 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
       {!loading && data && rows.length === 0 && (
         <div className="cp-panel-msg">No analysis rows for the selected voyage(s).</div>
       )}
-
-      {/* Phase 3a compliance pilot — renders nothing for vessels outside the pilot,
-          so this is invisible for every vessel except AM KIRTI / GCL FOS. Scoped to
-          the currently-selected voyage(s), same as the table above it. */}
-      <CPComplianceSection imo={imo} hideWhenNotPiloted voyages={voyages} />
       </div>
     </div>
   )

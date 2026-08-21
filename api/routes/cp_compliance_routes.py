@@ -78,12 +78,21 @@ def get_cp_compliance(
     sources = [source] if source in _SOURCE_TABLES else ["wni", "mari_apps"]
     analysis_rows = []
     for src in sources:
+        # event_type isn't a column on analysis_data itself — it's coalesced from whichever
+        # source's normalized report joins back via raw_report_id/raw_mariapps_id, same join
+        # vessel_routes.py's /query endpoint uses. Needed so cp_compliance_v2 can exclude
+        # passage-boundary/port-side reports (BOSP/COSP/EOSP/Arrival/Departure Report/Noon at
+        # port) from speed & fuel compliance judgment — see _NON_SEA_PASSAGE_EVENT_TYPES.
         sql = """
-            SELECT "Voyage_No", "Loading_Cond", "Date", "Distance_nm", "Duration_h",
-                   "SOG_kn", "STW_kn", "ME_FOC_MT", "AE_FOC_MT", "BF_Wind", "Sig_Wave_Ht_m", source_id
-            FROM analysis_data
-            WHERE vessel_imo = :imo AND source_id = :src
-            ORDER BY "Voyage_No", "Date"
+            SELECT ad."Voyage_No", ad."Loading_Cond", ad."Date", ad."Distance_nm", ad."Duration_h",
+                   ad."SOG_kn", ad."STW_kn", ad."ME_FOC_MT", ad."AE_FOC_MT", ad."BF_Wind",
+                   ad."Sig_Wave_Ht_m", ad.source_id,
+                   COALESCE(nrd.log_type, mrd.log_type) AS event_type
+            FROM analysis_data ad
+            LEFT JOIN noon_report_data nrd ON nrd.raw_report_id = ad.raw_report_id
+            LEFT JOIN mariapps_reports_data mrd ON mrd.raw_report_id = ad.raw_mariapps_id
+            WHERE ad.vessel_imo = :imo AND ad.source_id = :src
+            ORDER BY ad."Voyage_No", ad."Date"
         """
         analysis_rows.extend(dict(r) for r in db.execute(text(sql), {"imo": imo, "src": src}).mappings().all())
 

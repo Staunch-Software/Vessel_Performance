@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Gauge, Loader2, AlertTriangle } from 'lucide-react'
+import { useState, useEffect, Fragment } from 'react'
+import { Gauge, Loader2, AlertTriangle, ChevronRight, ChevronDown } from 'lucide-react'
 import { fetchCPCompliance, fetchCPCompliancePilotVessels } from '../api/vesselApi'
 import './CPComplianceSection.css'
 
@@ -15,6 +15,13 @@ function voyageStatus(v) {
     return { cls: 'red', label: 'Non-compliant' }
   }
   return { cls: 'green', label: 'Compliant' }
+}
+
+function dailyStatusCls(status) {
+  if (status === 'Non-compliant') return 'red'
+  if (status === 'Compliant') return 'green'
+  if (status === 'Excluded (weather)') return 'amber'
+  return 'grey'
 }
 
 /**
@@ -37,6 +44,16 @@ export default function CPComplianceSection({ imo, hideWhenNotPiloted = false, v
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [expanded, setExpanded] = useState(new Set())
+
+  function toggleExpanded(key) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   useEffect(() => {
     fetchCPCompliancePilotVessels()
@@ -123,7 +140,7 @@ export default function CPComplianceSection({ imo, hideWhenNotPiloted = false, v
             <table className="cpc-table">
               <thead>
                 <tr>
-                  <th>Source</th><th>Voyage</th><th>Loading</th><th>Matched Warranty</th>
+                  <th></th><th>Source</th><th>Voyage</th><th>Loading</th><th>Matched Warranty</th>
                   <th>Qual. Reports</th><th>Observed (kn)</th><th>Threshold (kn)</th>
                   <th>Shortfall (kn)</th><th>Excess Cons (mt)</th><th>Time Lost/Gain (h)</th><th>Status</th>
                 </tr>
@@ -131,20 +148,69 @@ export default function CPComplianceSection({ imo, hideWhenNotPiloted = false, v
               <tbody>
                 {visibleVoyages.map((v, i) => {
                   const st = voyageStatus(v)
+                  const key = `${v.source}-${v.voyage_no}`
+                  const isOpen = expanded.has(key)
+                  const hasDaily = v.daily && v.daily.length > 0
                   return (
-                    <tr key={i} className={`cpc-row ${st.cls}`}>
-                      <td>{v.source}</td>
-                      <td>{v.voyage_no}</td>
-                      <td>{v.loading_cond || '—'}</td>
-                      <td>{v.matched_warranty ? `${v.matched_warranty.speed_mode} @ ${v.matched_warranty.warranted_speed_kn}kn` : '—'}</td>
-                      <td>{v.qualifying_count}</td>
-                      <td>{v.observed?.observed_speed_kn ?? '—'}</td>
-                      <td>{v.thresholds?.speed_threshold_kn ?? '—'}</td>
-                      <td>{v.speed_shortfall_kn ?? '—'}</td>
-                      <td>{v.excess_cons_mt ?? '—'}</td>
-                      <td>{v.time_lost_gained_h ?? '—'}</td>
-                      <td><span className={`cpc-status-pill ${st.cls}`}>{st.label}</span></td>
-                    </tr>
+                    <Fragment key={key}>
+                      <tr
+                        className={`cpc-row ${st.cls}${hasDaily ? ' cpc-row-expandable' : ''}`}
+                        onClick={() => hasDaily && toggleExpanded(key)}
+                      >
+                        <td className="cpc-expand-cell">
+                          {hasDaily && (isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
+                        </td>
+                        <td>{v.source}</td>
+                        <td>{v.voyage_no}</td>
+                        <td>{v.loading_cond || '—'}</td>
+                        <td>{v.matched_warranty ? `${v.matched_warranty.speed_mode} @ ${v.matched_warranty.warranted_speed_kn}kn` : '—'}</td>
+                        <td>{v.qualifying_count}</td>
+                        <td>{v.observed?.observed_speed_kn ?? '—'}</td>
+                        <td>{v.thresholds?.speed_threshold_kn ?? '—'}</td>
+                        <td>{v.speed_shortfall_kn ?? '—'}</td>
+                        <td>{v.excess_cons_mt ?? '—'}</td>
+                        <td>{v.time_lost_gained_h ?? '—'}</td>
+                        <td><span className={`cpc-status-pill ${st.cls}`}>{st.label}</span></td>
+                      </tr>
+                      {isOpen && hasDaily && (
+                        <tr className="cpc-daily-wrap-row">
+                          <td colSpan={11}>
+                            <div className="cpc-daily-note">
+                              <AlertTriangle size={11} /> Per-report detail — each day is judged independently against
+                              this voyage's matched warranty, without the minimum-period smoothing the voyage-level
+                              verdict above uses. Very short-duration entries (port approach/maneuvering fragments)
+                              can show large, misleading shortfalls — check Duration (h) before treating a single day as a real breach.
+                            </div>
+                            <table className="cpc-daily-table">
+                              <thead>
+                                <tr>
+                                  <th>Date</th><th>Duration (h)</th><th>Distance (nm)</th><th>BF</th><th>Hs (m)</th>
+                                  <th>Speed (kn)</th><th>Cons (mt/d)</th><th>Shortfall (kn)</th><th>Excess (mt/d)</th>
+                                  <th>In Qual. Period</th><th>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {v.daily.map((d, di) => (
+                                  <tr key={di} className={`cpc-daily-row ${dailyStatusCls(d.status)}`}>
+                                    <td>{d.date}</td>
+                                    <td>{d.duration_h ?? '—'}</td>
+                                    <td>{d.distance_nm ?? '—'}</td>
+                                    <td>{d.bf_wind ?? '—'}</td>
+                                    <td>{d.sig_wave_ht_m ?? '—'}</td>
+                                    <td>{d.observed_speed_kn ?? '—'}</td>
+                                    <td>{d.observed_cons_mtpd ?? '—'}</td>
+                                    <td>{d.speed_shortfall_kn ?? '—'}</td>
+                                    <td>{d.excess_cons_mtpd ?? '—'}</td>
+                                    <td>{d.in_qualifying_period ? 'Yes' : 'No'}</td>
+                                    <td><span className={`cpc-status-pill ${dailyStatusCls(d.status)}`}>{d.status}</span></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
               </tbody>

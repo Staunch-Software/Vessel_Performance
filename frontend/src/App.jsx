@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { memoryStore } from './utils/memoryStore'
 
 import { Zap, AlertTriangle, FileText, Database, BarChart2, ChevronDown, Users, LogOut, Shield, BookOpen, Map, ScrollText, Leaf } from 'lucide-react'
-import { queryAnalysis, queryExpandedData, fetchExpandedColumns, fetchUserColumnPrefs, fetchVesselColumnDefaults } from './api/vesselApi'
+import { queryAnalysis, queryExpandedData, fetchExpandedColumns, fetchUserColumnPrefs, fetchVesselColumnDefaults, fetchCPCompliancePilotVessels, fetchCPCompliance } from './api/vesselApi'
 import { PERFORMANCE_COLUMNS } from './utils/performanceColumns'
 import TopFilterBar from './components/TopFilterBar'
 import FuelBarChart from './components/FuelBarChart'
@@ -157,6 +157,8 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
   const [source, setSource]         = useState(() => memoryStore.getItem('vp_source') || 'mari_apps')
   const [catFilter, setCatFilter]   = useState(() => memoryStore.getItem('vp_cat_filter') || 'All')
   const [colsVersion, setColsVersion] = useState(0)
+  const [pilotVessels, setPilotVessels] = useState([])
+  const [complianceByDate, setComplianceByDate] = useState({})
 
   useEffect(() => { memoryStore.setItem('vp_graph_type', graphType) }, [graphType])
   useEffect(() => { memoryStore.setItem('vp_fuel_mode', fuelMode) }, [fuelMode])
@@ -171,6 +173,7 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
 
   const dragStartY = useRef(0)
   const dragStartH = useRef(0)
+  const filterReqIdRef = useRef(0)
 
   useEffect(() => {
     let active = true
@@ -208,7 +211,43 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
     return () => { active = false }
   }, [effSource, vesselImo, colsVersion])
 
+  // Charter-Party compliance pilot (AM KIRTI / GCL FOS only) — per-day status lookup used to
+  // annotate the Month/Period data table + fuel chart. Not tied to voyage view at all.
+  useEffect(() => {
+    fetchCPCompliancePilotVessels().then(setPilotVessels).catch(() => setPilotVessels([]))
+  }, [])
+
+  useEffect(() => {
+    if (!vesselImo || !pilotVessels.includes(vesselImo)) { setComplianceByDate({}); return }
+    let active = true
+    const srcParam = source === 'all' ? undefined : source
+    fetchCPCompliance(vesselImo, srcParam)
+      .then(d => {
+        if (!active) return
+        // Worst-status wins when a date has multiple reports (e.g. partial-day legs).
+        const rank = { 'Non-compliant': 3, 'Compliant': 2, 'Excluded (weather)': 1, 'Not evaluable': 1, 'Unmatched': 1 }
+        const byDate = {}
+        for (const v of (d.voyages || [])) {
+          for (const day of (v.daily || [])) {
+            const dateKey = (day.date || '').slice(0, 10)
+            if (!dateKey) continue
+            const cur = byDate[dateKey]
+            if (!cur || (rank[day.status] || 0) > (rank[cur] || 0)) byDate[dateKey] = day.status
+          }
+        }
+        setComplianceByDate(byDate)
+      })
+      .catch(() => setComplianceByDate({}))
+    return () => { active = false }
+  }, [vesselImo, source, pilotVessels])
+
   const handleFilters = useCallback(async (filters) => {
+    // Guard against out-of-order responses: TopFilterBar can fire a new filter change
+    // (vessel/month/source switch) before the previous one's request has resolved. Without
+    // this, a slower older request could resolve AFTER a faster newer one and overwrite its
+    // correct chartRows/rows with stale (sometimes empty) data — the chart/table would then
+    // silently show the wrong filter's result, intermittently, depending on network timing.
+    const reqId = ++filterReqIdRef.current
     const src = filters.source_id || 'wni'
     setLoading(true)
     setError(null)
@@ -225,14 +264,16 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
         queryAnalysis(filters).catch(() => []),
         queryExpandedData(src, filters),
       ])
+      if (reqId !== filterReqIdRef.current) return // superseded by a newer filter change
       setChartRows(chartData)
       setRows(tableData)
     } catch (e) {
+      if (reqId !== filterReqIdRef.current) return
       setError(e?.response?.data?.detail ?? e.message ?? 'Failed to load data')
       setRows([])
       setChartRows([])
     } finally {
-      setLoading(false)
+      if (reqId === filterReqIdRef.current) setLoading(false)
     }
   }, [])
 
@@ -331,7 +372,7 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
               {filtersApplied ? 'No data available for the selected period.' : 'Select a vessel and date range to view data.'}
             </div>
           )}
-          {!loading && hasChartData && graphType === 'fuel'       && <FuelBarChart rows={chartRows} mode={fuelMode} voyageView={voyageView} />}
+          {!loading && hasChartData && graphType === 'fuel'       && <FuelBarChart rows={chartRows} mode={fuelMode} voyageView={voyageView} complianceByDate={complianceByDate} />}
           {!loading && graphType === 'speed'      && <SpeedPowerScatter vesselImo={vesselImo} />}
           {!loading && graphType === 'speed_loss' && <SpeedLossChart rows={chartRows} />}
         </div>
@@ -365,7 +406,7 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
           ? <CPSummaryPanel imo={vesselImo} vesselName={vesselName} source={source} voyages={cpVoyages} loadingCond={filtersApplied?.loadingCond} />
           : loading
             ? <div className="loading-overlay"><div className="spinner" /> Loading reports…</div>
-            : <AnalysisTable rows={rows} columnsMeta={columnsMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} />
+            : <AnalysisTable rows={rows} columnsMeta={columnsMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} complianceByDate={complianceByDate} vesselName={vesselName} />
         }
       </div>
 

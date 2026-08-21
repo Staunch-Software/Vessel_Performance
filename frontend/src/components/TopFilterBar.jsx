@@ -386,6 +386,16 @@ export default function TopFilterBar({
                   onSourceChange('wni')
                 } else if (newImo === '9521813') {
                   onSourceChange('Wartsila FOS')
+                } else {
+                  // Every other vessel uses the normal All/WNI/MariApps source set, whose
+                  // real default is 'mari_apps' (see LogbookPage's initial useState) — not
+                  // 'all'. Without this reset, switching away from TUFMAX ('wni') or POLAR
+                  // ('Wartsila FOS') left `source` stuck on a value that's meaningless for
+                  // the new vessel — e.g. filtering AM KIRTI's chart query by
+                  // source_id='Wartsila FOS' silently matched zero rows, so the chart went
+                  // blank even though the table (which resolves source differently) still
+                  // showed data.
+                  onSourceChange('mari_apps')
                 }
               }}>
               {vessels.map(v => <option key={v.imo_number} value={v.imo_number}>{v.vessel_name}</option>)}
