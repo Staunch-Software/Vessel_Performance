@@ -145,11 +145,20 @@ def _pick_sea_warranty(candidates, observed_speed):
 
 
 def _is_good_weather(row, conditions):
+    """Missing just one of BF_Wind/Sig_Wave_Ht_m → not fair (can't verify). Missing
+    BOTH → treat as good weather (same rule approved by the client 2026-08 for
+    cp_calculator._is_fair_weather) rather than penalise a voyage for a logging gap —
+    this is exactly what was leaving AMNS POLAR's rows (both fields null) stuck on
+    "Excluded (weather)" instead of being evaluated."""
     bf = _num(row.get("BF_Wind"))
     hs = _num(row.get("Sig_Wave_Ht_m"))
     max_bf = conditions.get("weather_max_bf")
     max_swell = conditions.get("max_swell_m")
-    if bf is None or hs is None or max_bf is None or max_swell is None:
+    if max_bf is None or max_swell is None:
+        return False
+    if bf is None and hs is None:
+        return True
+    if bf is None or hs is None:
         return False
     return bf <= max_bf and hs <= max_swell
 
