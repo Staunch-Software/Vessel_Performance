@@ -177,6 +177,22 @@ function rowDateKey(row) {
   return String(row.log_date || row.date || '').slice(0, 10)
 }
 
+// Same passage-boundary/port-side exclusion set the backend CP compliance pilot uses
+// (backend/cp/cp_compliance_v2.py's _NON_SEA_PASSAGE_EVENT_TYPES) — BOSP/COSP/EOSP/
+// Arrival Report/Departure Report/Noon at port are never actually judged for speed/fuel
+// compliance, only "Noon at sea" steaming rows are. complianceByDate is keyed by calendar
+// DATE though (worst-status-wins across a day's reports), so without this check every
+// other report sharing that date — a BOSP, an EOSP, a Departure Report — would visually
+// inherit the "Noon at sea" row's verdict on that same day, looking as if it had been
+// individually judged when it never was.
+const _NON_SEA_PASSAGE_LOG_TYPES = new Set(['BOSP', 'COSP', 'EOSP', 'ARRIVAL REPORT', 'DEPARTURE REPORT', 'NOON AT PORT'])
+function isSeaPassageReport(row) {
+  // MariApps rows carry it in `log_type`, WNI rows in `event_type` — both display under
+  // the same "Log Type" column header (see expander.py's identity-column definitions).
+  const logType = String(row.log_type || row.event_type || '').trim().toUpperCase()
+  return !_NON_SEA_PASSAGE_LOG_TYPES.has(logType)
+}
+
 function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate) {
   // Which columns to show: identity (except hidden ones) + user-toggled (pink)
   const visible = columnsMeta.filter(m => {
@@ -232,7 +248,7 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate)
     header: 'Compliance',
     size: 110,
     cell: ({ row }) => {
-      const status = complianceByDate?.[rowDateKey(row.original)]
+      const status = isSeaPassageReport(row.original) ? complianceByDate?.[rowDateKey(row.original)] : null
       if (!status) return <span className="cell-null">—</span>
       return <span className={`compliance-pill ${COMPLIANCE_CLS[status] || ''}`}>{status}</span>
     },
@@ -472,7 +488,7 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
         <tbody>
           {table.getRowModel().rows.map((row, idx) => {
             const sr = scanResults?.[row.index]
-            const complianceStatus = complianceByDate?.[rowDateKey(row.original)]
+            const complianceStatus = isSeaPassageReport(row.original) ? complianceByDate?.[rowDateKey(row.original)] : null
             return (
               <TableRow
                 key={row.id}
