@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { memoryStore } from './utils/memoryStore'
 
-import { Zap, AlertTriangle, FileText, Database, BarChart2, ChevronDown, Users, LogOut, Shield, BookOpen, Map, ScrollText, Leaf } from 'lucide-react'
+import { Zap, AlertTriangle, FileText, Database, BarChart2, ChevronDown, Users, LogOut, Shield, BookOpen, Map, ScrollText, Leaf, Fuel } from 'lucide-react'
 import { queryAnalysis, queryExpandedData, fetchExpandedColumns, fetchUserColumnPrefs, fetchVesselColumnDefaults, fetchCPCompliancePilotVessels, fetchCPCompliance } from './api/vesselApi'
 import { PERFORMANCE_COLUMNS } from './utils/performanceColumns'
 import TopFilterBar from './components/TopFilterBar'
@@ -19,6 +19,7 @@ import ISO19030Page from './pages/ISO19030Page'
 import FleetStatusPage from './pages/FleetStatusPage'
 import CPDescriptionPage from './pages/CPDescriptionPage'
 import EmissionPage from './pages/EmissionPage'
+import BunkerReportPage from './pages/BunkerReportPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -111,6 +112,7 @@ function PageTabBar({ active, onChange, isAdmin, onLogout, currentUser, onAdmin 
     { id: 'fleet',   icon: <Map       size={14} />, label: 'Fleet Status'   },
     { id: 'cp',      icon: <ScrollText size={14} />, label: 'CP Description' },
     { id: 'emission', icon: <Leaf size={14} />, label: 'Emission' },
+    { id: 'bunker',  icon: <Fuel size={14} />, label: 'Bunker Report' },
   ]
   return (
     <div className="page-tabs">
@@ -526,6 +528,7 @@ function AuthenticatedApp() {
           {page === 'fleet' && <FleetStatusPage />}
           {page === 'cp'    && <CPDescriptionPage />}
           {page === 'emission' && <EmissionPage />}
+          {page === 'bunker' && <BunkerReportPage />}
         </>
       )}
     </div>

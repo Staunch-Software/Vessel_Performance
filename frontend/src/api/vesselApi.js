@@ -172,6 +172,17 @@ export async function fetchSpeedPowerData(imo, loadingCondition = 'all') {
   return data
 }
 
+// ── MariApps Bunker Report ─────────────────────────────────────────────────
+export async function fetchBunkerReportVessels() {
+  const { data } = await api.get('/bunker-report/vessels')
+  return Array.isArray(data) ? data : []
+}
+
+export async function fetchBunkerReport(imo) {
+  const { data } = await api.get(`/bunker-report/${imo}`)
+  return Array.isArray(data) ? data : []
+}
+
 // ── ISO 19030 ─────────────────────────────────────────────────────────────────
 export async function fetchISOConfig(imo) {
   const { data } = await api.get(`/iso19030/${imo}/config`)
