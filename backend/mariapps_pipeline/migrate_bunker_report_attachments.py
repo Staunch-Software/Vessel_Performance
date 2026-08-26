@@ -77,8 +77,11 @@ def _merge_duplicates():
         restamped = 0
 
         for canonical_fp, group_rows in groups.items():
-            keeper = group_rows[0]
-            others = group_rows[1:]
+            # Prefer a row that's already in the new one-row-per-transaction shape
+            # (has an `attachments` list) as the keeper, over an older leftover row
+            # from the "one row per file" scraper — falls back to the lowest id.
+            keeper = next((r for r in group_rows if r.attachments), group_rows[0])
+            others = [r for r in group_rows if r is not keeper]
 
             attachments = []
             seen_paths = set()
@@ -103,13 +106,23 @@ def _merge_duplicates():
                 keeper.blob_url = attachments[0].get("blob_url")
                 keeper.blob_path = attachments[0].get("blob_path")
 
-            if keeper.fingerprint != canonical_fp:
-                keeper.fingerprint = canonical_fp
-                restamped += 1
-
+            # CONFIRMED real bug: deleting `others` and restamping `keeper.fingerprint`
+            # in the same flush can collide — Postgres checks the UNIQUE constraint
+            # immediately (not deferred), and SQLAlchemy's unit-of-work flushes ALL
+            # pending UPDATEs before any DELETEs. When `others` already holds the
+            # canonical fingerprint value (a fresh new-format row) and `keeper` is
+            # being restamped to that same value, the UPDATE fires before the
+            # DELETE physically frees it up -> UniqueViolation. Flush the deletes
+            # first, per group, before touching keeper.fingerprint.
             for r in others:
                 db.delete(r)
                 deleted_rows += 1
+            if others:
+                db.flush()
+
+            if keeper.fingerprint != canonical_fp:
+                keeper.fingerprint = canonical_fp
+                restamped += 1
 
             if others:
                 merged_groups += 1
