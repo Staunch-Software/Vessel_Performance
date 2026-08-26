@@ -466,6 +466,23 @@ def run():
                 browser.close()
                 return
 
+            # CONFIRMED real bug: even after the grid-wait fix below, the FIRST
+            # vessel processed (always AM KIRTI, since get_scrape_vessels() returns
+            # alphabetical order) still came back with 0 rows in BOTH the locked
+            # and scrollable tables, while the very next vessel worked instantly —
+            # ruling out "the grid is just slow". "load" only waits for the page
+            # load event, not for Kendo's own widgets (vessel search box, search
+            # button) to finish their JS init/bind cycle, so _select_vessel()'s
+            # very first interaction on a freshly-navigated page can land before
+            # the widget is actually ready to accept it — the click/type silently
+            # no-ops instead of erroring. Wait for network activity to settle plus
+            # a fixed settle delay before the vessel loop starts.
+            try:
+                page.wait_for_load_state("networkidle", timeout=15000)
+            except PlaywrightTimeoutError:
+                pass
+            time.sleep(2.0)
+
             for v_idx, vessel_name in enumerate(vessel_names, start=1):
                 if page.is_closed():
                     log.error("[BROWSER]  Page closed unexpectedly. Aborting.")
@@ -481,14 +498,6 @@ def run():
 
                 log.info(f"[VESSEL]   [{v_idx}/{len(vessel_names)}] {vessel_name} (IMO {vessel_imo})")
 
-                try:
-                    _select_vessel(page, vessel_name)
-                    _set_date_range_and_search(page, FROM_DATE, to_date_str)
-                except Exception as e:
-                    log.error(f"[FILTER]   Failed to apply filters for '{vessel_name}': {e}")
-                    total_errors += 1
-                    continue
-
                 # Debug dump (raw cell text, attachment icon HTML, modal-detection
                 # diagnostics) — opt-in via env var, off by default so normal runs
                 # stay clean. Set MARIAPPS_BUNKER_DEBUG=true and it applies to the
@@ -496,12 +505,28 @@ def run():
                 # flooding the log for all 14 vessels).
                 debug_dump = os.getenv("MARIAPPS_BUNKER_DEBUG", "false").lower() == "true" and v_idx <= 2
 
-                try:
-                    grid_rows = _extract_grid_rows(page, debug_dump=debug_dump)
-                except Exception as e:
-                    log.error(f"[GRID]     Failed to extract rows for '{vessel_name}': {e}")
-                    total_errors += 1
-                    continue
+                # Retry the whole filter+extract cycle once if it comes back with 0
+                # rows — belt-and-suspenders on top of the page-settle wait above.
+                # Confirmed real bug: AM KIRTI (always the first vessel processed)
+                # came back with 0 rows even after a 15s grid-row wait, most likely
+                # because the vessel-select/search interaction itself landed before
+                # Kendo's widgets finished initializing right after page load — a
+                # second attempt, well after that init window has passed, recovers it.
+                grid_rows = []
+                for attempt in range(1, 3):
+                    try:
+                        _select_vessel(page, vessel_name)
+                        _set_date_range_and_search(page, FROM_DATE, to_date_str)
+                        grid_rows = _extract_grid_rows(page, debug_dump=debug_dump)
+                    except Exception as e:
+                        log.error(f"[FILTER]   Failed to apply filters/extract for '{vessel_name}' "
+                                  f"(attempt {attempt}/2): {e}")
+                        grid_rows = []
+                    if grid_rows:
+                        break
+                    if attempt == 1:
+                        log.warning(f"[GRID]     0 rows for '{vessel_name}' on attempt 1 — retrying once.")
+                        time.sleep(2.0)
 
                 log.info(f"[GRID]     {len(grid_rows)} bunker record(s) found for {vessel_name}.")
 
