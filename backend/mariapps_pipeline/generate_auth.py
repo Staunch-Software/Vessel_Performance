@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 
 def run_automated_login():
     log.info("Starting background automated secure Microsoft SSO login...")
+    log.info(f"  ↳ MARIAPPS_HEADLESS={os.getenv('MARIAPPS_HEADLESS', 'true')} (unset defaults to headless=True)")
 
     # Credentials come from .env (never hardcode). The account must have MFA
     # disabled so this can complete without human interaction.
@@ -28,8 +29,12 @@ def run_automated_login():
             "cannot run automated MariApps login."
         )
 
+    # Defaults to headless=True so this can run on the (headless, no-XServer)
+    # deployment server. Set MARIAPPS_HEADLESS=false in .env when running this
+    # locally if you want to watch/debug the SSO flow in a visible browser.
+    headless = os.getenv("MARIAPPS_HEADLESS", "true").lower() != "false"
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False) # Visible so you can see/finish SSO manually if the automated steps stall
+        browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
