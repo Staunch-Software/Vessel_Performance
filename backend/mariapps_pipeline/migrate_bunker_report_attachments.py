@@ -15,7 +15,19 @@
 #      collapsed into one row each, with their files merged into `attachments`.
 #
 # Safe to run multiple times — step 1 uses ADD COLUMN IF NOT EXISTS, and step 2
-# only touches (vessel_imo, transaction_dt_id) groups that still have >1 row.
+# recomputes the canonical fingerprint for every row (not just rows already in
+# a duplicate group) and merges any that collide.
+#
+# v2 fix (confirmed live: AM TARANG had 30 rows in the DB for a vessel that
+# only has 15 on MariApps' own grid — exactly doubled): v1 only recomputed
+# fingerprint for rows it found sitting in an already-duplicate group. Rows
+# left over from the earlier "one row per file" scraper that happened to NOT
+# collide with anything else (AM TARANG's debug-test rows were 1 file per
+# transaction, so nothing about them looked like a duplicate) kept their OLD
+# fingerprint. The next full scrape then computed the NEW fingerprint format
+# for the same transactions, didn't recognize the old rows as already-saved,
+# and inserted a second full set. v2 recomputes+merges by the canonical
+# fingerprint for EVERY row, closing that gap regardless of group size.
 #
 # Usage (from Data_ingestion_pipeline/):
 #   python -m backend.mariapps_pipeline.migrate_bunker_report_attachments
@@ -50,64 +62,64 @@ def _merge_duplicates():
     db = SessionLocal()
     try:
         rows = db.query(MariAppsBunkerReport).order_by(MariAppsBunkerReport.id.asc()).all()
+
+        # Group by the CANONICAL fingerprint every row would get if scraped fresh
+        # right now — not by transaction_dt_id alone — so rows carrying a stale
+        # fingerprint from an older code version still land in the same bucket as
+        # their up-to-date counterpart.
         groups = defaultdict(list)
         for r in rows:
-            # Only rows with a real transaction_dt_id can be reliably grouped —
-            # rows without one were already unique under the old fingerprint scheme.
-            if r.transaction_dt_id:
-                groups[(r.vessel_imo, r.transaction_dt_id)].append(r)
+            canonical_fp = _fingerprint(r.vessel_imo, r.transaction_dt_id, r.bdn_reference_no, r.begin_of_bunkering)
+            groups[canonical_fp].append(r)
 
         merged_groups = 0
         deleted_rows = 0
-        touched_rows = 0
+        restamped = 0
 
-        for (vessel_imo, txn_id), group_rows in groups.items():
-            if len(group_rows) == 1:
-                r = group_rows[0]
-                if r.attachments is None and r.attachment_file_name:
-                    r.attachments = [{
-                        "file_name": r.attachment_file_name,
-                        "file_size": r.attachment_file_size,
-                        "blob_url": r.blob_url,
-                        "blob_path": r.blob_path,
-                    }]
-                    touched_rows += 1
-                continue
-
-            # Multiple rows for the same transaction — collapse into the earliest (keeper).
+        for canonical_fp, group_rows in groups.items():
             keeper = group_rows[0]
             others = group_rows[1:]
 
             attachments = []
+            seen_paths = set()
             for r in group_rows:
-                if r.attachment_file_name or r.blob_path:
-                    attachments.append({
-                        "file_name": r.attachment_file_name,
-                        "file_size": r.attachment_file_size,
-                        "blob_url": r.blob_url,
-                        "blob_path": r.blob_path,
-                    })
+                # Prefer the row's own `attachments` list (new-format rows already
+                # have it); fall back to the singular columns (old-format rows).
+                candidates = r.attachments if r.attachments else (
+                    [{"file_name": r.attachment_file_name, "file_size": r.attachment_file_size,
+                      "blob_url": r.blob_url, "blob_path": r.blob_path}]
+                    if (r.attachment_file_name or r.blob_path) else []
+                )
+                for a in candidates:
+                    key = a.get("blob_path") or a.get("file_name")
+                    if key and key not in seen_paths:
+                        seen_paths.add(key)
+                        attachments.append(a)
 
             keeper.attachments = attachments or None
             if attachments:
-                keeper.attachment_file_name = attachments[0]["file_name"]
-                keeper.attachment_file_size = attachments[0]["file_size"]
-                keeper.blob_url = attachments[0]["blob_url"]
-                keeper.blob_path = attachments[0]["blob_path"]
-            keeper.fingerprint = _fingerprint(vessel_imo, txn_id, keeper.bdn_reference_no, keeper.begin_of_bunkering)
+                keeper.attachment_file_name = attachments[0].get("file_name")
+                keeper.attachment_file_size = attachments[0].get("file_size")
+                keeper.blob_url = attachments[0].get("blob_url")
+                keeper.blob_path = attachments[0].get("blob_path")
+
+            if keeper.fingerprint != canonical_fp:
+                keeper.fingerprint = canonical_fp
+                restamped += 1
 
             for r in others:
                 db.delete(r)
                 deleted_rows += 1
 
-            merged_groups += 1
-            log.info(f"[MERGE]    {vessel_imo} txn={txn_id}: {len(group_rows)} rows -> 1, "
-                      f"{len(attachments)} attachment(s) merged.")
+            if others:
+                merged_groups += 1
+                log.info(f"[MERGE]    {keeper.vessel_imo} txn={keeper.transaction_dt_id}: "
+                          f"{len(group_rows)} rows -> 1, {len(attachments)} attachment(s) merged.")
 
         db.commit()
         log.info(f"✅ Merged {merged_groups} duplicate transaction group(s), "
                  f"deleted {deleted_rows} redundant row(s), "
-                 f"backfilled attachments on {touched_rows} single-file row(s).")
+                 f"restamped {restamped} row(s) with a stale fingerprint.")
     finally:
         db.close()
 
