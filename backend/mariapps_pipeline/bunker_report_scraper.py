@@ -488,6 +488,28 @@ def run():
                 pass
             time.sleep(2.0)
 
+            # CONFIRMED via a real screenshot: the page loads with the vessel
+            # selector on "All Vessels" (no owner code shown, e.g. no "OZM |
+            # AM KIRTI") and BOTH date fields empty — a structurally different
+            # starting state than every subsequent vessel switch in the loop
+            # below, which always starts from one specific vessel already
+            # selected. Only the very first vessel processed was ever coming
+            # back with 0 rows despite everything else about it looking normal
+            # (grid headers render fine, no errors) — consistent with the
+            # widget's listbox not being in the same fully-initialized state
+            # until it's been through one real open/close cycle. Warm it up
+            # with a harmless open+close before ever selecting a real vessel,
+            # so vessel #1 starts from the same state as every other vessel.
+            try:
+                warm_input = page.locator("input[aria-owns='vesselSearchBox_listbox']").first
+                warm_input.click()
+                time.sleep(1.0)
+                page.keyboard.press("Escape")
+                time.sleep(0.5)
+                log.info("[INIT]     Vessel-selector warm-up cycle complete.")
+            except Exception as e:
+                log.warning(f"[INIT]     Vessel-selector warm-up failed (non-fatal): {e}")
+
             for v_idx, vessel_name in enumerate(vessel_names, start=1):
                 if page.is_closed():
                     log.error("[BROWSER]  Page closed unexpectedly. Aborting.")
