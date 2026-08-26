@@ -130,19 +130,14 @@ def _set_date_range_and_search(page, from_date_str: str, to_date_str: str):
     # records for it. Poll for rows to actually land instead of guessing a
     # fixed delay; a genuinely-empty result (0 rows after the full timeout)
     # still falls through to _extract_grid_rows' normal "0 records" path.
-    # 30s, not 15s — confirmed live that even a vessel already known to have
-    # data (AM TARANG, which loaded instantly on an earlier run) can take
-    # longer than 15s on a slower run; this isn't specific to the first
-    # vessel processed, it's just real variance in how long MariApps takes
-    # to answer the search.
     try:
         page.wait_for_function(
             """() => document.querySelectorAll('.k-grid-content table tbody tr, '
                 + '.k-grid-content-locked table tbody tr').length > 0""",
-            timeout=30000,
+            timeout=15000,
         )
     except PlaywrightTimeoutError:
-        log.warning("[GRID]     No grid rows appeared within 30s after search — "
+        log.warning("[GRID]     No grid rows appeared within 15s after search — "
                     "proceeding anyway (may be a genuinely empty result).")
     time.sleep(0.5)  # let the row DOM finish settling after the first rows appear
 
@@ -471,45 +466,6 @@ def run():
                 browser.close()
                 return
 
-            # CONFIRMED real bug: even after the grid-wait fix below, the FIRST
-            # vessel processed (always AM KIRTI, since get_scrape_vessels() returns
-            # alphabetical order) still came back with 0 rows in BOTH the locked
-            # and scrollable tables, while the very next vessel worked instantly —
-            # ruling out "the grid is just slow". "load" only waits for the page
-            # load event, not for Kendo's own widgets (vessel search box, search
-            # button) to finish their JS init/bind cycle, so _select_vessel()'s
-            # very first interaction on a freshly-navigated page can land before
-            # the widget is actually ready to accept it — the click/type silently
-            # no-ops instead of erroring. Wait for network activity to settle plus
-            # a fixed settle delay before the vessel loop starts.
-            try:
-                page.wait_for_load_state("networkidle", timeout=15000)
-            except PlaywrightTimeoutError:
-                pass
-            time.sleep(2.0)
-
-            # CONFIRMED via a real screenshot: the page loads with the vessel
-            # selector on "All Vessels" (no owner code shown, e.g. no "OZM |
-            # AM KIRTI") and BOTH date fields empty — a structurally different
-            # starting state than every subsequent vessel switch in the loop
-            # below, which always starts from one specific vessel already
-            # selected. Only the very first vessel processed was ever coming
-            # back with 0 rows despite everything else about it looking normal
-            # (grid headers render fine, no errors) — consistent with the
-            # widget's listbox not being in the same fully-initialized state
-            # until it's been through one real open/close cycle. Warm it up
-            # with a harmless open+close before ever selecting a real vessel,
-            # so vessel #1 starts from the same state as every other vessel.
-            try:
-                warm_input = page.locator("input[aria-owns='vesselSearchBox_listbox']").first
-                warm_input.click()
-                time.sleep(1.0)
-                page.keyboard.press("Escape")
-                time.sleep(0.5)
-                log.info("[INIT]     Vessel-selector warm-up cycle complete.")
-            except Exception as e:
-                log.warning(f"[INIT]     Vessel-selector warm-up failed (non-fatal): {e}")
-
             for v_idx, vessel_name in enumerate(vessel_names, start=1):
                 if page.is_closed():
                     log.error("[BROWSER]  Page closed unexpectedly. Aborting.")
@@ -525,6 +481,14 @@ def run():
 
                 log.info(f"[VESSEL]   [{v_idx}/{len(vessel_names)}] {vessel_name} (IMO {vessel_imo})")
 
+                try:
+                    _select_vessel(page, vessel_name)
+                    _set_date_range_and_search(page, FROM_DATE, to_date_str)
+                except Exception as e:
+                    log.error(f"[FILTER]   Failed to apply filters for '{vessel_name}': {e}")
+                    total_errors += 1
+                    continue
+
                 # Debug dump (raw cell text, attachment icon HTML, modal-detection
                 # diagnostics) — opt-in via env var, off by default so normal runs
                 # stay clean. Set MARIAPPS_BUNKER_DEBUG=true and it applies to the
@@ -533,55 +497,13 @@ def run():
                 debug_dump = os.getenv("MARIAPPS_BUNKER_DEBUG", "false").lower() == "true" and v_idx <= 2
 
                 try:
-                    _select_vessel(page, vessel_name)
+                    grid_rows = _extract_grid_rows(page, debug_dump=debug_dump)
                 except Exception as e:
-                    log.error(f"[FILTER]   Failed to select vessel '{vessel_name}': {e}")
+                    log.error(f"[GRID]     Failed to extract rows for '{vessel_name}': {e}")
                     total_errors += 1
                     continue
 
-                # Retry the search+extract cycle once if it comes back with 0 rows
-                # — belt-and-suspenders on top of the 30s grid-row wait above.
-                # Deliberately does NOT re-call _select_vessel(): a confirmed real
-                # bug from an earlier version of this retry was that re-selecting a
-                # vessel whose name is already the current value doesn't reopen
-                # Kendo's dropdown (retyping identical text doesn't re-trigger the
-                # filter), so the retry's click hit a stale/hidden <li> and threw
-                # "Element is not visible" instead of ever getting to search again.
-                grid_rows = []
-                for attempt in range(1, 3):
-                    try:
-                        _set_date_range_and_search(page, FROM_DATE, to_date_str)
-                        grid_rows = _extract_grid_rows(page, debug_dump=debug_dump)
-                    except Exception as e:
-                        log.error(f"[FILTER]   Failed to search/extract for '{vessel_name}' "
-                                  f"(attempt {attempt}/2): {e}")
-                        grid_rows = []
-                    if grid_rows:
-                        break
-                    if attempt == 1:
-                        log.warning(f"[GRID]     0 rows for '{vessel_name}' on attempt 1 — retrying once.")
-                        time.sleep(2.0)
-
                 log.info(f"[GRID]     {len(grid_rows)} bunker record(s) found for {vessel_name}.")
-
-                if not grid_rows:
-                    # Diagnostic for the "0 rows, both attempts timed out" case (as
-                    # opposed to a fast, confident 0 — that's a different failure
-                    # mode). Tells us whether the vessel input actually shows this
-                    # vessel's name (did the selection really land?) and whether the
-                    # grid area is showing an explicit "no records" message (a real
-                    # empty result) vs. just sitting empty with no message (the
-                    # search likely never actually fired).
-                    try:
-                        current_val = page.locator("input[aria-owns='vesselSearchBox_listbox']").first.input_value()
-                        log.warning(f"[DIAG]     Vessel input currently shows: '{current_val}'")
-                    except Exception as e:
-                        log.warning(f"[DIAG]     Could not read vessel input value: {e}")
-                    try:
-                        no_data_count = page.locator("text=/no record|no data|nothing found|no result/i").count()
-                        log.warning(f"[DIAG]     'No records'-style text found on page: {no_data_count} time(s).")
-                    except Exception as e:
-                        log.warning(f"[DIAG]     Could not check for 'no records' text: {e}")
 
                 for r in grid_rows:
                     files = []
