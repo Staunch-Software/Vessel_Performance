@@ -61,7 +61,14 @@ def get_bunker_reports(
     out = []
     for r in rows:
         d = _row_dict(r)
+        # download_url mirrors attachments[0] for simple single-attachment reads —
+        # attachments[] carries a download_url per file for transactions with more
+        # than one (BDN + Note of Protest + LOP, etc.).
         d["download_url"] = get_download_url(r.blob_path) if r.blob_path else None
+        d["attachments"] = [
+            {**a, "download_url": get_download_url(a["blob_path"]) if a.get("blob_path") else None}
+            for a in (r.attachments or [])
+        ]
         # raw_json is the full scraped row dict — useful for debugging, not for the UI table.
         d.pop("raw_json", None)
         out.append(d)

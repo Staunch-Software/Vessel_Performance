@@ -1745,12 +1745,19 @@ class MariAppsBunkerReport(Base):
     lcv_mj_kg                = Column(Float, nullable=True)      # supplier/BDN-declared
     fuel_quantity_fa_report  = Column(String(100), nullable=True)  # format unclear from source — kept as text, not cast to a number
 
-    # Attachment (Bunker Delivery Note PDF, uploaded to Azure Blob Storage)
+    # Attachments (Bunker Delivery Note PDF(s), uploaded to Azure Blob Storage).
+    # One MariApps transaction can carry MULTIPLE files (e.g. BDN + Note of
+    # Protest + LOP) — `attachments` is the source of truth, a JSONB list of
+    # {file_name, file_size, blob_url, blob_path}. The four singular columns
+    # below are kept as a convenience mirror of attachments[0] (the primary/
+    # first file) for simple single-attachment UI reads — do not treat them
+    # as authoritative when a transaction has more than one file.
     attachment_file_name = Column(String(500), nullable=True)
     attachment_file_size = Column(String(50), nullable=True)  # raw string as shown, e.g. "431.94 Kb"
     blob_url              = Column(TEXT, nullable=True)        # full URL to the uploaded blob
     blob_path              = Column(String(1000), nullable=True)  # container-relative path
+    attachments            = Column(JSONB, nullable=True)  # [{file_name, file_size, blob_url, blob_path}, ...]
 
     raw_json      = Column(JSONB, nullable=True)   # full scraped row, for anything not mapped above
-    fingerprint   = Column(String(255), index=True, unique=True)  # SHA256 of IMO|BDN ref|attachment file name
+    fingerprint   = Column(String(255), index=True, unique=True)  # SHA256 of IMO|transactionDtId (one row per MariApps transaction)
     scraped_at    = Column(DateTime, default=datetime.utcnow, index=True)

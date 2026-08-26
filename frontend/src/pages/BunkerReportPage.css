@@ -111,6 +111,21 @@
   height: 24px;
   color: #3a5578;
 }
+.br-dl-count {
+  position: absolute;
+  transform: translate(9px, -9px);
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: #1a6bb5;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+}
+.br-dl-btn { position: relative; }
 
 /* ── Bunker Analysis status pill ──────────────────────────────────────────── */
 .br-status-pill {
@@ -193,5 +208,34 @@
   cursor: pointer;
 }
 .br-modal-close:hover { color: #e05050; background: rgba(224,80,80,0.15); }
+.br-modal-count { color: #7fa8cc; font-weight: 500; }
 .br-modal-body { flex: 1; min-height: 0; background: #1a2634; }
 .br-modal-frame { width: 100%; height: 100%; border: none; }
+
+/* ── Multi-file picker strip (transactions with >1 attachment) ───────────── */
+.br-modal-filelist {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #0c1826;
+  border-bottom: 1px solid #1e3a5f;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.br-modal-filechip {
+  flex-shrink: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  background: #132238;
+  color: #9fb8d4;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.br-modal-filechip:hover { border-color: #38bdf8; color: #c8d8eb; }
+.br-modal-filechip.active { background: #1a6bb5; border-color: #1a6bb5; color: #fff; }

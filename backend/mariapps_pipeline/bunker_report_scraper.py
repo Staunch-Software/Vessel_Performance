@@ -42,20 +42,23 @@ def _to_kendo_date(dt: datetime) -> str:
     return dt.strftime("%d-%b-%Y")
 
 
-def _fingerprint(vessel_imo: str, transaction_dt_id: str, bdn_reference_no: str, file_name: str) -> str:
-    """Prefers MariApps' own internal transactionDtId (unique per grid row) when
-    present — confirmed present in the live grid. Falls back to the old composite
-    key only if transactionDtId is ever missing, but that fallback is known-weak
-    (BDN reference is blank for non-'Bunkering' transaction types, and file_name is
-    blank whenever there's no attachment or the download failed) — a first live run
-    without transactionDtId capture collapsed 286 distinct rows down to 83 saved
-    because of exactly this collision."""
+def _fingerprint(vessel_imo: str, transaction_dt_id: str, bdn_reference_no: str, begin_of_bunkering: str) -> str:
+    """One DB row per MariApps grid row (transaction) — NOT per attachment file,
+    since a single transaction can carry multiple files (BDN + Note of Protest +
+    LOP, etc.) and splitting those into separate rows duplicated the transaction's
+    own fields (port/BDN/quantity) once per file, which read as bogus "duplicate"
+    records (confirmed live: AM UMANG transactions 123/126/127 each showed as 2-3
+    rows). Prefers MariApps' own internal transactionDtId (unique per grid row)
+    when present — confirmed present in the live grid. Falls back to a composite
+    key only if transactionDtId is ever missing; that fallback is known-weak (BDN
+    reference is blank for non-'Bunkering' transaction types) so begin_of_bunkering
+    is included too to reduce collisions — a first live run without transactionDtId
+    capture collapsed 286 distinct rows down to 83 saved because of exactly this
+    kind of collision."""
     if transaction_dt_id:
-        # file_name still included so multiple attachments on the SAME row (rare, but
-        # possible) don't collapse into one another.
-        raw = f"{vessel_imo}|txn:{transaction_dt_id}|{file_name or ''}"
+        raw = f"{vessel_imo}|txn:{transaction_dt_id}"
     else:
-        raw = f"{vessel_imo}|{bdn_reference_no or ''}|{file_name or ''}"
+        raw = f"{vessel_imo}|{bdn_reference_no or ''}|{begin_of_bunkering or ''}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -119,7 +122,24 @@ def _set_date_range_and_search(page, from_date_str: str, to_date_str: str):
     if search_btn.count() == 0:
         search_btn = page.get_by_role("button").filter(has=page.locator("svg, i")).first
     search_btn.click()
-    time.sleep(2.0)
+
+    # A flat 2s sleep here isn't enough for the FIRST grid load on a freshly-
+    # navigated page (nothing warmed up yet) — confirmed real bug: AM KIRTI,
+    # always the first vessel processed, came back with 0 rows in BOTH the
+    # locked and scrollable tables even though MariApps' own UI shows 15
+    # records for it. Poll for rows to actually land instead of guessing a
+    # fixed delay; a genuinely-empty result (0 rows after the full timeout)
+    # still falls through to _extract_grid_rows' normal "0 records" path.
+    try:
+        page.wait_for_function(
+            """() => document.querySelectorAll('.k-grid-content table tbody tr, '
+                + '.k-grid-content-locked table tbody tr').length > 0""",
+            timeout=15000,
+        )
+    except PlaywrightTimeoutError:
+        log.warning("[GRID]     No grid rows appeared within 15s after search — "
+                    "proceeding anyway (may be a genuinely empty result).")
+    time.sleep(0.5)  # let the row DOM finish settling after the first rows appear
 
 
 def _extract_grid_rows(page, debug_dump=False) -> list:
@@ -488,83 +508,108 @@ def run():
                 for r in grid_rows:
                     files = []
                     if r["has_attachment"]:
-                        try:
-                            files = _download_attachments_for_row(page, r["row_index"], debug_dump=debug_dump)
-                        except Exception as e:
-                            log.error(f"[DOWNLOAD]  Attachment fetch failed for row {r['row_index']}: {e}")
-
-                    if not files:
-                        # No attachment (e.g. "Inventory Adjustment" rows never have one) —
-                        # still save the bunker record itself, just with no blob reference.
-                        files = [{"file_name": None, "file_size": None, "bytes": None}]
-
-                    for f in files:
-                        fp = _fingerprint(vessel_imo, r["transaction_dt_id"], r["bdn_reference_no"], f["file_name"])
-                        existing = db.query(MariAppsBunkerReport).filter(
-                            MariAppsBunkerReport.fingerprint == fp
-                        ).first()
-                        if existing:
-                            total_skipped += 1
-                            continue
-
-                        blob_info = {}
-                        if f["bytes"]:
+                        # Retry once — the modal/download-icon click is a live UI
+                        # interaction and occasionally misses on the first try (slow
+                        # render, animation still settling). A single miss used to
+                        # permanently record the row as "no attachment" with no
+                        # second chance, which is the root cause of attachments
+                        # being missing on rows MariApps itself shows a paperclip for.
+                        for attempt in range(1, 3):
                             try:
-                                blob_info = upload_bunker_attachment(
-                                    vessel_imo, r["bdn_reference_no"], f["file_name"], f["bytes"]
-                                )
+                                files = _download_attachments_for_row(page, r["row_index"], debug_dump=debug_dump)
                             except Exception as e:
-                                log.error(f"[BLOB]     Upload failed for '{f['file_name']}': {e}")
-                                total_errors += 1
+                                log.error(f"[DOWNLOAD]  Attachment fetch failed for row {r['row_index']} "
+                                          f"(attempt {attempt}/2): {e}")
+                                files = []
+                            if files:
+                                break
+                            if attempt == 1:
+                                log.warning(f"[DOWNLOAD]  Row {r['row_index']} has_attachment=True but 0 files "
+                                            f"came back on attempt 1 — retrying once.")
+                                time.sleep(1.0)
 
-                        record = MariAppsBunkerReport(
-                            vessel_imo=vessel_imo,
-                            vessel_name=vessel_name,
-                            transaction_dt_id=r["transaction_dt_id"] or None,
-                            transaction_type=r["transaction_type"] or None,
-                            voyage_leg=r["voyage_leg"] or None,
-                            port=r["port"] or None,
-                            fuel_type=r["fuel_type"] or None,
-                            imo_fuel_grade=r["imo_fuel_grade"] or None,
-                            bdn_reference_no=r["bdn_reference_no"] or None,
-                            rob_after_mt=_num(r["rob_after_mt"]),
-                            quantity_mt=_num(r["quantity_mt"]),
-                            sulphur_content=_num(r["sulphur_content"]),
-                            density_15c=_num(r["density_15c"]),
-                            kinematic_viscosity=_num(r["kinematic_viscosity"]),
-                            flash_point_c=_num(r["flash_point_c"]),
-                            # BDN Data group
-                            time_zone=r["time_zone"] or None,
-                            marpol_sample_no=r["marpol_sample_no"] or None,
-                            begin_of_bunkering=r["begin_of_bunkering"] or None,
-                            end_of_bunkering=r["end_of_bunkering"] or None,
-                            supplier_company=r["supplier_company"] or None,
-                            methane_number=_num(r["methane_number"]),
-                            comments=r["comments"] or None,
-                            bunker_analysis_status=r["bunker_analysis_status"] or None,
-                            # Analysis Data group (lab values)
-                            lab_report_date=r["lab_report_date"] or None,
-                            lab_density_15c=_num(r["lab_density_15c"]),
-                            lab_sulphur_content=_num(r["lab_sulphur_content"]),
-                            lab_kinematic_viscosity=_num(r["lab_kinematic_viscosity"]),
-                            lab_lcv_mj_kg=_num(r["lab_lcv_mj_kg"]),
-                            lcv_mj_kg=_num(r["lcv_mj_kg"]),
-                            fuel_quantity_fa_report=r["fuel_quantity_fa_report"] or None,
-                            attachment_file_name=f["file_name"],
-                            attachment_file_size=f["file_size"],
-                            blob_url=blob_info.get("blob_url"),
-                            blob_path=blob_info.get("blob_path"),
-                            raw_json=r,
-                            fingerprint=fp,
-                        )
-                        db.add(record)
-                        db.commit()
-                        total_saved += 1
-                        log.info(
-                            f"[SAVE]     {vessel_name} — txn={r['transaction_dt_id'] or '(none)'} "
-                            f"BDN {r['bdn_reference_no'] or '(none)'} "
-                            f"{'| ' + f['file_name'] if f['file_name'] else '(no attachment)'}"
-                        )
+                    # One DB row per grid row (transaction) — every attached file for
+                    # this transaction is uploaded and collected into `attachments`
+                    # rather than each file spawning its own duplicate-looking row.
+                    fp = _fingerprint(vessel_imo, r["transaction_dt_id"], r["bdn_reference_no"], r["begin_of_bunkering"])
+                    existing = db.query(MariAppsBunkerReport).filter(
+                        MariAppsBunkerReport.fingerprint == fp
+                    ).first()
+                    if existing:
+                        total_skipped += 1
+                        continue
+
+                    attachments = []
+                    for f in files:
+                        if not f.get("bytes"):
+                            continue
+                        try:
+                            blob_info = upload_bunker_attachment(
+                                vessel_imo, r["bdn_reference_no"], f["file_name"], f["bytes"]
+                            )
+                        except Exception as e:
+                            log.error(f"[BLOB]     Upload failed for '{f['file_name']}': {e}")
+                            total_errors += 1
+                            continue
+                        attachments.append({
+                            "file_name": f["file_name"],
+                            "file_size": f["file_size"],
+                            "blob_url": blob_info.get("blob_url"),
+                            "blob_path": blob_info.get("blob_path"),
+                        })
+
+                    primary = attachments[0] if attachments else {}
+
+                    record = MariAppsBunkerReport(
+                        vessel_imo=vessel_imo,
+                        vessel_name=vessel_name,
+                        transaction_dt_id=r["transaction_dt_id"] or None,
+                        transaction_type=r["transaction_type"] or None,
+                        voyage_leg=r["voyage_leg"] or None,
+                        port=r["port"] or None,
+                        fuel_type=r["fuel_type"] or None,
+                        imo_fuel_grade=r["imo_fuel_grade"] or None,
+                        bdn_reference_no=r["bdn_reference_no"] or None,
+                        rob_after_mt=_num(r["rob_after_mt"]),
+                        quantity_mt=_num(r["quantity_mt"]),
+                        sulphur_content=_num(r["sulphur_content"]),
+                        density_15c=_num(r["density_15c"]),
+                        kinematic_viscosity=_num(r["kinematic_viscosity"]),
+                        flash_point_c=_num(r["flash_point_c"]),
+                        # BDN Data group
+                        time_zone=r["time_zone"] or None,
+                        marpol_sample_no=r["marpol_sample_no"] or None,
+                        begin_of_bunkering=r["begin_of_bunkering"] or None,
+                        end_of_bunkering=r["end_of_bunkering"] or None,
+                        supplier_company=r["supplier_company"] or None,
+                        methane_number=_num(r["methane_number"]),
+                        comments=r["comments"] or None,
+                        bunker_analysis_status=r["bunker_analysis_status"] or None,
+                        # Analysis Data group (lab values)
+                        lab_report_date=r["lab_report_date"] or None,
+                        lab_density_15c=_num(r["lab_density_15c"]),
+                        lab_sulphur_content=_num(r["lab_sulphur_content"]),
+                        lab_kinematic_viscosity=_num(r["lab_kinematic_viscosity"]),
+                        lab_lcv_mj_kg=_num(r["lab_lcv_mj_kg"]),
+                        lcv_mj_kg=_num(r["lcv_mj_kg"]),
+                        fuel_quantity_fa_report=r["fuel_quantity_fa_report"] or None,
+                        # Singular columns mirror attachments[0] for simple single-attachment reads.
+                        attachment_file_name=primary.get("file_name"),
+                        attachment_file_size=primary.get("file_size"),
+                        blob_url=primary.get("blob_url"),
+                        blob_path=primary.get("blob_path"),
+                        attachments=attachments or None,
+                        raw_json=r,
+                        fingerprint=fp,
+                    )
+                    db.add(record)
+                    db.commit()
+                    total_saved += 1
+                    log.info(
+                        f"[SAVE]     {vessel_name} — txn={r['transaction_dt_id'] or '(none)'} "
+                        f"BDN {r['bdn_reference_no'] or '(none)'} "
+                        f"{'| ' + str(len(attachments)) + ' file(s)' if attachments else '(no attachment)'}"
+                    )
 
             browser.close()
     finally:

@@ -20,7 +20,16 @@ function StatusPill({ status }) {
 
 // Mirrors MariApps' own "Attachment Details" popup: a preview pane for the PDF
 // plus a Download action, in one modal — rather than only offering a bare link.
+// A transaction can carry multiple files (BDN + Note of Protest + LOP, etc.) —
+// when there's more than one, a file-picker strip lets you switch which one is
+// previewed; each file has its own Download action either way.
 function AttachmentPreviewModal({ row, onClose }) {
+  const files = row.attachments && row.attachments.length > 0
+    ? row.attachments
+    : [{ file_name: row.attachment_file_name, file_size: row.attachment_file_size, download_url: row.download_url }]
+  const [activeIdx, setActiveIdx] = useState(0)
+  const active = files[activeIdx] || files[0]
+
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
@@ -31,11 +40,14 @@ function AttachmentPreviewModal({ row, onClose }) {
     <div className="br-modal-backdrop" onClick={onClose}>
       <div className="br-modal" onClick={e => e.stopPropagation()}>
         <div className="br-modal-header">
-          <span className="br-modal-title">{row.attachment_file_name || 'Attachment'}</span>
+          <span className="br-modal-title">
+            {active?.file_name || 'Attachment'}
+            {files.length > 1 && <span className="br-modal-count"> ({activeIdx + 1} of {files.length})</span>}
+          </span>
           <div className="br-modal-actions">
             <a
               className="br-modal-dl-btn"
-              href={row.download_url}
+              href={active?.download_url}
               target="_blank"
               rel="noopener noreferrer"
               title="Download"
@@ -47,10 +59,25 @@ function AttachmentPreviewModal({ row, onClose }) {
             </button>
           </div>
         </div>
+        {files.length > 1 && (
+          <div className="br-modal-filelist">
+            {files.map((f, i) => (
+              <button
+                key={i}
+                type="button"
+                className={`br-modal-filechip ${i === activeIdx ? 'active' : ''}`}
+                onClick={() => setActiveIdx(i)}
+                title={f.file_name}
+              >
+                {f.file_name || `File ${i + 1}`}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="br-modal-body">
           <iframe
-            title={row.attachment_file_name || 'Attachment preview'}
-            src={row.download_url}
+            title={active?.file_name || 'Attachment preview'}
+            src={active?.download_url}
             className="br-modal-frame"
           />
         </div>
@@ -163,9 +190,10 @@ export default function BunkerReportPage() {
                           type="button"
                           className="br-dl-btn"
                           onClick={() => setPreviewRow(r)}
-                          title={`Preview ${r.attachment_file_name || 'attachment'}`}
+                          title={`Preview ${r.attachment_file_name || 'attachment'}${r.attachments?.length > 1 ? ` (+${r.attachments.length - 1} more)` : ''}`}
                         >
                           <Eye size={13} />
+                          {r.attachments?.length > 1 && <span className="br-dl-count">{r.attachments.length}</span>}
                         </button>
                       ) : (
                         <span className="br-dl-none" title="No attachment"><FileX size={13} /></span>
