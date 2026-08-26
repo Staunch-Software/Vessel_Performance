@@ -130,14 +130,19 @@ def _set_date_range_and_search(page, from_date_str: str, to_date_str: str):
     # records for it. Poll for rows to actually land instead of guessing a
     # fixed delay; a genuinely-empty result (0 rows after the full timeout)
     # still falls through to _extract_grid_rows' normal "0 records" path.
+    # 30s, not 15s — confirmed live that even a vessel already known to have
+    # data (AM TARANG, which loaded instantly on an earlier run) can take
+    # longer than 15s on a slower run; this isn't specific to the first
+    # vessel processed, it's just real variance in how long MariApps takes
+    # to answer the search.
     try:
         page.wait_for_function(
             """() => document.querySelectorAll('.k-grid-content table tbody tr, '
                 + '.k-grid-content-locked table tbody tr').length > 0""",
-            timeout=15000,
+            timeout=30000,
         )
     except PlaywrightTimeoutError:
-        log.warning("[GRID]     No grid rows appeared within 15s after search — "
+        log.warning("[GRID]     No grid rows appeared within 30s after search — "
                     "proceeding anyway (may be a genuinely empty result).")
     time.sleep(0.5)  # let the row DOM finish settling after the first rows appear
 
@@ -505,21 +510,28 @@ def run():
                 # flooding the log for all 14 vessels).
                 debug_dump = os.getenv("MARIAPPS_BUNKER_DEBUG", "false").lower() == "true" and v_idx <= 2
 
-                # Retry the whole filter+extract cycle once if it comes back with 0
-                # rows — belt-and-suspenders on top of the page-settle wait above.
-                # Confirmed real bug: AM KIRTI (always the first vessel processed)
-                # came back with 0 rows even after a 15s grid-row wait, most likely
-                # because the vessel-select/search interaction itself landed before
-                # Kendo's widgets finished initializing right after page load — a
-                # second attempt, well after that init window has passed, recovers it.
+                try:
+                    _select_vessel(page, vessel_name)
+                except Exception as e:
+                    log.error(f"[FILTER]   Failed to select vessel '{vessel_name}': {e}")
+                    total_errors += 1
+                    continue
+
+                # Retry the search+extract cycle once if it comes back with 0 rows
+                # — belt-and-suspenders on top of the 30s grid-row wait above.
+                # Deliberately does NOT re-call _select_vessel(): a confirmed real
+                # bug from an earlier version of this retry was that re-selecting a
+                # vessel whose name is already the current value doesn't reopen
+                # Kendo's dropdown (retyping identical text doesn't re-trigger the
+                # filter), so the retry's click hit a stale/hidden <li> and threw
+                # "Element is not visible" instead of ever getting to search again.
                 grid_rows = []
                 for attempt in range(1, 3):
                     try:
-                        _select_vessel(page, vessel_name)
                         _set_date_range_and_search(page, FROM_DATE, to_date_str)
                         grid_rows = _extract_grid_rows(page, debug_dump=debug_dump)
                     except Exception as e:
-                        log.error(f"[FILTER]   Failed to apply filters/extract for '{vessel_name}' "
+                        log.error(f"[FILTER]   Failed to search/extract for '{vessel_name}' "
                                   f"(attempt {attempt}/2): {e}")
                         grid_rows = []
                     if grid_rows:
