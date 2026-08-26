@@ -542,6 +542,25 @@ def run():
 
                 log.info(f"[GRID]     {len(grid_rows)} bunker record(s) found for {vessel_name}.")
 
+                if not grid_rows:
+                    # Diagnostic for the "0 rows, both attempts timed out" case (as
+                    # opposed to a fast, confident 0 — that's a different failure
+                    # mode). Tells us whether the vessel input actually shows this
+                    # vessel's name (did the selection really land?) and whether the
+                    # grid area is showing an explicit "no records" message (a real
+                    # empty result) vs. just sitting empty with no message (the
+                    # search likely never actually fired).
+                    try:
+                        current_val = page.locator("input[aria-owns='vesselSearchBox_listbox']").first.input_value()
+                        log.warning(f"[DIAG]     Vessel input currently shows: '{current_val}'")
+                    except Exception as e:
+                        log.warning(f"[DIAG]     Could not read vessel input value: {e}")
+                    try:
+                        no_data_count = page.locator("text=/no record|no data|nothing found|no result/i").count()
+                        log.warning(f"[DIAG]     'No records'-style text found on page: {no_data_count} time(s).")
+                    except Exception as e:
+                        log.warning(f"[DIAG]     Could not check for 'no records' text: {e}")
+
                 for r in grid_rows:
                     files = []
                     if r["has_attachment"]:
