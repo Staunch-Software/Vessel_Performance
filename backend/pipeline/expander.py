@@ -401,7 +401,7 @@ for _ck, _cl in _MARIAPPS_GRADE_CONSUMERS:
         _MARIAPPS_DIRECT_META.append({
             "col":          _mariappsx_col(_ck, _sf),
             "display_name": f"{_CONSUMER_DISPLAY_PREFIX[_ck]} {_disp}",
-            "category":     "Fuel Grade (Consumption)",
+            "category":     "Emission",
             "unit":         _unit,
         })
 _MARIAPPS_DIRECT_COLS = [m["col"] for m in _MARIAPPS_DIRECT_META]
