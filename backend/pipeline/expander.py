@@ -423,6 +423,80 @@ _MARIAPPS_DIRECT_COLS = [m["col"] for m in _MARIAPPS_DIRECT_META]
 # Sentinel: presence of this dedicated column means the Grade extras have been added.
 _MARIAPPS_DIRECT_SENTINEL = _MARIAPPS_DIRECT_COLS[0] if _MARIAPPS_DIRECT_COLS else None
 
+# ── CP Warranty direct fields (per-report nearest-speed match) ────────────────
+# Held back initially — unlike the Grade fields above, this isn't a straight
+# raw_json pull: a noon report carries its LOADING CONDITION but not which speed
+# mode (Eco/Full) the charterer actually instructed, so matching it to a
+# cp_sea_warranty row needs the same nearest-warranted-speed heuristic the CP
+# Phase 3a compliance engine already uses. Imported directly from
+# cp_compliance_v2.py — single source of truth for this heuristic, not
+# reimplemented here (that module is pure-function/no-DB, so this is a safe,
+# one-directional import with no circularity risk).
+from ..cp.cp_compliance_v2 import _pick_sea_warranty, _normalize_loading_cond
+
+_CP_WARRANTY_DIRECT_META = [
+    {"col": "mariappsx_cp_warranted_speed_kn", "display_name": "CP Warranted Speed",   "category": "Emission", "unit": "kn"},
+    {"col": "mariappsx_cp_speed_tolerance_kn", "display_name": "CP Speed Tolerance",   "category": "Emission", "unit": "kn"},
+]
+_CP_WARRANTY_DIRECT_COLS = [m["col"] for m in _CP_WARRANTY_DIRECT_META]
+_CP_WARRANTY_SENTINEL = _CP_WARRANTY_DIRECT_COLS[0]
+
+
+def _fetch_active_cp_sea_warranty(conn, vessel_imo):
+    """All Active cp_sea_warranty rows (both Ballast/Laden x Eco/Full candidates)
+    for one vessel. Callers should cache this per vessel_imo across a batch run —
+    it's the same warranty set for every report from that vessel."""
+    rows = conn.execute(text("""
+        SELECT w.loading_condition, w.speed_mode, w.warranted_speed_kn, w.speed_tolerance_kn
+        FROM cp_sea_warranty w
+        JOIN cp_vessel_description d ON d.id = w.cp_id
+        WHERE d.vessel_imo = :imo AND d.doc_status = 'Active'
+    """), {"imo": vessel_imo}).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def _cp_warranty_extra_fields(conn, vessel_imo, loading_condition_raw, observed_speed_kn, table_cols, cache):
+    """Match one report's loading condition + observed speed (STW, falling back to
+    SOG — same preference cp_compliance_v2 uses) against the vessel's Active CP
+    sea-passage warranty, picking the nearest-warranted-speed candidate within
+    that loading condition. `cache` is a dict the caller owns, keyed by
+    vessel_imo, so a batch backfill queries cp_sea_warranty once per vessel
+    rather than once per row."""
+    out = {}
+    if not vessel_imo:
+        return out
+    if vessel_imo not in cache:
+        try:
+            cache[vessel_imo] = _fetch_active_cp_sea_warranty(conn, vessel_imo)
+        except Exception as exc:
+            log.error(f"CP warranty lookup failed for vessel {vessel_imo}: {exc}")
+            cache[vessel_imo] = []
+    candidates = cache[vessel_imo]
+    cond = _normalize_loading_cond(loading_condition_raw)
+    cand = [c for c in candidates if c.get("loading_condition") == cond] if cond else []
+    warranty = _pick_sea_warranty(cand, observed_speed_kn)
+    if warranty is None:
+        return out
+    if "mariappsx_cp_warranted_speed_kn" in table_cols:
+        out["mariappsx_cp_warranted_speed_kn"] = warranty.get("warranted_speed_kn")
+    if "mariappsx_cp_speed_tolerance_kn" in table_cols:
+        out["mariappsx_cp_speed_tolerance_kn"] = warranty.get("speed_tolerance_kn")
+    return out
+
+
+def _observed_speed_kn(data_rec):
+    """STW first, falling back to SOG — same preference cp_compliance_v2 uses
+    for its own nearest-warranted-speed match."""
+    for col in ("Vessel_STW_avg_operational_LF", "Vessel_SOG_avg_operational_LF"):
+        v = data_rec.get(col)
+        if v is not None:
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
 # ── "Also show under Emission" columns ─────────────────────────────────────────
 # Per explicit request: these 30 pre-existing columns (already in their own normal
 # category — Voyage/Vessel, Weather, etc.) should ADDITIONALLY appear under the
@@ -777,6 +851,12 @@ def create_expanded_tables(engine):
                 f'ALTER TABLE expanded_mariapps_data ADD COLUMN IF NOT EXISTS "{c}" TEXT'
             ))
 
+        # Dedicated CP Warranty columns (cp_sea_warranty join, not raw_json). Idempotent.
+        for c in _CP_WARRANTY_DIRECT_COLS:
+            conn.execute(text(
+                f'ALTER TABLE expanded_mariapps_data ADD COLUMN IF NOT EXISTS "{c}" TEXT'
+            ))
+
         conn.commit()
 
 
@@ -893,6 +973,23 @@ def populate_column_metadata(engine):
                 })
                 so += 1
 
+            # MariApps-only dedicated CP Warranty columns (cp_sea_warranty join).
+            for dm in _CP_WARRANTY_DIRECT_META:
+                entries.append({
+                    "source":       source,
+                    "db_column":    dm["col"],
+                    "display_name": dm["display_name"],
+                    "category":     dm["category"],
+                    "unit":         dm["unit"],
+                    "description":  dm["display_name"],
+                    "is_active":    True,
+                    "is_identity":  False,
+                    "performance":  False,
+                    "emission":     False,
+                    "sort_order":   so,
+                })
+                so += 1
+
     with engine.connect() as conn:
         conn.execute(text("DELETE FROM expanded_column_metadata"))
         if entries:
@@ -947,6 +1044,7 @@ def _upsert_row(conn, table: str, unique_col: str, record: dict):
 
 def backfill_mariapps(engine, batch_size: int = 50):
     """Re-populate expanded_mariapps_data from raw_mariapps_logs using new column names."""
+    cp_warranty_cache = {}  # vessel_imo -> cp_sea_warranty candidates; one query per vessel for the whole run
     with engine.connect() as conn:
         table_cols = _get_table_cols(conn, "expanded_mariapps_data")
         total = conn.execute(text("SELECT COUNT(*) FROM raw_mariapps_logs")).scalar()
@@ -980,6 +1078,9 @@ def backfill_mariapps(engine, batch_size: int = 50):
                         "loading_condition": lc,
                         **data_rec,
                         **_mariapps_extra_fields(raw_json, table_cols),
+                        **_cp_warranty_extra_fields(
+                            conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, cp_warranty_cache
+                        ),
                     }
                     _upsert_row(conn, "expanded_mariapps_data", "raw_log_id", record)
                     processed += 1
@@ -1087,6 +1188,7 @@ def write_expanded_mariapps(conn, raw_log_id, vessel_imo, log_date,
             "loading_condition": lc,
             **data_rec,
             **_mariapps_extra_fields(raw_json, table_cols),
+            **_cp_warranty_extra_fields(conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, {}),
         }
         _upsert_row(conn, "expanded_mariapps_data", "raw_log_id", record)
     except Exception as exc:
@@ -1191,6 +1293,17 @@ def setup_expanded_tables(engine):
         if _MARIAPPS_DIRECT_SENTINEL not in cols:
             mariapps_extras_missing = True
             log.info("expanded_mariapps_data missing Grade direct columns — will add and backfill.")
+
+    # ── Detect missing CP Warranty direct columns → re-backfill to populate them ──
+    if not needs_rebuild and "expanded_mariapps_data" in existing and not mariapps_extras_missing:
+        with engine.connect() as _c:
+            cols = {r[0] for r in _c.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='expanded_mariapps_data'"
+            ))}
+        if _CP_WARRANTY_SENTINEL not in cols:
+            mariapps_extras_missing = True
+            log.info("expanded_mariapps_data missing CP Warranty direct columns — will add and backfill.")
 
     create_expanded_tables(engine)   # ALTERs the dedicated WNI/MariApps columns into place
 
