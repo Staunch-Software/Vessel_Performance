@@ -383,15 +383,30 @@ def _mariapps_extra_fields(raw_json, table_cols) -> dict:
     if not isinstance(raw_json, dict):
         return out
     consumption = raw_json.get("Consumption_Data")
-    if not isinstance(consumption, dict):
-        return out
-    for consumer_key, consumer_label in _MARIAPPS_GRADE_CONSUMERS:
-        raw_grade = consumption.get(f"Section0::{consumer_label}::Grade")
-        parsed = _parse_grade_string(raw_grade)
-        for sf, _, _ in _GRADE_SUBFIELDS:
-            col = _mariappsx_col(consumer_key, sf)
-            if col in table_cols:
-                out[col] = parsed[sf]
+    if isinstance(consumption, dict):
+        for consumer_key, consumer_label in _MARIAPPS_GRADE_CONSUMERS:
+            raw_grade = consumption.get(f"Section0::{consumer_label}::Grade")
+            parsed = _parse_grade_string(raw_grade)
+            for sf, _, _ in _GRADE_SUBFIELDS:
+                col = _mariappsx_col(consumer_key, sf)
+                if col in table_cols:
+                    out[col] = parsed[sf]
+
+    # CONFIRMED real bug: VoyageMeta_trimm_operational_LF (an EXISTING column in the
+    # generated schema) never gets a value because MARIAPPS_TO_NEWCOL's source key
+    # for it is "trimm", but the actual raw field flattens to "trim_m" (from
+    # raw_json['Excel_Data']['Trim(m)'] via flatten_mariapps's snake-casing) — a
+    # name mismatch, not missing data. Confirmed a real value (-2.6) exists for
+    # AM TARANG right now, silently dropped purely by this mismatch. Pulled
+    # directly here rather than editing the generated service_variable_mapping.py
+    # (explicitly marked DO NOT edit manually) — same bypass approach as the Grade
+    # fields above, but targeting an EXISTING column, not a new dedicated one.
+    excel_data = raw_json.get("Excel_Data")
+    if isinstance(excel_data, dict) and "VoyageMeta_trimm_operational_LF" in table_cols:
+        trim_val = excel_data.get("Trim(m)")
+        if trim_val is not None and str(trim_val).strip() != "":
+            out["VoyageMeta_trimm_operational_LF"] = str(trim_val)
+
     return out
 
 
@@ -407,6 +422,35 @@ for _ck, _cl in _MARIAPPS_GRADE_CONSUMERS:
 _MARIAPPS_DIRECT_COLS = [m["col"] for m in _MARIAPPS_DIRECT_META]
 # Sentinel: presence of this dedicated column means the Grade extras have been added.
 _MARIAPPS_DIRECT_SENTINEL = _MARIAPPS_DIRECT_COLS[0] if _MARIAPPS_DIRECT_COLS else None
+
+# ── "Also show under Emission" columns ─────────────────────────────────────────
+# Per explicit request: these 30 pre-existing columns (already in their own normal
+# category — Voyage/Vessel, Weather, etc.) should ADDITIONALLY appear under the
+# "Emission" capsule in the picker, WITHOUT losing their original category. This is
+# additive (see `emission` on ExpandedColumnMetadata), unlike `performance` which
+# replaces the category outright — the frontend pushes a flagged column into both
+# its normal group and an "Emission" group (same toggle, shown twice).
+_EMISSION_EXTRA_COLUMNS = {
+    # Voyage/Vessel (11)
+    "Vessel_DISP_avg_operational_LF", "Vessel_DOG_dCnt_operational_LF",
+    "Vessel_DTW_dCnt_operational_LF", "Vessel_SOG_avg_operational_LF",
+    "Vessel_SOGcal_avg_operational_LF", "Vessel_STW_avg_operational_LF",
+    "Vessel_STWcal_avg_operational_LF", "Vessel_Ta_avg_operational_LF",
+    "Vessel_Tf_avg_operational_LF", "VoyageMeta_apparent_slip_operational_LF",
+    "VoyageMeta_real_slip_operational_LF",
+    # Voyage Meta / ports (4)
+    "VoyageMeta_log_durationh_operational_LF", "VoyageMeta_to_port_operational_LF",
+    "VoyageMeta_arrival_port_current_leg_operational_LF",
+    "VoyageMeta_departure_port_last_leg_operational_LF",
+    # Weather (13)
+    "Weather_Hsl_operational_LF", "Weather_Hwv_operational_LF", "Weather_Tair_operational_LF",
+    "Weather_Tsl_operational_LF", "Weather_Tsw_operational_LF", "Weather_Twv_operational_LF",
+    "Weather_Ucut_operational_LF", "Weather_Uwit_operational_LF", "Weather_hsw_operational_LF",
+    "Weather_pair_operational_LF", "Weather_psicut_operational_LF",
+    "Weather_psiwit_operational_LF", "Weather_psiwvt_operational_LF",
+    # Fuel consumption (2)
+    "AE_FO_mFOCAE_dCnt_operational_LF", "ME_FO_mFOCME_dCnt_operational_LF",
+}
 
 # Rebuild-detection sentinel: new schema has this column
 _SCHEMA_SENTINEL = "Vessel_SOG_avg_operational_LF"
@@ -660,6 +704,33 @@ def create_expanded_tables(engine):
             log.debug(f"Performance flag update: {_e}")
             conn.rollback()
 
+        # Add emission column if table existed without it (migration)
+        try:
+            conn.execute(text(
+                "ALTER TABLE expanded_column_metadata ADD COLUMN IF NOT EXISTS "
+                "emission BOOLEAN DEFAULT FALSE"
+            ))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
+        # Force-update emission flag on existing rows from the known set.
+        # ADDITIVE only — unlike performance, never clear it based on absence here,
+        # since the Grade columns' `emission` intent is expressed via `category`
+        # ("Emission" directly) rather than this flag; only touch columns actually
+        # in _EMISSION_EXTRA_COLUMNS so nothing else gets silently reset.
+        try:
+            if _EMISSION_EXTRA_COLUMNS:
+                placeholders = ", ".join(f"'{c}'" for c in _EMISSION_EXTRA_COLUMNS)
+                conn.execute(text(
+                    f"UPDATE expanded_column_metadata SET emission = TRUE  "
+                    f"WHERE db_column IN ({placeholders})"
+                ))
+                conn.commit()
+        except Exception as _e:
+            log.debug(f"Emission flag update: {_e}")
+            conn.rollback()
+
         if "expanded_mariapps_data" not in existing:
             conn.execute(text(f"""
                 CREATE TABLE expanded_mariapps_data (
@@ -748,7 +819,7 @@ def populate_column_metadata(engine):
                 "source": source, "db_column": col, "display_name": disp,
                 "category": cat, "unit": unit, "description": disp,
                 "is_active": True, "is_identity": True,
-                "performance": False, "sort_order": so,
+                "performance": False, "emission": False, "sort_order": so,
             })
             so += 1
 
@@ -778,6 +849,7 @@ def populate_column_metadata(engine):
                 "is_active":    meta.get("is_active", False),
                 "is_identity":  False,
                 "performance":  nc in _PERFORMANCE_COLUMNS,
+                "emission":     nc in _EMISSION_EXTRA_COLUMNS,
                 "sort_order":   so,
             })
             so += 1
@@ -797,6 +869,7 @@ def populate_column_metadata(engine):
                     "is_active":    True,
                     "is_identity":  False,
                     "performance":  False,
+                    "emission":     False,
                     "sort_order":   so,
                 })
                 so += 1
@@ -815,6 +888,7 @@ def populate_column_metadata(engine):
                     "is_active":    True,
                     "is_identity":  False,
                     "performance":  False,
+                    "emission":     False,
                     "sort_order":   so,
                 })
                 so += 1
@@ -825,10 +899,10 @@ def populate_column_metadata(engine):
             conn.execute(text("""
                 INSERT INTO expanded_column_metadata
                     (source, db_column, display_name, category, unit,
-                     description, is_active, is_identity, performance, sort_order)
+                     description, is_active, is_identity, performance, emission, sort_order)
                 VALUES
                     (:source, :db_column, :display_name, :category, :unit,
-                     :description, :is_active, :is_identity, :performance, :sort_order)
+                     :description, :is_active, :is_identity, :performance, :emission, :sort_order)
                 ON CONFLICT (source, db_column) DO UPDATE SET
                     display_name = EXCLUDED.display_name,
                     category     = EXCLUDED.category,
@@ -836,6 +910,7 @@ def populate_column_metadata(engine):
                     description  = EXCLUDED.description,
                     is_active    = EXCLUDED.is_active,
                     performance  = EXCLUDED.performance,
+                    emission     = EXCLUDED.emission,
                     sort_order   = EXCLUDED.sort_order
             """), entries)
         conn.commit()

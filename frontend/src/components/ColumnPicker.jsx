@@ -24,6 +24,9 @@ import './ColumnPicker.css'
 const LS_VISIBLE_KEY_PREFIX = 'vp_visible_cols_'
 
 // Group non-identity columns by category, preserving the incoming (backend) order.
+// `emission` is ADDITIVE (unlike `performance`, which replaces the category): a
+// column keeps its normal category AND is also pushed into an "Emission" bucket,
+// so the same field/toggle appears in both places in the picker.
 function buildOrder(cols) {
   const nonId = cols.filter(c => !c.is_identity)
   const order = []
@@ -32,6 +35,10 @@ function buildOrder(cols) {
     const cat = c.performance ? 'Performance' : (c.category || 'Other')
     if (!map[cat]) { map[cat] = []; order.push(cat) }
     map[cat].push(c)
+    if (c.emission && cat !== 'Emission') {
+      if (!map['Emission']) { map['Emission'] = []; order.push('Emission') }
+      map['Emission'].push(c)
+    }
   }
   
   // Ensure 'Performance' is at the top and always exists
@@ -39,10 +46,15 @@ function buildOrder(cols) {
     map['Performance'] = [];
     order.push('Performance');
   }
-  const finalOrder = order.includes('Performance') 
-    ? ['Performance', ...order.filter(c => c !== 'Performance')] 
-    : order;
-    
+  // Pin 'Performance' first, then 'Emission' right after — both near the front,
+  // ahead of the alphabetically-ordered rest.
+  const rest = order.filter(c => c !== 'Performance' && c !== 'Emission')
+  const finalOrder = [
+    'Performance',
+    ...(order.includes('Emission') ? ['Emission'] : []),
+    ...rest,
+  ]
+
   return finalOrder.map(cat => ({ cat, columns: map[cat] }))
 }
 
@@ -89,8 +101,11 @@ function SortableCategory({ group, expanded, onToggleExpand, visibleSet, onToggl
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const shownCount = group.columns.filter(c => visibleSet.has(c.db_column)).length
 
+  const groupCls = group.cat === 'Emission' ? ' cp-group-emission'
+    : group.cat === 'Performance' ? ' cp-group-performance' : ''
+
   return (
-    <div ref={setNodeRef} style={style} className="cp-group">
+    <div ref={setNodeRef} style={style} className={`cp-group${groupCls}`}>
       <div className="cp-group-header">
         <span className="cp-drag-handle" {...attributes} {...listeners} title="Drag to reorder category">
           <GripVertical size={13} />

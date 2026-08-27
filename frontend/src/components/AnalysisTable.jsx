@@ -193,7 +193,7 @@ function isSeaPassageReport(row) {
   return !_NON_SEA_PASSAGE_LOG_TYPES.has(logType)
 }
 
-function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate) {
+function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors) {
   // Which columns to show: identity (except hidden ones) + user-toggled (pink)
   const visible = columnsMeta.filter(m => {
     if (HIDDEN_COLS.has(m.db_column)) return false
@@ -312,7 +312,11 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate)
     }
   })
 
-  return [complianceCol, errCol, ...dataCols]
+  // Compliance/Errors are diagnostic to the noon-report data itself, not to
+  // emissions — hidden while the Emission focus filter is active so the table
+  // reads as a clean emissions view, same as how Performance-focused columns
+  // aren't cluttered by unrelated fields.
+  return hideComplianceErrors ? dataCols : [complianceCol, errCol, ...dataCols]
 }
 
 
@@ -344,7 +348,7 @@ const TableRow = memo(({ row, idx, isSelected, sr, onClick, columns, complianceS
 })
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filtersApplied, complianceByDate, vesselName }) {
+export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filtersApplied, complianceByDate, vesselName, hideComplianceErrors }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [exporting, setExporting] = useState(false)
   const lastSelectedIdx = useRef(null)
@@ -384,8 +388,8 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
   }, [sortedRows])
 
   const columns = useMemo(
-    () => buildColumns(columnsMeta || [], visibleExtras, scanResults, complianceByDate),
-    [columnsMeta, visibleExtras, scanResults, complianceByDate]
+    () => buildColumns(columnsMeta || [], visibleExtras, scanResults, complianceByDate, hideComplianceErrors),
+    [columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors]
   )
 
   const table = useReactTable({ data: sortedRows, columns, getCoreRowModel: getCoreRowModel() })

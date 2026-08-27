@@ -61,6 +61,7 @@ def get_columns(
             "is_active":    r.is_active,
             "is_identity":  r.is_identity,
             "performance":  getattr(r, "performance", False) or False,
+            "emission":     getattr(r, "emission", False) or False,
             "sort_order":   r.sort_order,
             "user_sort_order": r.user_sort_order,
         }

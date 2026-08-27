@@ -307,31 +307,40 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
   const hasChartData = chartRows.length > 0
   const voyageView = !!(cpVoyages && cpVoyages.length > 0)
 
+  // "Emission" is rendered as its own pinned chip (like Performance), not via the
+  // alphabetical category list — excluded here so it doesn't also show up twice.
   const categories = useMemo(() => {
     const cats = [...new Set(
       columnsMeta.filter(c => !c.is_identity).map(c => c.category || 'Other')
-    )].sort((a, b) => a.localeCompare(b))
+    )].filter(cat => cat !== 'Emission').sort((a, b) => a.localeCompare(b))
     return cats
   }, [columnsMeta])
 
   // Note: We no longer override `is_active` to act as the category filter.
   // The category filter just determines which columns are allowed in `effectiveExtras`.
   const effectiveExtras = useMemo(() => {
-    const baseVisible = vesselDefaults.size === 0 
-      ? userVisible 
+    const baseVisible = vesselDefaults.size === 0
+      ? userVisible
       : new Set([...userVisible].filter(k => vesselDefaults.has(k)))
 
     if (catFilter === 'All') {
       return baseVisible
     }
-    
+
     const isPerf = catFilter === 'Performance'
-    const inFocus = c => isPerf ? c.performance : (c.category || 'Other') === catFilter
-    
+    const isEmission = catFilter === 'Emission'
+    // Emission focus = columns whose own category IS "Emission" (the Grade fields)
+    // OR columns flagged `emission` (dual-membership fields that keep their normal
+    // category too, e.g. Weather/Voyage/Vessel General Data fields also relevant to
+    // emissions) — matches the picker's "also show under Emission" behavior.
+    const inFocus = c => isPerf ? c.performance
+      : isEmission ? (c.category === 'Emission' || c.emission === true)
+      : (c.category || 'Other') === catFilter
+
     const focusKeys = new Set(
       columnsMeta.filter(c => !c.is_identity && inFocus(c)).map(c => c.db_column)
     )
-    
+
     return new Set([...baseVisible].filter(k => focusKeys.has(k)))
   }, [catFilter, userVisible, vesselDefaults, columnsMeta])
 
@@ -393,6 +402,11 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
             onClick={() => setCatFilter('Performance')}
             title="Show only NoonData / Calc Engine performance columns"
           >Performance</button>
+          <button
+            className={`cat-chip cat-emission-chip${catFilter === 'Emission' ? ' active' : ''}`}
+            onClick={() => setCatFilter('Emission')}
+            title="Show only emission-relevant columns (Grade + Voyage/Weather/Fuel fields)"
+          >Emission</button>
           {categories.map(cat => (
             <button
               key={cat}
@@ -408,7 +422,7 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
           ? <CPSummaryPanel imo={vesselImo} vesselName={vesselName} source={source} voyages={cpVoyages} loadingCond={filtersApplied?.loadingCond} />
           : loading
             ? <div className="loading-overlay"><div className="spinner" /> Loading reports…</div>
-            : <AnalysisTable rows={rows} columnsMeta={columnsMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} complianceByDate={complianceByDate} vesselName={vesselName} />
+            : <AnalysisTable rows={rows} columnsMeta={columnsMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} complianceByDate={complianceByDate} vesselName={vesselName} hideComplianceErrors={catFilter === 'Emission'} />
         }
       </div>
 

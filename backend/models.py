@@ -565,6 +565,12 @@ class ExpandedColumnMetadata(Base):
     is_active    = Column(Boolean, default=True)         # yellow=True, pink=False
     is_identity  = Column(Boolean, default=False)        # id/date/vessel cols
     performance  = Column(Boolean, default=False)        # performance-relevant column flag
+    emission     = Column(Boolean, default=False)        # ALSO show under the "Emission" capsule,
+                                                           # in addition to `category` — unlike
+                                                           # `performance` (which replaces the
+                                                           # category), this is additive: the column
+                                                           # keeps its normal category AND appears a
+                                                           # second time under "Emission" in the picker.
     sort_order   = Column(Integer, default=0)
     user_sort_order = Column(Integer, nullable=True)     # user-defined order (column picker); survives restarts
 
