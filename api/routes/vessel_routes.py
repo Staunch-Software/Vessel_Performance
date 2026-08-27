@@ -745,15 +745,33 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
     and the data table.
     """
     try:
-        from backend.models import FleetStatusData, VesselParticulars, RawNoonReport
+        from backend.models import FleetStatusData, VesselParticulars, RawNoonReport, Vessel
         from sqlalchemy import func
 
-        # Subquery: latest scraped_at per vessel_name
+        # ── Ozellar group owner companies ────────────────────────────────────────
+        # All vessels managed by Ozellar belong to one of these three owner groups.
+        # Filter here so only our 14 vessels are shown on the Fleet Status page.
+        OZELLAR_OWNER_GROUPS = [
+            "Global Chartering Limited",
+            "Umang Shipping Private LTD",
+            "AMNS Shipping & Logistics Private Limited",
+        ]
+
+        # Collect the IMOs for our fleet from the master vessels registry
+        ozellar_imos = [
+            row.imo_number
+            for row in db.query(Vessel.imo_number)
+            .filter(Vessel.owner_group.in_(OZELLAR_OWNER_GROUPS))
+            .all()
+        ]
+
+        # Subquery: latest scraped_at per vessel_name — restricted to Ozellar IMOs
         latest_sub = (
             db.query(
                 FleetStatusData.vessel_name,
                 func.max(FleetStatusData.scraped_at).label("max_scraped")
             )
+            .filter(FleetStatusData.imo.in_(ozellar_imos))
             .group_by(FleetStatusData.vessel_name)
             .subquery()
         )
@@ -765,6 +783,7 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
                 (FleetStatusData.vessel_name == latest_sub.c.vessel_name) &
                 (FleetStatusData.scraped_at  == latest_sub.c.max_scraped)
             )
+            .filter(FleetStatusData.imo.in_(ozellar_imos))   # safety: only Ozellar vessels
             .outerjoin(
                 VesselParticulars,
                 FleetStatusData.imo == VesselParticulars.vessel_imo
