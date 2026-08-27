@@ -351,20 +351,25 @@
   font-family: inherit;
 }
 .cat-chip:hover  { color: var(--text-primary); border-color: var(--text-muted); }
-/* Performance filter chip */
-.cat-perf-chip { border-color: #854d0e; color: #f59e0b; }
-.cat-perf-chip:hover { background: rgba(245,158,11,0.08); }
-.cat-perf-chip.active { background: rgba(245,158,11,0.15); color: #fbbf24; border-color: #f59e0b; font-weight: 700; }
-/* Emission filter chip */
-.cat-emission-chip { border-color: #166534; color: #22c55e; }
-.cat-emission-chip:hover { background: rgba(34,197,94,0.08); }
-.cat-emission-chip.active { background: rgba(34,197,94,0.15); color: #4ade80; border-color: #22c55e; font-weight: 700; }
 .cat-chip.active {
   background: rgba(56,189,248,0.12);
   color: var(--accent-2);
   border-color: rgba(56,189,248,0.4);
   font-weight: 600;
 }
+/* Performance / Emission filter chips — use 3-class selectors for `.active`
+   (.cat-chip.cat-perf-chip.active etc.) so they unambiguously out-specificity
+   the generic 2-class .cat-chip.active, regardless of CSS source order. Source
+   order alone (declaring these after .cat-chip.active) was NOT enough to win in
+   practice — confirmed live: the Emission chip still rendered blue instead of
+   green with equal-specificity selectors, even declared later in the file. The
+   Performance chip had the identical latent bug, just never actually noticed. */
+.cat-perf-chip { border-color: #854d0e; color: #f59e0b; }
+.cat-perf-chip:hover { background: rgba(245,158,11,0.08); }
+.cat-chip.cat-perf-chip.active { background: rgba(245,158,11,0.15); color: #fbbf24; border-color: #f59e0b; font-weight: 700; }
+.cat-emission-chip { border-color: #166534; color: #22c55e; }
+.cat-emission-chip:hover { background: rgba(34,197,94,0.08); }
+.cat-chip.cat-emission-chip.active { background: rgba(34,197,94,0.15); color: #4ade80; border-color: #22c55e; font-weight: 700; }
 
 /* ── Table section (fills remaining height) ── */
 .table-section {
