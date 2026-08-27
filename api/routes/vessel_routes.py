@@ -648,7 +648,11 @@ def get_voyage_summary(voyage_no: str, vessel_imo: str, db: Session = Depends(ge
         "vessel_imo":      first.vessel_imo,
         "Loading_Cond":    first.Loading_Cond,
         "From_Port":       first.From_Port,
-        "To_Port":         last.To_Port,
+        # Finalised from the EOSP record when there is one (matches
+        # cp_calculator's segment arrival-port rule) — not just whatever the
+        # last row's destination label happened to say, which can be a
+        # mid-passage correction rather than the real arrival.
+        "To_Port":         arr_record.To_Port if arr_record else last.To_Port,
 
         # ✅ Departure & Arrival — derived from BOSP/EOSP records (fallback first/last)
         "Departure_Time":  f"{dep_record._local_date_str}T{dep_record.Time_UTC or '00:00'}:00Z" if getattr(dep_record, '_local_date_str', None) else None,

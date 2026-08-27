@@ -5,10 +5,15 @@
  *
  * Page Structure:
  *   Page 1   — Cover / Voyage Header
- *   Page 2   — Speed & Consumption Summary (Good Wx / All Wx)
- *   Page 3   — Consumption Calculation Methodology
- *   Page 4   — Speed & Weather Analysis Summary Table
- *   Pages 5+ — Positions & Weather Detail (8 rows / page)
+ *   Page 2   — CP Performance Charts: (A) Good-Weather Speed & Fuel/Day vs CP
+ *              Warranty + allowance bands, trended across this vessel's full
+ *              history for this voyage's loading condition, and (B) Time &
+ *              Fuel Loss/Saving per voyage, all conditions combined (see
+ *              CPChartsRenderer.jsx)
+ *   Page 3   — Speed & Consumption Summary (Good Wx / All Wx)
+ *   Page 4   — Consumption Calculation Methodology
+ *   Page 5   — Speed & Weather Analysis Summary Table
+ *   Pages 6+ — Positions & Weather Detail (8 rows / page)
  *   Next     — Fuel Consumption Analysis
  *   Next     — Message Traffic (one section per report record)
  *   Last 2   — CP Compliance Audit Methodology (static)
@@ -17,6 +22,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { capturePdfAssets } from './PdfHiddenRenderer'
+import { captureCPCharts } from './CPChartsRenderer'
 import {
   fetchVoyageSummary,
   fetchVoyageSeries,
@@ -224,7 +230,11 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
-  const gwText = `Wind Beaufort Force ${cpGD.wind || '4'}, Significant wave height ${cpGD.sea_state || '1.25'} meters (Douglas Sea State 3), no adverse current`
+  // cpGD.wind/sea_state are already human-formatted strings from the backend
+  // ("BF 4", "Sig.Wave 3.0m") — don't prepend "Wind Beaufort Force"/"Significant
+  // wave height" in front of them, that duplicates the wording (produced
+  // "Significant wave height Sig.Wave 3.0m meters").
+  const gwText = `Wind ${cpGD.wind || 'BF 4'}, Sea State ${cpGD.sea_state || 'Sig.Wave 3.0m'} (Douglas Sea State 3), no adverse current`
   doc.text(gwText, W / 2, y + 11, { align: 'center' })
   
   y += 20
@@ -340,12 +350,8 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   const W = doc.internal.pageSize.getWidth()
   const cp = cpData?.results?.[0] || {}
 
-  // Route label
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.text(`${sum.From_Port || '—'} to ${sum.To_Port || '—'} (Economical speed)`, W / 2, y, { align: 'center' })
-  y += 8
-
+  // Route label now lives on the CP Charts page (page 2) instead — see
+  // CPChartsRenderer.jsx's routeCaption — so it isn't repeated here.
   y = sectionTitle(doc, y, 'A. Good Weather Analysis')
   y += 5
   
@@ -354,16 +360,22 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text("The following days were analyzed as 'Good Weather Days'.", 14, y)
   y += 4
 
-  // Compute good weather rows
-  const cpGD = cp.good_wx_def || {}
-  const maxBf = +(cpGD.wind) || 4
-  const maxWh = +(cpGD.sea_state) || 1.25
+  // Good/All weather figures come straight from the backend's cp.good_wx /
+  // cp.entire aggregates (same source as the CP Performance table, Section B,
+  // and Section C) — NOT a local re-filter of seriesRows. That local filter
+  // used to read good_wx_def.wind/sea_state as numbers, but those fields are
+  // human-readable strings ("BF 4", "Sig.Wave 3.0m"); `+"Sig.Wave 3.0m"` is
+  // NaN, so it silently fell back to a hardcoded 1.25m wave cutoff instead of
+  // the real 3.0m fair-weather threshold (backend FAIR_WAVE_MAX_M) — pulling
+  // in a much smaller/wrong subset of "good weather" days and producing
+  // numbers that didn't match the rest of the report. Only the displayed date
+  // range below still needs a day-level filter (the API doesn't return one),
+  // so that one filter is kept but with the correct 3.0/4.0 thresholds.
   const goodRows = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
+    return bf <= 4.0 && wh <= 3.0
   })
-  const allRows = seriesRows
 
   let dateRangeStr = '—'
   if (goodRows.length > 0) {
@@ -374,23 +386,23 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text(dateRangeStr, 14, y)
   y += 6
 
-  const totalDist  = allRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
-  const totalDur   = allRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const totalFO    = allRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const totalGO    = allRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
-  
-  const goodDist   = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
-  const goodDur    = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const goodFO     = goodRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const goodGO     = goodRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
+  const totalDist  = cp.entire?.distance_nm ?? seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
+  const totalDur   = cp.entire?.time_h ?? seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
+  const totalFO    = cp.entire?.fo_mt ?? seriesRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
+  const totalGO    = cp.entire?.dogo_mt ?? seriesRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
 
-  const totalSpeed = totalDur > 0 ? totalDist / totalDur : 0
-  const goodSpeed  = goodDur > 0 ? goodDist / goodDur : 0
-  
-  const goodDailyFO = goodDur > 0 ? goodFO / (goodDur / 24) : 0
+  const goodDist   = cp.good_wx?.distance_nm ?? 0
+  const goodDur    = cp.good_wx?.time_h ?? 0
+  const goodFO     = cp.good_wx?.fo_mt ?? 0
+  const goodGO     = cp.good_wx?.dogo_mt ?? 0
+
+  const totalSpeed = cp.entire?.avg_speed_kn ?? (totalDur > 0 ? totalDist / totalDur : 0)
+  const goodSpeed  = cp.good_wx?.avg_speed_kn ?? (goodDur > 0 ? goodDist / goodDur : 0)
+
+  const goodDailyFO  = cp.good_wx?.daily_fo ?? (goodDur > 0 ? goodFO / (goodDur / 24) : 0)
   const totalDailyFO = totalDur > 0 ? totalFO / (totalDur / 24) : 0
-  
-  const goodDailyGO = goodDur > 0 ? goodGO / (goodDur / 24) : 0
+
+  const goodDailyGO  = cp.good_wx?.daily_dogo ?? (goodDur > 0 ? goodGO / (goodDur / 24) : 0)
   const totalDailyGO = totalDur > 0 ? totalGO / (totalDur / 24) : 0
 
   autoTable(doc, {
@@ -515,6 +527,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   // same decision, feeding both the formula line below and the banner.
   let concludedHours = 0
   let concludedIsLoss = false
+  let concludedNeutral = false
   if (wSpeed === 0) {
     doc.setFont('helvetica', 'italic')
     doc.text('No Warranted Speed data available for calculation.', 18, y)
@@ -524,20 +537,36 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
     concludedHours = timeLost
     doc.text('Time Lost = (a) - (b)', 18, y)
     doc.text(`=  ${fmt(a, 2)} - ${fmt(b, 2)}  =  ${fmt(timeLost, 2)} Hours`, 55, y)
-  } else {
+  } else if (timeGained > 0) {
     concludedIsLoss = false
-    concludedHours = Math.max(timeGained, 0)
+    concludedHours = timeGained
     doc.text('Time Gained = (c) - (a)', 18, y)
-    doc.text(`=  ${fmt(c, 2)} - ${fmt(a, 2)}  =  ${fmt(concludedHours, 2)} Hours`, 55, y)
+    doc.text(`=  ${fmt(c, 2)} - ${fmt(a, 2)}  =  ${fmt(timeGained, 2)} Hours`, 55, y)
+  } else {
+    // Neither (a)-(b) nor (c)-(a) is positive — the voyage's actual time falls
+    // inside the tolerance band (between the full-speed and allowance-adjusted
+    // benchmarks). This is genuinely neither a loss nor a gain, so show the true
+    // (negative) arithmetic honestly rather than mislabeling it "Time Gained"
+    // and silently clamping the displayed result to 0.
+    concludedNeutral = true
+    concludedIsLoss = false
+    concludedHours = 0
+    doc.text('Within Tolerance', 18, y)
+    doc.text(`(a) ${fmt(a, 2)} is between (b) ${fmt(b, 2)} and (c) ${fmt(c, 2)}  =  No Claim`, 50, y)
   }
 
   y += 10
-  doc.setFillColor(concludedIsLoss ? 255 : 34, concludedIsLoss ? 0 : 211, concludedIsLoss ? 0 : 153)
+  const bannerR = concludedIsLoss ? 255 : (concludedNeutral ? 120 : 34)
+  const bannerG = concludedIsLoss ? 0   : (concludedNeutral ? 120 : 211)
+  const bannerB = concludedIsLoss ? 0   : (concludedNeutral ? 120 : 153)
+  doc.setFillColor(bannerR, bannerG, bannerB)
   doc.rect(14, y, W - 28, 6, 'F')
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
   if (wSpeed === 0) {
     doc.text('Conclusion: No Warranted Speed data available.', W / 2, y + 4.2, { align: 'center' })
+  } else if (concludedNeutral) {
+    doc.text('Conclusion: Within Tolerance — No Time Lost or Gained', W / 2, y + 4.2, { align: 'center' })
   } else if (concludedIsLoss) {
     doc.text(`Conclusion: ${concludedHours.toFixed(2)} Hours Lost`, W / 2, y + 4.2, { align: 'center' })
   } else {
@@ -646,10 +675,10 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   
   y += 45
   
-  // (1) FO Block
+  // Total Consumption Block
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
-  doc.text('(1) FO', 14, y)
+  doc.text('Total Consumption', 14, y)
   y += 5
   
   if (wSpeed === 0) {
@@ -660,11 +689,16 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   } else {
      doc.setFont('helvetica', 'normal')
      doc.setFontSize(7)
-     // Same backend-sourced a_h/b_h/c_h (good weather / allowance / full warranted speed
-     // time-equivalents) used for FO — see Section B and cp_calculator.compute_cp_voyage_table.
-     const d_fo = (distE / gwSpeedB) * (goodDailyFOB / 24)
-     const e_fo = (distE / effSpd) * (foMax / 24)
-     const f_fo = (distE / wSpeed) * (foMin / 24)
+     // Total = FO + GO combined, matching the "Total Consumption" heading —
+     // NOT FO alone. Same backend-sourced a_h/b_h/c_h time-equivalents used
+     // for Section B — see cp_calculator.compute_cp_voyage_table.
+     const goodDailyTotalB = goodDailyFOB + goodDailyGOB
+     const totalW    = foW + goW
+     const totalMax   = totalW * (1 + tolPct / 100)
+     const totalMin   = totalW * (1 - tolPct / 100)
+     const d_tot = (distE / gwSpeedB) * (goodDailyTotalB / 24)
+     const e_tot = (distE / effSpd) * (totalMax / 24)
+     const f_tot = (distE / wSpeed) * (totalMin / 24)
 
      // D
      let blockY = y
@@ -675,10 +709,10 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
      doc.text(fmt(gwSpeedB, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goodDailyFOB, 2), 128, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(goodDailyTotalB, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(d_fo, 2)} MT`, 145, blockY + 4)
+     doc.text(`=  ${fmt(d_tot, 2)} MT`, 145, blockY + 4)
      doc.text("(d')", 175, blockY + 4)
 
      blockY += 10
@@ -690,10 +724,10 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
      doc.text(fmt(effSpd, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
-     doc.text(fmt(foMax, 2), 128, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(totalMax, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(e_fo, 2)} MT`, 145, blockY + 4)
+     doc.text(`=  ${fmt(e_tot, 2)} MT`, 145, blockY + 4)
      doc.text("(e')", 175, blockY + 4)
 
      blockY += 10
@@ -705,25 +739,25 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
      doc.text(fmt(wSpeed, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
-     doc.text(fmt(foMin, 2), 128, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(totalMin, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
      doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(f_fo, 2)} MT`, 145, blockY + 4)
+     doc.text(`=  ${fmt(f_tot, 2)} MT`, 145, blockY + 4)
      doc.text("(f')", 175, blockY + 4)
 
      blockY += 10
-     const foLoss = cp.loss?.fo_mt || 0
-     if (foLoss > 0) {
-        doc.text(`FO Over-consumption = (d') - (e')  =  ${fmt(d_fo, 2)}  -  ${fmt(e_fo, 2)}  =  ${fmt(foLoss, 2)} MT`, 40, blockY + 2)
-     } else if (foLoss < 0) {
-        doc.text(`FO Saving = (f') - (d')  =  ${fmt(f_fo, 2)}  -  ${fmt(d_fo, 2)}  =  ${fmt(Math.abs(foLoss), 2)} MT`, 40, blockY + 2)
+     const totalLoss = (cp.loss?.fo_mt || 0) + (cp.loss?.dogo_mt || 0)
+     if (totalLoss > 0) {
+        doc.text(`Over-consumption = (d') - (e')  =  ${fmt(d_tot, 2)}  -  ${fmt(e_tot, 2)}  =  ${fmt(totalLoss, 2)} MT`, 40, blockY + 2)
+     } else if (totalLoss < 0) {
+        doc.text(`Saving = (f') - (d')  =  ${fmt(f_tot, 2)}  -  ${fmt(d_tot, 2)}  =  ${fmt(Math.abs(totalLoss), 2)} MT`, 40, blockY + 2)
      }
      y = blockY + 4
-     
-     // FO Conclusion
+
+     // Total Consumption Conclusion
      doc.setDrawColor(0)
-     doc.setFillColor(foLoss > 0 ? 255 : (foLoss < 0 ? 34 : 255), foLoss > 0 ? 0 : (foLoss < 0 ? 211 : 255), foLoss > 0 ? 0 : (foLoss < 0 ? 153 : 255))
-     if (foLoss === 0) {
+     doc.setFillColor(totalLoss > 0 ? 255 : (totalLoss < 0 ? 34 : 255), totalLoss > 0 ? 0 : (totalLoss < 0 ? 211 : 255), totalLoss > 0 ? 0 : (totalLoss < 0 ? 153 : 255))
+     if (totalLoss === 0) {
         doc.rect(22, y, W - 44, 4)
         doc.setTextColor(0, 0, 0)
      } else {
@@ -731,107 +765,15 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
         doc.setTextColor(255, 255, 255)
      }
      doc.setFont('helvetica', 'bold')
-     if (foLoss > 0) {
-        doc.text(`Conclusion: ${foLoss.toFixed(2)} MT FO Over-consumption`, W / 2, y + 3, { align: 'center' })
-     } else if (foLoss < 0) {
-        doc.text(`Conclusion: ${Math.abs(foLoss).toFixed(2)} MT FO Saving`, W / 2, y + 3, { align: 'center' })
+     if (totalLoss > 0) {
+        doc.text(`Conclusion: ${totalLoss.toFixed(2)} MT Over-consumption`, W / 2, y + 3, { align: 'center' })
+     } else if (totalLoss < 0) {
+        doc.text(`Conclusion: ${Math.abs(totalLoss).toFixed(2)} MT Saving`, W / 2, y + 3, { align: 'center' })
      } else {
-        doc.text(`Conclusion: No FO Over-consumption/Saving`, W / 2, y + 3, { align: 'center' })
+        doc.text(`Conclusion: No Over-consumption/Saving`, W / 2, y + 3, { align: 'center' })
      }
      doc.setTextColor(0, 0, 0)
      y += 10
-  }
-
-  // (2) GO Block
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.text('(2) GO', 14, y)
-  y += 5
-  
-  if (wSpeed === 0) {
-     doc.setFont('helvetica', 'italic')
-     doc.text('No Warranted Speed data available for calculation.', 22, y + 2)
-     doc.setFont('helvetica', 'normal')
-  } else {
-     doc.setFont('helvetica', 'normal')
-     doc.setFontSize(7)
-     const d_go = (distE / gwSpeedB) * (goodDailyGOB / 24)
-     const e_go = (distE / effSpd) * (goMax / 24)
-     const f_go = (distE / wSpeed) * (goMin / 24)
-
-     // D
-     let blockY = y
-     doc.text('Entire Voyage Consumption using', 22, blockY + 2)
-     doc.text('vessel Good Weather Consumption', 22, blockY + 5)
-     doc.text('=', 72, blockY + 4)
-     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
-     doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(gwSpeedB, 2), 92, blockY + 5.5, { align: 'center' })
-     doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goodDailyGOB, 2), 128, blockY + 1.5, { align: 'center' })
-     doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(d_go, 2)} MT`, 145, blockY + 4)
-     doc.text("(d')", 175, blockY + 4)
-
-     blockY += 10
-     // E
-     doc.text('Maximum Warranted Consumption', 22, blockY + 2)
-     doc.text('for over-consumption', 22, blockY + 5)
-     doc.text('=', 72, blockY + 4)
-     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
-     doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(effSpd, 2), 92, blockY + 5.5, { align: 'center' })
-     doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goMax, 2), 128, blockY + 1.5, { align: 'center' })
-     doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(e_go, 2)} MT`, 145, blockY + 4)
-     doc.text("(e')", 175, blockY + 4)
-
-     blockY += 10
-     // F
-     doc.text('Minimum Warranted Consumption', 22, blockY + 2)
-     doc.text('for fuel saving', 22, blockY + 5)
-     doc.text('=', 72, blockY + 4)
-     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
-     doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(wSpeed, 2), 92, blockY + 5.5, { align: 'center' })
-     doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goMin, 2), 128, blockY + 1.5, { align: 'center' })
-     doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(f_go, 2)} MT`, 145, blockY + 4)
-     doc.text("(f')", 175, blockY + 4)
-
-     blockY += 10
-     const goLoss = cp.loss?.dogo_mt || 0
-     if (goLoss > 0) {
-        doc.text(`GO Over-consumption = (d') - (e')  =  ${fmt(d_go, 2)}  -  ${fmt(e_go, 2)}  =  ${fmt(goLoss, 2)} MT`, 40, blockY + 2)
-     } else if (goLoss < 0) {
-        doc.text(`GO Saving = (f') - (d')  =  ${fmt(f_go, 2)}  -  ${fmt(d_go, 2)}  =  ${fmt(Math.abs(goLoss), 2)} MT`, 40, blockY + 2)
-     }
-     y = blockY + 4
-     
-     // GO Conclusion
-     doc.setDrawColor(0)
-     doc.setFillColor(goLoss > 0 ? 255 : (goLoss < 0 ? 34 : 255), goLoss > 0 ? 0 : (goLoss < 0 ? 211 : 255), goLoss > 0 ? 0 : (goLoss < 0 ? 153 : 255))
-     if (goLoss === 0) {
-        doc.rect(22, y, W - 44, 4)
-        doc.setTextColor(0, 0, 0)
-     } else {
-        doc.rect(22, y, W - 44, 4, 'F')
-        doc.setTextColor(255, 255, 255)
-     }
-     doc.setFont('helvetica', 'bold')
-     if (goLoss > 0) {
-        doc.text(`Conclusion: ${goLoss.toFixed(2)} MT GO Over-consumption`, W / 2, y + 3, { align: 'center' })
-     } else if (goLoss < 0) {
-        doc.text(`Conclusion: ${Math.abs(goLoss).toFixed(2)} MT GO Saving`, W / 2, y + 3, { align: 'center' })
-     } else {
-        doc.text(`Conclusion: No GO Over-consumption/Saving`, W / 2, y + 3, { align: 'center' })
-     }
-     doc.setTextColor(0, 0, 0)
   }
 }
 
@@ -854,8 +796,8 @@ function buildSummaryTablePage(doc, sum, seriesRows, cpData, routeId, reportDate
   const totalDist  = seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const totalDur   = seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
   const totalFO    = seriesRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const goodRows   = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && (+(r.Sig_Wave_Ht_m) || 0) <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25))
-  const adverseRows = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) > (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) || (+(r.Sig_Wave_Ht_m) || 0) > (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25))
+  const goodRows   = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) <= 4.0 && (+(r.Sig_Wave_Ht_m) || 0) <= 3.0)
+  const adverseRows = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) > 4.0 || (+(r.Sig_Wave_Ht_m) || 0) > 3.0)
   const goodDist   = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const goodDur    = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
   const goodFO     = goodRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
@@ -901,7 +843,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
   const goodRows = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
+    return bf <= 4.0 && wh <= 3.0
   })
   const adverseRows = seriesRows.filter(r => !goodRows.includes(r))
 
@@ -1051,7 +993,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
           const rowData = pageRows[data.row.index]
           const bf = +bfScale(rowData.True_Wind_Spd_ms) || 0
           const wh = +(rowData.Sig_Wave_Ht_m) || 0
-          if (bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)) {
+          if (bf <= 4.0 && wh <= 3.0) {
             data.cell.styles.fillColor = [255, 242, 204]
           }
         }
@@ -1105,12 +1047,12 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
   const goodRows    = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
+    return bf <= 4.0 && wh <= 3.0
   })
   const advRows     = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf > (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) || wh > (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)
+    return bf > 4.0 || wh > 3.0
   })
   
   const goodDist    = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
@@ -1240,7 +1182,7 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
         const rowData = seriesRows[data.row.index]
         const bf = rowData.BF_Wind != null ? +rowData.BF_Wind : (+bfScale(rowData.True_Wind_Spd_ms) || 0)
         const wh = +(rowData.Sig_Wave_Ht_m) || 0
-        if (bf <= (+(cpData?.results?.[0]?.good_wx_def?.wind) || 4) && wh <= (+(cpData?.results?.[0]?.good_wx_def?.sea_state) || 1.25)) {
+        if (bf <= 4.0 && wh <= 3.0) {
           data.cell.styles.fillColor = [255, 242, 204]
         } else {
           data.cell.styles.fillColor = [255, 255, 255]
@@ -1454,14 +1396,21 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   onProgress?.('Fetching voyage summary…')
 
   // ── 1. Fetch all data in parallel ────────────────────────────────────────
-  const [sum, series, cpData] = await Promise.all([
+  // cpDataAll is UNFILTERED by voyageNos/loadingCond — it's the vessel+source's
+  // full CP history, used only to give the CP charts a real multi-voyage trend
+  // to plot even when this report itself was downloaded for a single voyage.
+  const [sum, series, cpData, cpDataAll] = await Promise.all([
     fetchVoyageSummary(voyageNo, vesselImo).catch(() => ({})),
     fetchVoyageSeries(voyageNo, vesselImo).catch(() => []),
     fetchCPPerformance(vesselImo, voyageNos, source === 'all' ? undefined : source, loadingCond === 'all' ? undefined : loadingCond).catch(() => null),
+    fetchCPPerformance(vesselImo, undefined, source === 'all' ? undefined : source, undefined).catch(() => null),
   ])
 
   onProgress?.('Rendering charts & maps...')
-  const pdfAssets = await capturePdfAssets(sum, series, cpData)
+  const [pdfAssets, cpCharts] = await Promise.all([
+    capturePdfAssets(sum, series, cpData),
+    captureCPCharts(cpDataAll, voyageNo),
+  ])
 
   onProgress?.('Building PDF…')
 
@@ -1495,6 +1444,7 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
 
   // ── 4. Build all pages ────────────────────────────────────────────────────
   buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate)
+  buildCPChartsPage(doc, cpCharts)
   buildSpeedConsPage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
   buildMethodologyPage1(doc, sum, series, cpData, routeId, reportDate, voyageNo)
   buildSummaryTablePage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
@@ -1520,6 +1470,22 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   doc.save(filename)
 
   return { filename, pages: totalPages }
+}
+
+/**
+ * CP Performance charts — page 2, BEFORE Speed and Consumption Calculation.
+ * One combined page holding both: (A) Good-Weather speed & fuel/day vs CP
+ * warranty + allowance bands, trended across this vessel's full history for
+ * this voyage's own loading condition, and (B) the combined Time/Fuel
+ * Loss(-)/Saving(+) diverging bar chart across all of this vessel's voyages,
+ * both conditions together (never split by condition — see cp_calculator).
+ */
+function buildCPChartsPage(doc, cpCharts) {
+  if (!cpCharts?.chartsDataUrl) return
+  doc.addPage('a4', 'portrait')
+  // The charts DOM was 1000x1400 (ratio 1:1.4), same full-bleed pattern as buildChartsPage —
+  // the title is rendered inside the captured image itself, so no separate header here.
+  doc.addImage(cpCharts.chartsDataUrl, 'JPEG', 0, 0, 210, 297)
 }
 
 function buildChartsPage(doc, imgDataUrl) {

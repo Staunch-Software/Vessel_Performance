@@ -86,6 +86,22 @@ class Config:
     # Change this if you switch vessels; the pipeline reads it from here.
     EYEGAUGE_VESSEL_IMO = os.getenv("EYEGAUGE_VESSEL_IMO", "9811048")
 
+    # =========================================================
+    # AZURE BLOB STORAGE  (MariApps Bunker Report attachments)
+    # =========================================================
+
+    AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    AZURE_STORAGE_CONTAINER = os.getenv("AZURE_STORAGE_CONTAINER", "mariapps-bunker-attachments")
+
+    # =========================================================
+    # MARIAPPS — BUNKER REPORT
+    # =========================================================
+
+    MARIAPPS_BUNKER_REPORT_URL = os.getenv(
+        "MARIAPPS_BUNKER_REPORT_URL",
+        "https://smartpal.ozellar.com/PerformancePALApp/Performance/BunkerReport",
+    )
+
 
 # ---------------------------------------------------------------------------
 # Optional: explicit list of telemetry keys to fetch.

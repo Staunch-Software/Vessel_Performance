@@ -1,7 +1,9 @@
 """
-Charter-Party compliance v2 — Phase 3a pilot API.
-Gated to PILOT_VESSEL_IMOS (AM KIRTI + GCL FOS) — see backend/cp/cp_compliance_v2.py
-for the full 12-step evaluation logic and its documented approximations.
+Charter-Party compliance v2 API.
+Gated to PILOT_VESSEL_IMOS — widened from the original 2-vessel Phase 3a pilot
+(AM KIRTI + GCL FOS) to all 14 fleet vessels per manager approval — see
+backend/cp/cp_compliance_v2.py for the full 12-step evaluation logic, its
+documented approximations, and the widening note.
 """
 import logging
 from typing import Optional
@@ -52,8 +54,9 @@ def get_cp_compliance(
         raise HTTPException(
             status_code=403,
             detail=(
-                f"CP compliance v2 is a Phase 3a pilot restricted to IMOs {sorted(PILOT_VESSEL_IMOS)}. "
-                f"IMO {imo} is not in the pilot yet."
+                f"CP compliance v2 is enabled for IMOs {sorted(PILOT_VESSEL_IMOS)}. "
+                f"IMO {imo} isn't in that list yet — add it to PILOT_VESSEL_IMOS in "
+                f"backend/cp/cp_compliance_v2.py once it has an Active CP description."
             ),
         )
 
@@ -75,17 +78,35 @@ def get_cp_compliance(
         raise HTTPException(status_code=404, detail=f"No warranty conditions found for IMO {imo}.")
     conditions = _row_dict(conditions_row)
 
-    sources = [source] if source in _SOURCE_TABLES else ["wni", "mari_apps"]
-    analysis_rows = []
-    for src in sources:
-        sql = """
-            SELECT "Voyage_No", "Loading_Cond", "Date", "Distance_nm", "Duration_h",
-                   "SOG_kn", "STW_kn", "ME_FOC_MT", "AE_FOC_MT", "BF_Wind", "Sig_Wave_Ht_m", source_id
-            FROM analysis_data
-            WHERE vessel_imo = :imo AND source_id = :src
-            ORDER BY "Voyage_No", "Date"
-        """
-        analysis_rows.extend(dict(r) for r in db.execute(text(sql), {"imo": imo, "src": src}).mappings().all())
+    # event_type isn't a column on analysis_data itself — it's coalesced from whichever
+    # source's normalized report joins back via raw_report_id/raw_mariapps_id, same join
+    # vessel_routes.py's /query endpoint uses. Needed so cp_compliance_v2 can exclude
+    # passage-boundary/port-side reports (BOSP/COSP/EOSP/Arrival/Departure Report/Noon at
+    # port) from speed & fuel compliance judgment — see _NON_SEA_PASSAGE_EVENT_TYPES.
+    base_sql = """
+        SELECT ad."Voyage_No", ad."Loading_Cond", ad."Date", ad."Distance_nm", ad."Duration_h",
+               ad."SOG_kn", ad."STW_kn", ad."ME_FOC_MT", ad."AE_FOC_MT", ad."BF_Wind",
+               ad."Sig_Wave_Ht_m", ad.source_id,
+               COALESCE(nrd.log_type, mrd.log_type) AS event_type
+        FROM analysis_data ad
+        LEFT JOIN noon_report_data nrd ON nrd.raw_report_id = ad.raw_report_id
+        LEFT JOIN mariapps_reports_data mrd ON mrd.raw_report_id = ad.raw_mariapps_id
+        WHERE ad.vessel_imo = :imo{source_clause}
+        ORDER BY ad."Voyage_No", ad."Date"
+    """
+    if source in _SOURCE_TABLES:
+        # Explicit wni/mari_apps filter requested — unchanged behaviour.
+        sql = base_sql.format(source_clause=" AND ad.source_id = :src")
+        analysis_rows = [dict(r) for r in db.execute(text(sql), {"imo": imo, "src": source}).mappings().all()]
+    else:
+        # No source filter — pull every source_id this vessel actually has, not just the
+        # standard 'wni'/'mari_apps' pair. Widening the pilot to the full fleet surfaced a
+        # real gap here: AMNS POLAR's rows are all tagged source_id='Wartsila FOS' (its
+        # Wärtsilä-import special case, same one TopFilterBar.jsx special-cases for the
+        # Source filter) and would have silently returned "nothing to evaluate" forever
+        # under the old hardcoded ["wni", "mari_apps"] list.
+        sql = base_sql.format(source_clause="")
+        analysis_rows = [dict(r) for r in db.execute(text(sql), {"imo": imo}).mappings().all()]
 
     if not analysis_rows:
         return {

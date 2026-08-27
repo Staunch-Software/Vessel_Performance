@@ -565,6 +565,12 @@ class ExpandedColumnMetadata(Base):
     is_active    = Column(Boolean, default=True)         # yellow=True, pink=False
     is_identity  = Column(Boolean, default=False)        # id/date/vessel cols
     performance  = Column(Boolean, default=False)        # performance-relevant column flag
+    emission     = Column(Boolean, default=False)        # ALSO show under the "Emission" capsule,
+                                                           # in addition to `category` — unlike
+                                                           # `performance` (which replaces the
+                                                           # category), this is additive: the column
+                                                           # keeps its normal category AND appears a
+                                                           # second time under "Emission" in the picker.
     sort_order   = Column(Integer, default=0)
     user_sort_order = Column(Integer, nullable=True)     # user-defined order (column picker); survives restarts
 
@@ -1680,4 +1686,84 @@ class FleetStatusData(Base):
     pos_diff          = Column(String(50), nullable=True)   # position difference alert
     report_missing    = Column(String(50), nullable=True)   # report missing alert
 
+    scraped_at    = Column(DateTime, default=datetime.utcnow, index=True)
+
+# ============================================================
+# TABLE: MARIAPPS BUNKER REPORT
+# ============================================================
+# Standalone table — bunker deliveries (grade, quantity, density, viscosity,
+# BDN reference) are a different kind of record than noon reports and don't
+# feed analysis_data/mariapps_reports_data at all. Scraped from MariApps'
+# smartOps Basic > Reports > Bunker Report page (a separate module from the
+# Logs & Events page the rest of backend/mariapps_pipeline/ scrapes).
+# Each row's attachment PDF (the actual Bunker Delivery Note scan) is
+# uploaded to Azure Blob Storage; blob_url points at it rather than storing
+# the file locally or in the DB.
+# ============================================================
+class MariAppsBunkerReport(Base):
+    __tablename__ = "mariapps_bunker_reports"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    vessel_imo    = Column(String(20), ForeignKey("vessels.imo_number", ondelete="CASCADE"), index=True, nullable=False)
+    vessel_name   = Column(String(255), nullable=True)
+
+    # MariApps' own internal row id (grid column 'transactionDtId') — the real unique
+    # key for this record, when the grid actually exposes it. Far more reliable than
+    # composing a fingerprint from BDN reference number (often blank for non-"Bunkering"
+    # transaction types) + attachment filename (blank whenever no attachment exists or
+    # the download failed) — see the fingerprint bug this replaced.
+    transaction_dt_id = Column(String(100), nullable=True, index=True)
+
+    # Grid columns (Bunker Report > Fuels tab)
+    transaction_type   = Column(String(100), nullable=True)   # e.g. "Bunkering", "Inventory Adjustment"
+    voyage_leg         = Column(String(100), nullable=True)   # e.g. "AM KIRTI V 38/06"
+    port               = Column(String(255), nullable=True)
+    fuel_type          = Column(String(100), nullable=True)   # e.g. "VLSFO (0.1 -0...."
+    imo_fuel_grade     = Column(String(50), nullable=True)    # e.g. "HFO", "MDO"
+    bdn_reference_no   = Column(String(255), nullable=True, index=True)
+    rob_after_mt       = Column(Float, nullable=True)
+    quantity_mt        = Column(Float, nullable=True)
+    sulphur_content    = Column(Float, nullable=True)          # supplier/BDN-declared
+    density_15c        = Column(Float, nullable=True)          # supplier/BDN-declared, kg/m3
+    kinematic_viscosity = Column(Float, nullable=True)         # supplier/BDN-declared, cSt @ 40/50C
+    flash_point_c      = Column(Float, nullable=True)
+
+    # BDN Data group (grid columns after Flash Point)
+    time_zone            = Column(String(20), nullable=True)
+    marpol_sample_no     = Column(String(255), nullable=True)
+    begin_of_bunkering    = Column(String(100), nullable=True)  # kept as displayed string, e.g. "08-Jul-2026 18:05"
+    end_of_bunkering      = Column(String(100), nullable=True)
+    supplier_company      = Column(String(255), nullable=True)
+    methane_number         = Column(Float, nullable=True)
+    comments               = Column(TEXT, nullable=True)
+    bunker_analysis_status = Column(String(100), nullable=True)  # e.g. "Awaiting"
+
+    # Analysis Data group — lab-tested results, distinct from the supplier/BDN-declared
+    # values above (same physical properties, different source — lab_ prefix keeps them
+    # from colliding with/being confused for the BDN certificate's own stated values).
+    lab_report_date          = Column(String(100), nullable=True)
+    lab_density_15c          = Column(Float, nullable=True)      # kg/m3
+    lab_sulphur_content      = Column(Float, nullable=True)      # %
+    lab_kinematic_viscosity  = Column(Float, nullable=True)      # cSt @ 40/50C
+    lab_lcv_mj_kg            = Column(Float, nullable=True)      # discovered later: a BDN-declared LCV
+                                                                    # column also exists (see lcv_mj_kg below) —
+                                                                    # this is specifically the lab-tested one.
+    lcv_mj_kg                = Column(Float, nullable=True)      # supplier/BDN-declared
+    fuel_quantity_fa_report  = Column(String(100), nullable=True)  # format unclear from source — kept as text, not cast to a number
+
+    # Attachments (Bunker Delivery Note PDF(s), uploaded to Azure Blob Storage).
+    # One MariApps transaction can carry MULTIPLE files (e.g. BDN + Note of
+    # Protest + LOP) — `attachments` is the source of truth, a JSONB list of
+    # {file_name, file_size, blob_url, blob_path}. The four singular columns
+    # below are kept as a convenience mirror of attachments[0] (the primary/
+    # first file) for simple single-attachment UI reads — do not treat them
+    # as authoritative when a transaction has more than one file.
+    attachment_file_name = Column(String(500), nullable=True)
+    attachment_file_size = Column(String(50), nullable=True)  # raw string as shown, e.g. "431.94 Kb"
+    blob_url              = Column(TEXT, nullable=True)        # full URL to the uploaded blob
+    blob_path              = Column(String(1000), nullable=True)  # container-relative path
+    attachments            = Column(JSONB, nullable=True)  # [{file_name, file_size, blob_url, blob_path}, ...]
+
+    raw_json      = Column(JSONB, nullable=True)   # full scraped row, for anything not mapped above
+    fingerprint   = Column(String(255), index=True, unique=True)  # SHA256 of IMO|transactionDtId (one row per MariApps transaction)
     scraped_at    = Column(DateTime, default=datetime.utcnow, index=True)

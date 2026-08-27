@@ -1,3 +1,4 @@
+azure-storage-blob           # MariApps Bunker Report PDF attachment uploads — version unpinned, not in lockfile
 annotated-doc==0.0.4
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4

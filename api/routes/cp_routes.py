@@ -144,45 +144,47 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
     sql += ' ORDER BY a."Voyage_No", a."Date", a."Time_UTC"'
     raw_rows = [dict(m) for m in db.execute(text(sql), params).mappings().all()]
     
-    # Filter rows strictly by BOSP and EOSP (to match get_voyage_summary)
+    # Filter rows strictly by BOSP and EOSP (to match get_voyage_summary).
+    # A voyage/leg is only "finalised" once it has a real EOSP after its COSP
+    # (BOSP) — an ongoing voyage with no EOSP yet is excluded entirely rather
+    # than reported using its last available row as a stand-in arrival (client
+    # request 2026-08: "report will be prepared only when EOSP comes after
+    # COSP and ports will be finalised only from EOSP event report"). Any
+    # trailing rows after the last EOSP (an unfinished next leg) are dropped
+    # too, for the same reason.
     valid_rows = []
-    
+
     # Group by Voyage_No to apply bounds per voyage
     by_voyage = {}
     for r in raw_rows:
         by_voyage.setdefault(r["Voyage_No"], []).append(r)
-        
+
     for v_no, v_rows in by_voyage.items():
         bosps = [r for r in v_rows if r["event_type"] and "BOSP" in r["event_type"].upper()]
         eosps = [r for r in v_rows if r["event_type"] and "EOSP" in r["event_type"].upper()]
-        
-        eosp_record = eosps[-1] if eosps else None
+
+        if not eosps:
+            continue  # ongoing voyage — no EOSP yet, nothing to report on it
+
+        eosp_record = eosps[-1]
         bosp_record = None
         if bosps:
-            if eosp_record:
-                eosp_dt = f"{eosp_record['Date']}T{eosp_record['Time_UTC'] or '00:00'}"
-                valid_bosps = [b for b in bosps if f"{b['Date']}T{b['Time_UTC'] or '00:00'}" <= eosp_dt]
-                if valid_bosps:
-                    bosp_record = valid_bosps[0]
-            else:
-                bosp_record = bosps[0]
-                
-        first = v_rows[0] if v_rows else None
-        last = v_rows[-1] if v_rows else None
-        
+            eosp_dt = f"{eosp_record['Date']}T{eosp_record['Time_UTC'] or '00:00'}"
+            valid_bosps = [b for b in bosps if f"{b['Date']}T{b['Time_UTC'] or '00:00'}" <= eosp_dt]
+            if valid_bosps:
+                bosp_record = valid_bosps[0]
+
+        first = v_rows[0]
         dep_record = bosp_record if bosp_record else first
-        arr_record = eosp_record if eosp_record else last
-        
-        if dep_record and arr_record:
-            dep_dt = f"{dep_record['Date']}T{dep_record['Time_UTC'] or '00:00'}"
-            arr_dt = f"{arr_record['Date']}T{arr_record['Time_UTC'] or '00:00'}"
-            for r in v_rows:
-                r_dt = f"{r['Date']}T{r['Time_UTC'] or '00:00'}"
-                if dep_dt <= r_dt <= arr_dt:
-                    valid_rows.append(r)
-        else:
-            valid_rows.extend(v_rows)
-            
+        arr_record = eosp_record  # always the real EOSP — never falls back to "last row"
+
+        dep_dt = f"{dep_record['Date']}T{dep_record['Time_UTC'] or '00:00'}"
+        arr_dt = f"{arr_record['Date']}T{arr_record['Time_UTC'] or '00:00'}"
+        for r in v_rows:
+            r_dt = f"{r['Date']}T{r['Time_UTC'] or '00:00'}"
+            if dep_dt <= r_dt <= arr_dt:
+                valid_rows.append(r)
+
     return valid_rows
 
 

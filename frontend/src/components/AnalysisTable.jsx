@@ -1,5 +1,6 @@
 import { useState, useMemo, memo, useRef, useCallback } from 'react'
 import { useReactTable, getCoreRowModel, flexRender } from '@tanstack/react-table'
+import { Download, Loader2 } from 'lucide-react'
 import { getSavedReports } from '../utils/savedReports'
 import './AnalysisTable.css'
 
@@ -56,6 +57,76 @@ function CellValue({ val }) {
   return <span className={isNum ? 'cell-num' : ''}>{s}</span>
 }
 
+// ── Excel export helpers ─────────────────────────────────────────────────────
+// Mirrors the on-screen cell formatting (fmtCell + the lat/lon special-casing
+// in buildColumns' cell renderer above) so the exported sheet matches exactly
+// what's visible in the table — same rows, same columns, same values.
+function exportCellValue(dbColumn, row) {
+  if (dbColumn === 'VoyageMeta_latitude_operational_LF') {
+    const deg = parseFloat(row[dbColumn])
+    if (!isNaN(deg)) {
+      const min = row.VoyageMeta_latitude_lat_minutes_operational_LF || 0
+      let dir = row.VoyageMeta_latitude_lat_direction_operational_LF || ''
+      if (!dir || !isNaN(dir)) dir = deg >= 0 ? 'N' : 'S'
+      return `${Math.abs(deg)}°${Number(min).toFixed(1)}'${dir}`
+    }
+  }
+  if (dbColumn === 'VoyageMeta_longitude_operational_LF') {
+    const deg = parseFloat(row[dbColumn])
+    if (!isNaN(deg)) {
+      const min = row.VoyageMeta_longitude_minutes_operational_LF || row.VoyageMeta_longitude_lon_minutes_operational_LF || 0
+      let dir = row.VoyageMeta_longitude_direction_operational_LF || row.VoyageMeta_longitude_lon_direction_operational_LF || ''
+      if (!dir || !isNaN(dir)) dir = deg >= 0 ? 'E' : 'W'
+      return `${Math.abs(deg)}°${Number(min).toFixed(1)}'${dir}`
+    }
+  }
+  const val = row[dbColumn]
+  const s = fmtCell(val)
+  if (s == null) return ''
+  // Keep genuine numbers as numbers (not strings) so Excel treats them as numeric
+  const isNum = typeof val === 'number' || (typeof val === 'string' && /^-?\d+\.?\d*$/.test(val.trim()))
+  return isNum ? Number(s) : s
+}
+
+// Exports exactly the rows/columns currently shown on screen (same filters,
+// same visible-columns selection, same sort order) to a formatted .xlsx —
+// same client-side pattern already used for the Fleet Status export.
+async function exportAnalysisExcel(rows, dataCols, vesselName) {
+  const ExcelJS = (await import('exceljs')).default
+  const { saveAs } = (await import('file-saver')).default
+
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Noon Records', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  })
+
+  sheet.columns = dataCols.map(c => ({ header: c.header, key: c.id, width: 18 }))
+
+  const headerRow = sheet.getRow(1)
+  headerRow.height = 22
+  headerRow.eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+
+  rows.forEach((row, idx) => {
+    const rowData = {}
+    dataCols.forEach(c => { rowData[c.id] = exportCellValue(c.id, row) })
+    const excelRow = sheet.addRow(rowData)
+    if (idx % 2 === 1) {
+      excelRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBF0FA' } }
+      })
+    }
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const safeName = (vesselName || 'Vessel').replace(/[^a-z0-9]+/gi, '_')
+  saveAs(blob, `${safeName}_Noon_Records_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
 // ── Column builder ────────────────────────────────────────────────────────────
 // Columns that are identity but should never appear in the table
 const HIDDEN_COLS = new Set(['raw_log_id', 'raw_report_id', 'source_id'])
@@ -94,7 +165,35 @@ const VGD_PRIORITY = [
   'Weather_Ucut_avg_operational_LF',
 ]
 
-function buildColumns(columnsMeta, visibleExtras, scanResults) {
+const COMPLIANCE_CLS = {
+  'Non-compliant': 'compliance-red',
+  'Compliant': 'compliance-green',
+  'Excluded (weather)': 'compliance-amber',
+  'Not evaluable': 'compliance-amber',
+  'Unmatched': 'compliance-amber',
+}
+
+function rowDateKey(row) {
+  return String(row.log_date || row.date || '').slice(0, 10)
+}
+
+// Same passage-boundary/port-side exclusion set the backend CP compliance pilot uses
+// (backend/cp/cp_compliance_v2.py's _NON_SEA_PASSAGE_EVENT_TYPES) — BOSP/COSP/EOSP/
+// Arrival Report/Departure Report/Noon at port are never actually judged for speed/fuel
+// compliance, only "Noon at sea" steaming rows are. complianceByDate is keyed by calendar
+// DATE though (worst-status-wins across a day's reports), so without this check every
+// other report sharing that date — a BOSP, an EOSP, a Departure Report — would visually
+// inherit the "Noon at sea" row's verdict on that same day, looking as if it had been
+// individually judged when it never was.
+const _NON_SEA_PASSAGE_LOG_TYPES = new Set(['BOSP', 'COSP', 'EOSP', 'ARRIVAL REPORT', 'DEPARTURE REPORT', 'NOON AT PORT'])
+function isSeaPassageReport(row) {
+  // MariApps rows carry it in `log_type`, WNI rows in `event_type` — both display under
+  // the same "Log Type" column header (see expander.py's identity-column definitions).
+  const logType = String(row.log_type || row.event_type || '').trim().toUpperCase()
+  return !_NON_SEA_PASSAGE_LOG_TYPES.has(logType)
+}
+
+function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors) {
   // Which columns to show: identity (except hidden ones) + user-toggled (pink)
   const visible = columnsMeta.filter(m => {
     if (HIDDEN_COLS.has(m.db_column)) return false
@@ -139,6 +238,20 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
     })
 
     sorted = [...stickySlots, ...vgdPriority, ...vgdRest, ...others]
+  }
+
+  // Compliance status column (Phase 3a pilot — AM KIRTI/GCL FOS only; blank elsewhere).
+  // Always first, ahead of the error count column.
+  const complianceCol = {
+    id: '__compliance__',
+    accessorKey: '__compliance__',
+    header: 'Compliance',
+    size: 110,
+    cell: ({ row }) => {
+      const status = isSeaPassageReport(row.original) ? complianceByDate?.[rowDateKey(row.original)] : null
+      if (!status) return <span className="cell-null">—</span>
+      return <span className={`compliance-pill ${COMPLIANCE_CLS[status] || ''}`}>{status}</span>
+    },
   }
 
   // Error count column (always first, computed)
@@ -199,7 +312,11 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
     }
   })
 
-  return [errCol, ...dataCols]
+  // Compliance/Errors are diagnostic to the noon-report data itself, not to
+  // emissions — hidden while the Emission focus filter is active so the table
+  // reads as a clean emissions view, same as how Performance-focused columns
+  // aren't cluttered by unrelated fields.
+  return hideComplianceErrors ? dataCols : [complianceCol, errCol, ...dataCols]
 }
 
 
@@ -208,10 +325,14 @@ function buildColumns(columnsMeta, visibleExtras, scanResults) {
 // the column layout changes (e.g. swapping, renaming, adding/removing columns).
 // Without this, TanStack Table's cached row references might fool memo into skipping
 // re-render and the body would show stale cells while the header already reflects new columns.
-const TableRow = memo(({ row, idx, isSelected, sr, onClick, columns }) => {
+const TableRow = memo(({ row, idx, isSelected, sr, onClick, columns, complianceStatus }) => {
+  const rowCls = [
+    isSelected ? 'selected' : '',
+    complianceStatus === 'Non-compliant' ? 'row-noncompliant' : '',
+  ].filter(Boolean).join(' ')
   return (
     <tr
-      className={isSelected ? 'selected' : ''}
+      className={rowCls || undefined}
       onClick={(e) => onClick(e, row, idx)}
     >
       {row.getVisibleCells().map(cell => (
@@ -227,8 +348,9 @@ const TableRow = memo(({ row, idx, isSelected, sr, onClick, columns }) => {
 })
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filtersApplied }) {
+export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filtersApplied, complianceByDate, vesselName, hideComplianceErrors }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [exporting, setExporting] = useState(false)
   const lastSelectedIdx = useRef(null)
 
   const sortedRows = useMemo(() => {
@@ -266,11 +388,28 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
   }, [sortedRows])
 
   const columns = useMemo(
-    () => buildColumns(columnsMeta || [], visibleExtras, scanResults),
-    [columnsMeta, visibleExtras, scanResults]
+    () => buildColumns(columnsMeta || [], visibleExtras, scanResults, complianceByDate, hideComplianceErrors),
+    [columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors]
   )
 
   const table = useReactTable({ data: sortedRows, columns, getCoreRowModel: getCoreRowModel() })
+
+  const handleExportExcel = useCallback(async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      // Same rows/columns the table is rendering — excludes the UI-only Errors and
+      // Compliance columns, which are computed from lookup maps (scanResults /
+      // complianceByDate) rather than plain row properties, so a raw row[id] read
+      // would just come back blank for them.
+      const dataCols = columns.filter(c => c.id !== '__errors__' && c.id !== '__compliance__')
+      await exportAnalysisExcel(sortedRows, dataCols, vesselName)
+    } catch (e) {
+      console.error('Excel export failed', e)
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, columns, sortedRows, vesselName])
 
   const handleRowClick = useCallback((e, row, idx) => {
     const isCtrl = e.ctrlKey || e.metaKey
@@ -323,6 +462,20 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
   }
 
   return (
+    <div className="table-wrap">
+      <div className="table-toolbar">
+        <span className="table-row-count">{sortedRows.length} report{sortedRows.length === 1 ? '' : 's'}</span>
+        <button
+          type="button"
+          className={`table-export-btn ${exporting ? 'spinning' : ''}`}
+          onClick={handleExportExcel}
+          disabled={exporting}
+          title="Export the current view to Excel"
+        >
+          {exporting ? <Loader2 size={13} className="icon-spin" /> : <Download size={13} />}
+          <span>Export Excel</span>
+        </button>
+      </div>
     <div className="table-container">
       <table className="analysis-table">
         <thead>
@@ -339,6 +492,7 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
         <tbody>
           {table.getRowModel().rows.map((row, idx) => {
             const sr = scanResults?.[row.index]
+            const complianceStatus = isSeaPassageReport(row.original) ? complianceByDate?.[rowDateKey(row.original)] : null
             return (
               <TableRow
                 key={row.id}
@@ -348,11 +502,13 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
                 sr={sr}
                 onClick={handleRowClick}
                 columns={columns}
+                complianceStatus={complianceStatus}
               />
             )
           })}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }

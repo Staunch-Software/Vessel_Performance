@@ -1,3 +1,4 @@
+import { useState, useRef, useLayoutEffect } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, LabelList, ReferenceLine, ReferenceArea
@@ -104,7 +105,7 @@ function filterUnderway(rows) {
 // daily    → sum ME/AE per calendar date (one bar/day)
 // event    → one bar per report row (date + event type)
 // underway → underway rows only, summed per calendar date
-function buildData(rows, mode, voyageView) {
+function buildData(rows, mode, voyageView, complianceByDate) {
   // If in voyage view, determine the earliest date for each voyage to sort them chronologically
   const voyageMinDate = {}
   if (voyageView) {
@@ -233,7 +234,10 @@ function buildData(rows, mode, voyageView) {
       .sort((a, b) => new Date(a) - new Date(b))
       .map(key => {
         const { me, ae } = byDate[key]
-        return { key, label: fmt(key), 'ME FOC': me, 'AE FOC': ae, total: me + ae }
+        return {
+          key, label: fmt(key), 'ME FOC': me, 'AE FOC': ae, total: me + ae,
+          nonCompliant: complianceByDate?.[key] === 'Non-compliant',
+        }
       })
   }
 }
@@ -301,12 +305,31 @@ function TotalLabel(props) {
   )
 }
 
-export default function FuelBarChart({ rows, mode = 'daily', voyageView = false }) {
-  const data = buildData(rows, mode, voyageView)
+export default function FuelBarChart({ rows, mode = 'daily', voyageView = false, complianceByDate }) {
+  const data = buildData(rows, mode, voyageView, complianceByDate)
+
+  const chartAreaRef = useRef(null)
+  const [measuredWidth, setMeasuredWidth] = useState(0)
+
+  // The chart wrapper div has both a fixed `width` (minChartWidth, to force horizontal
+  // scroll once there are many bars) AND `minWidth: '100%'`. Whenever the container is
+  // wider than minChartWidth (few bars), minWidth wins and the REAL rendered width is
+  // the container's width, not minChartWidth — so badge/star position math must use the
+  // actual measured width, not the static minChartWidth guess, or markers drift left.
+  useLayoutEffect(() => {
+    const el = chartAreaRef.current
+    if (!el) return
+    const measure = () => setMeasuredWidth(el.getBoundingClientRect().width)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [data.length])
 
   if (!data.length) return null
 
   const minChartWidth = data.length * 26
+  const effectiveWidth = Math.max(minChartWidth, measuredWidth || 0)
 
   const voyageRegions = []
   if (voyageView && data.length) {
@@ -332,7 +355,7 @@ export default function FuelBarChart({ rows, mode = 'daily', voyageView = false 
   // HTML badge positions — account for XAxis padding so centres are accurate
   // Chart: margin.left=0, XAxis padding.left=26, padding.right=8, margin.right=10
   const xPadL    = 26
-  const usable   = minChartWidth - 40 - xPadL - 8 - 10 // content minus Y-axis, xAxis padding, right margin
+  const usable   = effectiveWidth - 40 - xPadL - 8 - 10 // content minus Y-axis, xAxis padding, right margin
   const slotWidth = data.length > 0 ? usable / data.length : 0
   const voyageBadges = voyageRegions.length > 1
     ? voyageRegions.map((r, idx) => {
@@ -343,13 +366,35 @@ export default function FuelBarChart({ rows, mode = 'daily', voyageView = false 
       })
     : []
 
+  // Charter-Party non-compliance star markers (Phase 3a pilot — AM KIRTI/GCL FOS only).
+  // Same absolute-positioned HTML-overlay technique as the voyage badges above, since
+  // Recharts' LabelList/content mechanism isn't rendering anything in this setup.
+  const nonCompliantStars = data
+    .map((d, i) => ({ d, i }))
+    .filter(({ d }) => d.nonCompliant)
+    .map(({ d, i }) => ({ key: d.key, centerX: 40 + xPadL + (i + 0.5) * slotWidth }))
+
   return (
     <>
 
       <div style={{ position: 'relative', width: '100%', height: 260 }}>
         {/* 1) Scrollable Chart Area */}
         <div className="fuel-chart-scroll-container" style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden', paddingBottom: '4px', height: 260 }}>
-          <div style={{ position: 'relative', height: 245, minWidth: '100%', width: minChartWidth, paddingLeft: 40 }}>
+          <div ref={chartAreaRef} style={{ position: 'relative', height: 245, minWidth: '100%', width: minChartWidth, paddingLeft: 40 }}>
+
+            {/* Charter-Party non-compliance star markers — Phase 3a pilot (AM KIRTI/GCL FOS only) */}
+            {nonCompliantStars.map(s => (
+              <span
+                key={`star_${s.key}`}
+                title="Charter-Party non-compliant day (Phase 3a pilot)"
+                style={{
+                  position: 'absolute', top: 26, left: s.centerX,
+                  transform: 'translateX(-50%)',
+                  color: '#e05050', fontSize: 12, lineHeight: 1,
+                  zIndex: 4, pointerEvents: 'none',
+                }}
+              >★</span>
+            ))}
 
             {/* Voyage badge overlay — HTML so it is never clipped by SVG */}
             {voyageBadges.map(b => (

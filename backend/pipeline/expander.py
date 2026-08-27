@@ -291,6 +291,167 @@ def _wni_direct_display(meta: dict) -> str:
 # Sentinel: presence of this dedicated column means the extras have been added.
 _WNI_DIRECT_SENTINEL = _WNI_DIRECT_COLS[0] if _WNI_DIRECT_COLS else None
 
+# ── MariApps direct fields — Consumption tab "Grade" columns ──────────────────
+# Each fuel consumer's "Grade" cell on the Consumption tab's Fuel Oil grid is a
+# COMPOSITE string, not a single value, e.g.:
+#   "VLSFO / HFO/ 0.47%/ 369/ 971.900/ 74.12 MT/ 21-Jun-2026 21:45"
+# = ISO Grade / Fuel Type / Sulphur% / Viscosity(cSt) / Density(kg/m3) / ROB after
+#   (MT) / last bunkered date-time. Confirmed from 10+ real rows across multiple
+# vessels — notably a Marine Diesel Oil row shows viscosity 3.25 and density
+# 839.000 (correct for MDO, vs. VLSFO's ~200-370 cSt / ~940-995 kg/m3), which
+# pins down field order unambiguously.
+#
+# The raw key already exists in mari_metadata.json/mariapps_col_map.json (e.g.
+# "Consumption_Data.Section0::Composite Boiler::Grade" -> db_column
+# cons_section0_composite_boiler_grade) and detail_extractor.py already scrapes
+# it into raw_mariapps_logs.raw_json — but it was never actually reaching a
+# usable column: the auto-generated MARIAPPS_TO_NEWCOL mapping collides all 4
+# consumers' Grade values onto the SAME New Column Name as 3 unrelated fields
+# (pressure/temperature/volume), and _map_flat_to_newcols() keeps only the
+# first non-null of those competing sources. So today Grade is captured but not
+# reliably surfaced anywhere. Rather than touch the generated
+# service_variable_mapping.py (auto-regenerated from an .xlsx pair, not meant to
+# be hand-edited), this bypasses it the same way _WNI_DIRECT_FIELDS does for WNI:
+# dedicated columns added via ALTER TABLE, populated straight from raw_json.
+_MARIAPPS_GRADE_CONSUMERS = [
+    # (consumer key used in column names, exact MariApps label used in raw_json)
+    ("composite_boiler", "Composite Boiler"),
+    ("aux_engine",        "Aux Engine"),
+    ("aux_boiler",        "Aux Boiler"),
+    ("main_engine",        "Main Engine"),
+]
+
+# (subfield key, display name, unit)
+_GRADE_SUBFIELDS = [
+    ("iso_grade",         "ISO Grade",        ""),
+    ("fuel_type",         "Fuel Type",        ""),
+    ("sulphur_pct",       "Sulphur",          "%"),
+    ("viscosity_cst",     "Viscosity",        "cSt"),
+    ("density_kg_m3",     "Density",          "kg/m³"),
+    ("rob_after_mt",      "ROB After",        "MT"),
+    ("last_bunkered_at",  "Last Bunkered",    ""),
+]
+
+_CONSUMER_DISPLAY_PREFIX = {
+    "composite_boiler": "Composite Boiler",
+    "aux_engine":         "Aux Engine",
+    "aux_boiler":         "Aux Boiler",
+    "main_engine":         "Main Engine",
+}
+
+
+def _mariappsx_col(consumer_key: str, subfield_key: str) -> str:
+    return (f"mariappsx_{consumer_key}_{subfield_key}")[:_PG_MAX_IDENT]
+
+
+def _parse_grade_string(raw) -> dict:
+    """Split one Consumption-tab Grade cell into its 7 sub-values. Returns a
+    dict of all-None if raw is empty/missing or doesn't match the expected
+    7-slash-separated shape — this is scraped free text off a live UI, not a
+    guaranteed contract, so a shape mismatch is logged and skipped rather than
+    ever raising and breaking the surrounding backfill/live-write."""
+    empty = {sf: None for sf, _, _ in _GRADE_SUBFIELDS}
+    if not raw or not isinstance(raw, str):
+        return empty
+    parts = [p.strip() for p in raw.split("/")]
+    if len(parts) != 7:
+        log.warning(f"[GRADE]    Unexpected Grade format ({len(parts)} part(s), expected 7): {raw!r}")
+        return empty
+    iso_grade, fuel_type, sulphur_raw, viscosity_raw, density_raw, rob_raw, last_bunkered_at = parts
+
+    def _num(s):
+        try:
+            return float(re.sub(r"[^0-9.\-]", "", s))
+        except (ValueError, TypeError):
+            return None
+
+    return {
+        "iso_grade":        iso_grade or None,
+        "fuel_type":        fuel_type or None,
+        "sulphur_pct":      _num(sulphur_raw),
+        "viscosity_cst":    _num(viscosity_raw),
+        "density_kg_m3":    _num(density_raw),
+        "rob_after_mt":     _num(rob_raw),
+        "last_bunkered_at": last_bunkered_at or None,
+    }
+
+
+def _mariapps_extra_fields(raw_json, table_cols) -> dict:
+    """Pull + parse each consumer's Grade cell straight from raw_json into its
+    7 dedicated columns (only those physically present in the table)."""
+    out = {}
+    if not isinstance(raw_json, dict):
+        return out
+    consumption = raw_json.get("Consumption_Data")
+    if isinstance(consumption, dict):
+        for consumer_key, consumer_label in _MARIAPPS_GRADE_CONSUMERS:
+            raw_grade = consumption.get(f"Section0::{consumer_label}::Grade")
+            parsed = _parse_grade_string(raw_grade)
+            for sf, _, _ in _GRADE_SUBFIELDS:
+                col = _mariappsx_col(consumer_key, sf)
+                if col in table_cols:
+                    out[col] = parsed[sf]
+
+    # CONFIRMED real bug: VoyageMeta_trimm_operational_LF (an EXISTING column in the
+    # generated schema) never gets a value because MARIAPPS_TO_NEWCOL's source key
+    # for it is "trimm", but the actual raw field flattens to "trim_m" (from
+    # raw_json['Excel_Data']['Trim(m)'] via flatten_mariapps's snake-casing) — a
+    # name mismatch, not missing data. Confirmed a real value (-2.6) exists for
+    # AM TARANG right now, silently dropped purely by this mismatch. Pulled
+    # directly here rather than editing the generated service_variable_mapping.py
+    # (explicitly marked DO NOT edit manually) — same bypass approach as the Grade
+    # fields above, but targeting an EXISTING column, not a new dedicated one.
+    excel_data = raw_json.get("Excel_Data")
+    if isinstance(excel_data, dict) and "VoyageMeta_trimm_operational_LF" in table_cols:
+        trim_val = excel_data.get("Trim(m)")
+        if trim_val is not None and str(trim_val).strip() != "":
+            out["VoyageMeta_trimm_operational_LF"] = str(trim_val)
+
+    return out
+
+
+_MARIAPPS_DIRECT_META = []
+for _ck, _cl in _MARIAPPS_GRADE_CONSUMERS:
+    for _sf, _disp, _unit in _GRADE_SUBFIELDS:
+        _MARIAPPS_DIRECT_META.append({
+            "col":          _mariappsx_col(_ck, _sf),
+            "display_name": f"{_CONSUMER_DISPLAY_PREFIX[_ck]} {_disp}",
+            "category":     "Emission",
+            "unit":         _unit,
+        })
+_MARIAPPS_DIRECT_COLS = [m["col"] for m in _MARIAPPS_DIRECT_META]
+# Sentinel: presence of this dedicated column means the Grade extras have been added.
+_MARIAPPS_DIRECT_SENTINEL = _MARIAPPS_DIRECT_COLS[0] if _MARIAPPS_DIRECT_COLS else None
+
+# ── "Also show under Emission" columns ─────────────────────────────────────────
+# Per explicit request: these 30 pre-existing columns (already in their own normal
+# category — Voyage/Vessel, Weather, etc.) should ADDITIONALLY appear under the
+# "Emission" capsule in the picker, WITHOUT losing their original category. This is
+# additive (see `emission` on ExpandedColumnMetadata), unlike `performance` which
+# replaces the category outright — the frontend pushes a flagged column into both
+# its normal group and an "Emission" group (same toggle, shown twice).
+_EMISSION_EXTRA_COLUMNS = {
+    # Voyage/Vessel (11)
+    "Vessel_DISP_avg_operational_LF", "Vessel_DOG_dCnt_operational_LF",
+    "Vessel_DTW_dCnt_operational_LF", "Vessel_SOG_avg_operational_LF",
+    "Vessel_SOGcal_avg_operational_LF", "Vessel_STW_avg_operational_LF",
+    "Vessel_STWcal_avg_operational_LF", "Vessel_Ta_avg_operational_LF",
+    "Vessel_Tf_avg_operational_LF", "VoyageMeta_apparent_slip_operational_LF",
+    "VoyageMeta_real_slip_operational_LF",
+    # Voyage Meta / ports (4)
+    "VoyageMeta_log_durationh_operational_LF", "VoyageMeta_to_port_operational_LF",
+    "VoyageMeta_arrival_port_current_leg_operational_LF",
+    "VoyageMeta_departure_port_last_leg_operational_LF",
+    # Weather (13)
+    "Weather_Hsl_operational_LF", "Weather_Hwv_operational_LF", "Weather_Tair_operational_LF",
+    "Weather_Tsl_operational_LF", "Weather_Tsw_operational_LF", "Weather_Twv_operational_LF",
+    "Weather_Ucut_operational_LF", "Weather_Uwit_operational_LF", "Weather_hsw_operational_LF",
+    "Weather_pair_operational_LF", "Weather_psicut_operational_LF",
+    "Weather_psiwit_operational_LF", "Weather_psiwvt_operational_LF",
+    # Fuel consumption (2)
+    "AE_FO_mFOCAE_dCnt_operational_LF", "ME_FO_mFOCME_dCnt_operational_LF",
+}
+
 # Rebuild-detection sentinel: new schema has this column
 _SCHEMA_SENTINEL = "Vessel_SOG_avg_operational_LF"
 
@@ -543,6 +704,33 @@ def create_expanded_tables(engine):
             log.debug(f"Performance flag update: {_e}")
             conn.rollback()
 
+        # Add emission column if table existed without it (migration)
+        try:
+            conn.execute(text(
+                "ALTER TABLE expanded_column_metadata ADD COLUMN IF NOT EXISTS "
+                "emission BOOLEAN DEFAULT FALSE"
+            ))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
+        # Force-update emission flag on existing rows from the known set.
+        # ADDITIVE only — unlike performance, never clear it based on absence here,
+        # since the Grade columns' `emission` intent is expressed via `category`
+        # ("Emission" directly) rather than this flag; only touch columns actually
+        # in _EMISSION_EXTRA_COLUMNS so nothing else gets silently reset.
+        try:
+            if _EMISSION_EXTRA_COLUMNS:
+                placeholders = ", ".join(f"'{c}'" for c in _EMISSION_EXTRA_COLUMNS)
+                conn.execute(text(
+                    f"UPDATE expanded_column_metadata SET emission = TRUE  "
+                    f"WHERE db_column IN ({placeholders})"
+                ))
+                conn.commit()
+        except Exception as _e:
+            log.debug(f"Emission flag update: {_e}")
+            conn.rollback()
+
         if "expanded_mariapps_data" not in existing:
             conn.execute(text(f"""
                 CREATE TABLE expanded_mariapps_data (
@@ -580,6 +768,13 @@ def create_expanded_tables(engine):
         for c in _WNI_DIRECT_COLS:
             conn.execute(text(
                 f'ALTER TABLE expanded_wni_data ADD COLUMN IF NOT EXISTS "{c}" TEXT'
+            ))
+
+        # Dedicated MariApps direct columns (raw_json → expanded_mariapps_data,
+        # bypassing the service-variable Grade collision). Idempotent.
+        for c in _MARIAPPS_DIRECT_COLS:
+            conn.execute(text(
+                f'ALTER TABLE expanded_mariapps_data ADD COLUMN IF NOT EXISTS "{c}" TEXT'
             ))
 
         conn.commit()
@@ -624,7 +819,7 @@ def populate_column_metadata(engine):
                 "source": source, "db_column": col, "display_name": disp,
                 "category": cat, "unit": unit, "description": disp,
                 "is_active": True, "is_identity": True,
-                "performance": False, "sort_order": so,
+                "performance": False, "emission": False, "sort_order": so,
             })
             so += 1
 
@@ -654,6 +849,7 @@ def populate_column_metadata(engine):
                 "is_active":    meta.get("is_active", False),
                 "is_identity":  False,
                 "performance":  nc in _PERFORMANCE_COLUMNS,
+                "emission":     nc in _EMISSION_EXTRA_COLUMNS,
                 "sort_order":   so,
             })
             so += 1
@@ -673,6 +869,26 @@ def populate_column_metadata(engine):
                     "is_active":    True,
                     "is_identity":  False,
                     "performance":  False,
+                    "emission":     False,
+                    "sort_order":   so,
+                })
+                so += 1
+
+        # MariApps-only dedicated direct columns (Consumption-tab Grade, parsed).
+        # Active by default so they show in the grid immediately.
+        if source == "mari_apps":
+            for dm in _MARIAPPS_DIRECT_META:
+                entries.append({
+                    "source":       source,
+                    "db_column":    dm["col"],
+                    "display_name": dm["display_name"],
+                    "category":     dm["category"],
+                    "unit":         dm["unit"],
+                    "description":  dm["display_name"],
+                    "is_active":    True,
+                    "is_identity":  False,
+                    "performance":  False,
+                    "emission":     False,
                     "sort_order":   so,
                 })
                 so += 1
@@ -683,10 +899,10 @@ def populate_column_metadata(engine):
             conn.execute(text("""
                 INSERT INTO expanded_column_metadata
                     (source, db_column, display_name, category, unit,
-                     description, is_active, is_identity, performance, sort_order)
+                     description, is_active, is_identity, performance, emission, sort_order)
                 VALUES
                     (:source, :db_column, :display_name, :category, :unit,
-                     :description, :is_active, :is_identity, :performance, :sort_order)
+                     :description, :is_active, :is_identity, :performance, :emission, :sort_order)
                 ON CONFLICT (source, db_column) DO UPDATE SET
                     display_name = EXCLUDED.display_name,
                     category     = EXCLUDED.category,
@@ -694,6 +910,7 @@ def populate_column_metadata(engine):
                     description  = EXCLUDED.description,
                     is_active    = EXCLUDED.is_active,
                     performance  = EXCLUDED.performance,
+                    emission     = EXCLUDED.emission,
                     sort_order   = EXCLUDED.sort_order
             """), entries)
         conn.commit()
@@ -762,6 +979,7 @@ def backfill_mariapps(engine, batch_size: int = 50):
                         "source_id":        "mari_apps",
                         "loading_condition": lc,
                         **data_rec,
+                        **_mariapps_extra_fields(raw_json, table_cols),
                     }
                     _upsert_row(conn, "expanded_mariapps_data", "raw_log_id", record)
                     processed += 1
@@ -868,6 +1086,7 @@ def write_expanded_mariapps(conn, raw_log_id, vessel_imo, log_date,
             "source_id":         "mari_apps",
             "loading_condition": lc,
             **data_rec,
+            **_mariapps_extra_fields(raw_json, table_cols),
         }
         _upsert_row(conn, "expanded_mariapps_data", "raw_log_id", record)
     except Exception as exc:
@@ -961,13 +1180,25 @@ def setup_expanded_tables(engine):
             wni_extras_missing = True
             log.info("expanded_wni_data missing WNI direct columns — will add and backfill.")
 
-    create_expanded_tables(engine)   # ALTERs the dedicated WNI columns into place
+    # ── Detect missing MariApps direct columns (Consumption Grade) → re-backfill ──
+    mariapps_extras_missing = False
+    if not needs_rebuild and "expanded_mariapps_data" in existing and _MARIAPPS_DIRECT_SENTINEL:
+        with engine.connect() as _c:
+            cols = {r[0] for r in _c.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='expanded_mariapps_data'"
+            ))}
+        if _MARIAPPS_DIRECT_SENTINEL not in cols:
+            mariapps_extras_missing = True
+            log.info("expanded_mariapps_data missing Grade direct columns — will add and backfill.")
+
+    create_expanded_tables(engine)   # ALTERs the dedicated WNI/MariApps columns into place
 
     need_backfill_m = "expanded_mariapps_data" not in existing
     need_backfill_w = "expanded_wni_data"       not in existing
 
-    if need_backfill_m or need_backfill_w or needs_rebuild or wni_extras_missing:
-        if need_backfill_m or needs_rebuild:
+    if need_backfill_m or need_backfill_w or needs_rebuild or wni_extras_missing or mariapps_extras_missing:
+        if need_backfill_m or needs_rebuild or mariapps_extras_missing:
             backfill_mariapps(engine)
         if need_backfill_w or needs_rebuild or wni_extras_missing:
             backfill_wni(engine)

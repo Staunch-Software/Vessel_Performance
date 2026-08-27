@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 
 def run_automated_login():
     log.info("Starting background automated secure Microsoft SSO login...")
+    log.info(f"  ↳ MARIAPPS_HEADLESS={os.getenv('MARIAPPS_HEADLESS', 'true')} (unset defaults to headless=True)")
 
     # Credentials come from .env (never hardcode). The account must have MFA
     # disabled so this can complete without human interaction.
@@ -28,8 +29,12 @@ def run_automated_login():
             "cannot run automated MariApps login."
         )
 
+    # Defaults to headless=True so this can run on the (headless, no-XServer)
+    # deployment server. Set MARIAPPS_HEADLESS=false in .env when running this
+    # locally if you want to watch/debug the SSO flow in a visible browser.
+    headless = os.getenv("MARIAPPS_HEADLESS", "true").lower() != "false"
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True) # Keep False until login is 100% stable
+        browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
@@ -64,6 +69,20 @@ def run_automated_login():
         except Exception as e:
             log.error(f"Failed to enter email: {e}")
             browser.close(); return
+
+        # --- STEP 2b: "Choose a way to sign in" (new MFA-method picker Microsoft added
+        # after this script was written) — defaults to "Approve a request on my
+        # Microsoft Authenticator app" instead of going straight to the password
+        # field, which is what made Step 3 below time out. Click "Use my password"
+        # if this screen shows up; skip silently if it doesn't (older/direct flow).
+        try:
+            use_password = page.locator("text='Use my password'").first
+            use_password.wait_for(state="visible", timeout=5000)
+            use_password.click()
+            log.info("  ↳ 'Choose a way to sign in' screen shown — clicked 'Use my password'.")
+            time.sleep(1)
+        except Exception:
+            pass  # screen didn't appear — proceed straight to the password field
 
         # --- STEP 3: Password ---
         log.info("Entering password...")

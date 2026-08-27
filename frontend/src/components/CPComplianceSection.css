@@ -90,6 +90,9 @@
 
 .cpc-row.red   td { background: rgba(224, 80, 80, 0.08); }
 .cpc-row.amber td { background: rgba(212, 160, 42, 0.08); }
+.cpc-row-expandable { cursor: pointer; }
+.cpc-row-expandable:hover td { background: rgba(127, 168, 204, 0.08); }
+.cpc-expand-cell { width: 20px; color: #7fa8cc; }
 
 .cpc-status-pill {
   font-size: 10px;
@@ -101,6 +104,33 @@
 .cpc-status-pill.red   { background: #3a1010; color: #e05050; }
 .cpc-status-pill.amber { background: #3a2e10; color: #d4a02a; }
 .cpc-status-pill.green { background: #0e3320; color: #4ecb6e; }
+.cpc-status-pill.grey  { background: #1e2e3f; color: #7fa8cc; }
+
+/* ── Daily (per-report) drill-down ───────────────────────────────────────── */
+.cpc-daily-wrap-row td { padding: 0; background: #08111d; border-bottom: 1px solid #1e3a5f; }
+.cpc-daily-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 14px;
+  color: #d4a02a;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.cpc-daily-note svg { flex-shrink: 0; margin-top: 2px; }
+.cpc-daily-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.cpc-daily-table th {
+  text-align: left;
+  padding: 5px 10px;
+  background: #0a1422;
+  color: #5a7fa8;
+  font-weight: 600;
+  border-bottom: 1px solid #1e3a5f;
+  white-space: nowrap;
+}
+.cpc-daily-table td { padding: 4px 10px; color: #9fb8d4; white-space: nowrap; }
+.cpc-daily-row.red   td { background: rgba(224, 80, 80, 0.06); }
+.cpc-daily-row.amber td { background: rgba(212, 160, 42, 0.06); }
 
 .cpc-footnote {
   display: flex;
