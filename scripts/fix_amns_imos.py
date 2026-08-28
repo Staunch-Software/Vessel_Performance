@@ -7,7 +7,7 @@ vessels in the database.
 Background
 ----------
 The Wartsila FOS scraper uses the correct real-world IMO numbers for these
-vessels, but the `vessels` table was seeded with incorrect IMOs.  This
+vessels, but the 'vessels' table was seeded with incorrect IMOs.  This
 mismatch caused AMNS POLAR, AMNSI MAXIMUS and AMNSI STALLION to be
 invisible on the Fleet Status page because the Ozellar fleet filter joins
 fleet_status_data.imo -> vessels.imo_number.
@@ -18,19 +18,22 @@ Correction map (wrong -> correct)
   AMNSI MAXIMUS  : 9628893 -> 9942768
   AMNSI STALLION : 9628910 -> 9942770
 
+Strategy (no superuser required)
+---------------------------------
+  1. INSERT a new vessels row with the correct IMO (copy of the old row).
+  2. UPDATE all child/FK tables to point to the new IMO.
+  3. DELETE the old vessels row (now safe -- nothing references it).
+
 Usage
 -----
-  python scripts/fix_amns_imos.py
+  python3 scripts/fix_amns_imos.py
 
-Run this ONCE on any environment where the wrong IMOs are still present.
-The script is safe to re-run -- it will simply report 0 rows updated if the
-correction has already been applied.
+Safe to re-run: already-corrected vessels are skipped automatically.
 """
 
 import sys
 import os
 
-# Make sure project root is on the path so we can use backend.database
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from dotenv import load_dotenv
@@ -91,61 +94,73 @@ def main():
     cur = conn.cursor()
 
     try:
-        # Temporarily disable FK trigger checks so we can update the parent
-        # (vessels) and all child tables freely within one transaction.
-        cur.execute("SET session_replication_role = 'replica'")
-
         total_updated = 0
 
         for old_imo, new_imo in IMO_CORRECTIONS.items():
-            # Resolve vessel name for display
-            cur.execute("SELECT vessel_name FROM vessels WHERE imo_number = %s", (old_imo,))
-            row = cur.fetchone()
-            if not row:
-                # Check if already corrected
-                cur.execute("SELECT vessel_name FROM vessels WHERE imo_number = %s", (new_imo,))
-                row2 = cur.fetchone()
-                if row2:
-                    print(f"\n  [SKIP] {row2[0]}: already corrected ({old_imo} -> {new_imo})")
+
+            # -- Check if old IMO still exists --------------------------------
+            cur.execute(
+                "SELECT imo_number, vessel_id, vessel_name, wni_enabled, mari_enabled, owner_group "
+                "FROM vessels WHERE imo_number = %s",
+                (old_imo,)
+            )
+            old_row = cur.fetchone()
+
+            if not old_row:
+                cur.execute(
+                    "SELECT vessel_name FROM vessels WHERE imo_number = %s", (new_imo,)
+                )
+                already = cur.fetchone()
+                if already:
+                    print(f"\n  [SKIP] {already[0]}: already corrected "
+                          f"({old_imo} -> {new_imo})")
                 else:
-                    print(f"\n  [SKIP] IMO {old_imo} not found in vessels table")
+                    print(f"\n  [SKIP] IMO {old_imo} not found -- skipping")
                 continue
 
-            vessel_name = row[0]
+            _, vessel_id, vessel_name, wni_enabled, mari_enabled, owner_group = old_row
             print(f"\n  Fixing {vessel_name}: {old_imo} -> {new_imo}")
 
-            # 1. Update parent table
+            # Step 1: INSERT new parent row with correct IMO
+            # (ON CONFLICT DO NOTHING makes re-runs safe)
             cur.execute(
-                "UPDATE vessels SET imo_number = %s WHERE imo_number = %s",
-                (new_imo, old_imo)
+                "INSERT INTO vessels "
+                "  (imo_number, vessel_id, vessel_name, wni_enabled, mari_enabled, owner_group) "
+                "VALUES (%s, %s, %s, %s, %s, %s) "
+                "ON CONFLICT (imo_number) DO NOTHING",
+                (new_imo, vessel_id, vessel_name, wni_enabled, mari_enabled, owner_group)
             )
-            print(f"    vessels                        : {cur.rowcount} row(s) updated")
-            total_updated += cur.rowcount
+            print(f"    vessels (INSERT correct IMO) : done")
 
-            # 2. Update all child tables
+            # Step 2: UPDATE all child tables -- now the new parent row exists
             for table, col in CHILD_TABLES:
                 cur.execute(
                     f"UPDATE {table} SET {col} = %s WHERE {col} = %s",
                     (new_imo, old_imo)
                 )
                 if cur.rowcount > 0:
-                    print(f"    {table:<30}: {cur.rowcount} row(s) updated")
+                    print(f"    {table:<30}: {cur.rowcount} row(s) re-pointed")
                     total_updated += cur.rowcount
 
-        # Re-enable FK checks then commit
-        cur.execute("SET session_replication_role = 'origin'")
+            # Step 3: DELETE old parent row -- safe now, nothing references it
+            cur.execute(
+                "DELETE FROM vessels WHERE imo_number = %s", (old_imo,)
+            )
+            print(f"    vessels (DELETE wrong IMO)   : done")
+            total_updated += 1
+
         conn.commit()
 
         print()
         print("=" * 60)
         if total_updated > 0:
-            print(f"  SUCCESS: {total_updated} total row(s) updated across all tables.")
+            print(f"  SUCCESS: {total_updated} total row(s) corrected.")
         else:
-            print("  No rows updated -- IMOs may already be correct.")
+            print("  No rows updated -- IMOs are already correct.")
         print("=" * 60)
 
         # -- Final verification ------------------------------------------------
-        print("\n  Verifying fleet_status_data match ...")
+        print("\n  Verifying fleet_status_data link ...")
         cur.execute("""
             SELECT v.vessel_name, fsd.imo, MAX(fsd.scraped_at) AS latest_scrape
             FROM vessels v
@@ -162,11 +177,11 @@ def main():
             print()
             print("  Fleet Status data is now linked correctly.")
             print("  Run the Wartsila scraper to refresh live positions:")
-            print("    python -m backend.pipeline.wartsila_scraper")
+            print("    python3 -m backend.pipeline.wartsila_scraper")
         else:
             print("  No fleet_status_data rows found yet.")
             print("  Run the Wartsila scraper to populate live positions:")
-            print("    python -m backend.pipeline.wartsila_scraper")
+            print("    python3 -m backend.pipeline.wartsila_scraper")
 
     except Exception as e:
         conn.rollback()
