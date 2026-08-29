@@ -134,37 +134,6 @@ const HIDDEN_COLS = new Set(['raw_log_id', 'raw_report_id', 'source_id'])
 // Identity sticky columns — vessel_imo always first, then log metadata
 const STICKY_ORDER = ['vessel_imo', 'log_type', 'event_type', 'log_date', 'date', 'log_number', 'voyage_no']
 
-// Priority columns shown first in the table (new Service Variable column names).
-const VGD_PRIORITY = [
-  // Identity / voyage
-  'status', 'leg_number', 'loading_condition',
-  'VoyageMeta_to_port_operational_LF',
-  'VoyageMeta_departure_port_last_leg_operational_LF',
-  'VoyageMeta_arrival_port_current_leg_operational_LF',
-  // Draft / displacement
-  'Vessel_Ta_avg_operational_LF',
-  'Vessel_Tf_avg_operational_LF',
-  'Vessel_DISP_avg_operational_LF',
-  // Speed / distance / duration
-  'Vessel_SOG_avg_operational_LF',
-  'Vessel_STW_avg_operational_LF',
-  'Vessel_DOG_dCnt_operational_LF',
-  'VoyageMeta_log_durationh_operational_LF',
-  // Fuel
-  'ME_FO_mFOME_dCnt_operational_LF',
-  'AE_FO_mFOAE_dCnt_operational_LF',
-  'AuxBoiler_mFOBL_dCnt_operational_LF',
-  // Engine
-  'ME_NME_avg_operational_LF',
-  'ME_PeffestME_avg_operational_LF',
-  'ME_PSME_avg_operational_LF',
-  // Weather
-  'Weather_Hwv_avg_operational_LF',
-  'Weather_Uwit_avg_operational_LF',
-  'Weather_psiwit_avg_operational_LF',
-  'Weather_Ucut_avg_operational_LF',
-]
-
 const COMPLIANCE_CLS = {
   'Non-compliant': 'compliance-red',
   'Compliant': 'compliance-green',
@@ -216,28 +185,35 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
   if (hasUserOrder) {
     sorted = [...stickySlots, ...nonSticky]
   } else {
-    const vgdPrioritySet = new Set(VGD_PRIORITY)
-    const vgdPriority = VGD_PRIORITY.map(k => nonSticky.find(m => m.db_column === k)).filter(Boolean)
-    const vgdRest     = nonSticky.filter(m =>
-      (m.category === 'Vessel General Data') && !vgdPrioritySet.has(m.db_column)
-    )
-    // Everything else: non-VGD columns that are NOT already placed in vgdPriority.
-    // (Priority columns can belong to other categories — e.g. loading_condition is
-    //  'Identity', destination port is 'Voyage Metadata' — so excluding only the
-    //  VGD-category ones previously let them render twice.)
-    const others = nonSticky.filter(m =>
-      m.category !== 'Vessel General Data' && !vgdPrioritySet.has(m.db_column)
-    )
+    // Mirror ColumnPicker's buildOrder() exactly: 'Performance' category first,
+    // then 'Emission' (if any column belongs to it), then every other category in
+    // the order it first appears in the backend-sorted (sort_order) column list —
+    // NOT alphabetical. Within a category, columns keep their incoming sort_order.
+    // A column is placed once, under its primary category (the `performance` flag
+    // wins over `category`, matching the picker) — the picker's additive `emission`
+    // flag only affects visibility/grouping in the picker UI, it doesn't duplicate
+    // the column here.
+    const catOf = m => (m.performance ? 'Performance' : (m.category || 'Other'))
 
-    // Sort "others" by category alphabetically, then sort_order within category
-    others.sort((a, b) => {
-      const catA = a.category || 'ZZZ'
-      const catB = b.category || 'ZZZ'
-      if (catA !== catB) return catA.localeCompare(catB)
-      return (a.sort_order ?? 0) - (b.sort_order ?? 0)
-    })
+    const catOrder = []
+    for (const m of nonSticky) {
+      const cat = catOf(m)
+      if (!catOrder.includes(cat)) catOrder.push(cat)
+    }
+    if (!catOrder.includes('Performance')) catOrder.unshift('Performance')
+    const rest = catOrder.filter(c => c !== 'Performance' && c !== 'Emission')
+    const finalCatOrder = [
+      'Performance',
+      ...(catOrder.includes('Emission') ? ['Emission'] : []),
+      ...rest,
+    ]
 
-    sorted = [...stickySlots, ...vgdPriority, ...vgdRest, ...others]
+    const others = []
+    for (const cat of finalCatOrder) {
+      others.push(...nonSticky.filter(m => catOf(m) === cat))
+    }
+
+    sorted = [...stickySlots, ...others]
   }
 
   // Compliance status column (Phase 3a pilot — AM KIRTI/GCL FOS only; blank elsewhere).
