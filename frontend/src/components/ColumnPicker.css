@@ -71,6 +71,18 @@
 }
 .cp-close:hover { background: rgba(239,68,68,0.12); color: #f87171; border-color: #f87171; }
 
+/* ── Save error banner (surfaces failed saves — see ColumnPicker.jsx saveError) ── */
+.cp-save-error {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  font-size: 12px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
 /* ── Legend ── */
 .cp-legend {
   display: flex;

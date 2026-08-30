@@ -435,11 +435,18 @@ _MARIAPPS_DIRECT_SENTINEL = _MARIAPPS_DIRECT_COLS[0] if _MARIAPPS_DIRECT_COLS el
 from ..cp.cp_compliance_v2 import _pick_sea_warranty, _normalize_loading_cond
 
 _CP_WARRANTY_DIRECT_META = [
-    {"col": "mariappsx_cp_warranted_speed_kn", "display_name": "CP Warranted Speed",   "category": "Emission", "unit": "kn"},
-    {"col": "mariappsx_cp_speed_tolerance_kn", "display_name": "CP Speed Tolerance",   "category": "Emission", "unit": "kn"},
+    {"col": "mariappsx_cp_warranted_speed_kn",         "display_name": "CP Warranted Speed",       "category": "Emission", "unit": "kn"},
+    {"col": "mariappsx_cp_speed_tolerance_kn",         "display_name": "CP Speed Tolerance",       "category": "Emission", "unit": "kn"},
+    {"col": "mariappsx_cp_warranted_consumption_mtday", "display_name": "CP Warranted Consumption", "category": "Emission", "unit": "mt/day"},
+    {"col": "mariappsx_cp_consumption_tolerance_pct",  "display_name": "CP Consumption Tolerance", "category": "Emission", "unit": "%"},
 ]
 _CP_WARRANTY_DIRECT_COLS = [m["col"] for m in _CP_WARRANTY_DIRECT_META]
 _CP_WARRANTY_SENTINEL = _CP_WARRANTY_DIRECT_COLS[0]
+# Separate sentinel for the 2 consumption columns added after the speed/tolerance
+# pair already shipped — _CP_WARRANTY_SENTINEL alone would already be satisfied
+# on any DB that has the original 2 columns, so the migration below would never
+# fire to add these 2 new ones.
+_CP_CONSUMPTION_SENTINEL = "mariappsx_cp_warranted_consumption_mtday"
 
 
 def _fetch_active_cp_sea_warranty(conn, vessel_imo):
@@ -447,7 +454,8 @@ def _fetch_active_cp_sea_warranty(conn, vessel_imo):
     for one vessel. Callers should cache this per vessel_imo across a batch run —
     it's the same warranty set for every report from that vessel."""
     rows = conn.execute(text("""
-        SELECT w.loading_condition, w.speed_mode, w.warranted_speed_kn, w.speed_tolerance_kn
+        SELECT w.loading_condition, w.speed_mode, w.warranted_speed_kn, w.speed_tolerance_kn,
+               w.total_cons_mt_day, w.cons_tolerance_pct
         FROM cp_sea_warranty w
         JOIN cp_vessel_description d ON d.id = w.cp_id
         WHERE d.vessel_imo = :imo AND d.doc_status = 'Active'
@@ -481,6 +489,10 @@ def _cp_warranty_extra_fields(conn, vessel_imo, loading_condition_raw, observed_
         out["mariappsx_cp_warranted_speed_kn"] = warranty.get("warranted_speed_kn")
     if "mariappsx_cp_speed_tolerance_kn" in table_cols:
         out["mariappsx_cp_speed_tolerance_kn"] = warranty.get("speed_tolerance_kn")
+    if "mariappsx_cp_warranted_consumption_mtday" in table_cols:
+        out["mariappsx_cp_warranted_consumption_mtday"] = warranty.get("total_cons_mt_day")
+    if "mariappsx_cp_consumption_tolerance_pct" in table_cols:
+        out["mariappsx_cp_consumption_tolerance_pct"] = warranty.get("cons_tolerance_pct")
     return out
 
 
@@ -607,6 +619,37 @@ _PERFORMANCE_COLUMNS = {
     "VoyageMeta_departure_port_last_leg_operational_LF",
     "VoyageMeta_arrival_port_current_leg_operational_LF",
 }
+
+# Manager-specified default order for the Performance category (MariApps + WNI —
+# every column below exists for both sources). Only these 18 get a forced low
+# sort_order (their list index) so they render first, in this exact sequence,
+# every time populate_column_metadata() regenerates the table from scratch — a
+# code-level default that survives the DELETE+reinsert on every backend restart
+# (unlike the picker's drag-to-reorder user_sort_order, which does not; see the
+# populate_column_metadata() docstring/comment for that separate, still-open bug).
+# The remaining ~46 Performance columns keep whatever sort_order they'd otherwise
+# get from the main entries loop below, and simply sort after these 18.
+_PERFORMANCE_DEFAULT_ORDER = [
+    "VoyageMeta_to_port_operational_LF",           # Destination Port
+    "VoyageMeta_log_durationh_operational_LF",     # Log Duration (hr)
+    "ME_RHME_dCnt_operational_LF",                 # ME Running Hours (Tot.)
+    "Vessel_SOG_avg_operational_LF",                # Speed Over Ground (Avg.)
+    "Vessel_SOGcal_avg_operational_LF",             # Calculated Speed Over Ground (Avg.)
+    "Vessel_STW_avg_operational_LF",                # Speed Through Water (Avg.)
+    "VoyageMeta_real_slip_operational_LF",          # Real Slip
+    "ME_FO_mFOCME_dCnt_operational_LF",             # ME Mass FO Consumption (Tot.)
+    "AE_FO_mFOCAE_dCnt_operational_LF",             # AE Mass FO Consumption (Tot.)
+    "AuxBoiler_mFOCBL_dCnt_operational_LF",         # BL Mass FO Consumption (Tot.)
+    "ME_NME_avg_operational_LF",                    # ME Speed (Avg.)
+    "ME_mcrcalME_avg_operational_LF",               # ME Calculated Load (Avg.)
+    "ME_PSME_avg_operational_LF",                   # ME Shaft Power (Avg.)
+    "ME_DESME_dCnt_operational_LF",                 # ME Energy Produced (Tot.)
+    "ME_PeffcalME_avg_operational_LF",              # ME Calculated Effective Power (Avg.)
+    "ME_PeffestME_avg_operational_LF",              # ME Estimated Effective Power (Avg.)
+    "VoyageMeta_trimm_operational_LF",              # Trim
+    "Vessel_DISP_avg_operational_LF",               # Displacement (Avg.)
+]
+_PERFORMANCE_DEFAULT_RANK = {c: i for i, c in enumerate(_PERFORMANCE_DEFAULT_ORDER)}
 
 # ---------------------------------------------------------------------------
 # MariApps flattening
@@ -974,6 +1017,12 @@ def populate_column_metadata(engine):
                 so += 1
 
             # MariApps-only dedicated CP Warranty columns (cp_sea_warranty join).
+            # Dual-membership like the 30 Voyage/Weather/Fuel Emission fields:
+            # `performance=True` makes Performance their PRIMARY (and only actual
+            # table) placement, `emission=True` additionally surfaces them in the
+            # picker's Emission bucket (their `category` stays "Emission" — that
+            # field is otherwise unused once `performance` wins, but keeping it
+            # documents where they originated).
             for dm in _CP_WARRANTY_DIRECT_META:
                 entries.append({
                     "source":       source,
@@ -984,15 +1033,46 @@ def populate_column_metadata(engine):
                     "description":  dm["display_name"],
                     "is_active":    True,
                     "is_identity":  False,
-                    "performance":  False,
-                    "emission":     False,
+                    "performance":  True,
+                    "emission":     True,
                     "sort_order":   so,
                 })
                 so += 1
 
+    # Force the manager-specified default order onto the Performance category
+    # (applies to whichever source(s) actually have these columns — currently
+    # both mari_apps and wni). Done as a post-pass so it's independent of
+    # whatever order CLEAN_OPERATIONAL_COLUMNS happens to iterate in above.
+    for e in entries:
+        if e["db_column"] in _PERFORMANCE_DEFAULT_RANK:
+            e["sort_order"] = _PERFORMANCE_DEFAULT_RANK[e["db_column"]]
+
     with engine.connect() as conn:
-        conn.execute(text("DELETE FROM expanded_column_metadata"))
+        # NOTE: this used to unconditionally `DELETE FROM expanded_column_metadata`
+        # before the insert below. That wiped every row on every backend restart,
+        # including `user_sort_order` (the picker's drag-to-reorder position) —
+        # since a fresh INSERT has nothing to conflict with once the table's been
+        # emptied, the `ON CONFLICT ... DO UPDATE` clause never actually fired, so
+        # any manual reordering was silently lost on every deploy. Fixed by only
+        # removing rows that no longer correspond to a real column (genuinely
+        # retired fields) and otherwise relying on the upsert to update in place —
+        # `user_sort_order` is deliberately excluded from the UPDATE SET below, so
+        # it now survives restarts as intended.
         if entries:
+            valid_keys = {(e["source"], e["db_column"]) for e in entries}
+            existing_keys = {
+                (r[0], r[1]) for r in conn.execute(text(
+                    "SELECT source, db_column FROM expanded_column_metadata"
+                )).fetchall()
+            }
+            stale_keys = existing_keys - valid_keys
+            for src, col in stale_keys:
+                conn.execute(text(
+                    "DELETE FROM expanded_column_metadata WHERE source = :s AND db_column = :c"
+                ), {"s": src, "c": col})
+            if stale_keys:
+                log.info(f"Column metadata: removed {len(stale_keys)} retired column(s).")
+
             conn.execute(text("""
                 INSERT INTO expanded_column_metadata
                     (source, db_column, display_name, category, unit,
@@ -1010,6 +1090,8 @@ def populate_column_metadata(engine):
                     emission     = EXCLUDED.emission,
                     sort_order   = EXCLUDED.sort_order
             """), entries)
+        else:
+            conn.execute(text("DELETE FROM expanded_column_metadata"))
         conn.commit()
 
     log.info(f"Column metadata: {len(entries)} entries.")
@@ -1304,6 +1386,9 @@ def setup_expanded_tables(engine):
         if _CP_WARRANTY_SENTINEL not in cols:
             mariapps_extras_missing = True
             log.info("expanded_mariapps_data missing CP Warranty direct columns — will add and backfill.")
+        if _CP_CONSUMPTION_SENTINEL not in cols:
+            mariapps_extras_missing = True
+            log.info("expanded_mariapps_data missing CP Warranted Consumption columns — will add and backfill.")
 
     create_expanded_tables(engine)   # ALTERs the dedicated WNI/MariApps columns into place
 

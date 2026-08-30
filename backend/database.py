@@ -82,10 +82,26 @@ def init_db():
                 print("✅ Default admin user seeded (admin@vesselpref.com).")
         except Exception as seed_err:
             print(f"⚠️  Admin seed skipped: {seed_err}")
-        
+
     finally:
         # Always close the session
         db.close()
+
+    # ── Relax a stale NOT NULL on vessel_column_defaults.vessel_imo ─────────
+    # The model (VesselColumnDefault) declares vessel_imo nullable — NULL means
+    # "the Global (all-vessels) admin default row". The live table predates
+    # that and still enforced NOT NULL, so every attempt to save a Global-scope
+    # column default threw an IntegrityError that the frontend's fire-and-forget
+    # save call silently swallowed (looked like it saved; nothing was actually
+    # persisted). DROP NOT NULL is a no-op if already nullable, safe every run.
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE vessel_column_defaults ALTER COLUMN vessel_imo DROP NOT NULL"
+            ))
+        print("✅ vessel_column_defaults.vessel_imo nullable (Global defaults enabled).")
+    except Exception as exc:
+        print(f"⚠️  vessel_column_defaults.vessel_imo nullable migration skipped: {exc}")
 
 
 # ============================================================

@@ -172,6 +172,11 @@ export default function ColumnPicker({
   const [saving,     setSaving]    = useState(false)
   const [loading,    setLoading]   = useState(true)
   const [scope,      setScope]     = useState('vessel') // 'vessel' | 'global'
+  // Surfaces a save failure instead of the old silent .catch(console.error) —
+  // e.g. the vessel_column_defaults.vessel_imo NOT NULL bug threw on every
+  // Global-scope save while looking, in this component's own state, like it
+  // had succeeded. Cleared automatically on the next successful save.
+  const [saveError,  setSaveError] = useState(null)
   const backdropRef = useRef(null)
 
   const isAdmin = currentUser?.role === 'admin'
@@ -267,9 +272,11 @@ export default function ColumnPicker({
     setSaving(true)
     try {
       await reorderColumns(src, list)
+      setSaveError(null)
       if (src === pageSource) onOrderChanged?.()
     } catch (e) {
       console.error(e)
+      setSaveError('Could not save the new order — your change may not persist. Try again.')
     } finally {
       setSaving(false)
     }
@@ -319,12 +326,17 @@ export default function ColumnPicker({
       
       const payload = { visible: [...next] }
       const activeImo = scope === 'global' ? null : vesselImo
-      
+      const failMsg = `Could not save this ${scope === 'global' ? 'Global' : 'vessel'} column change — it may not persist. Try again.`
+
       if (modeIsAdmin) {
-        saveVesselColumnDefaults(src, activeImo, payload).catch(console.error)
+        saveVesselColumnDefaults(src, activeImo, payload)
+          .then(() => setSaveError(null))
+          .catch(e => { console.error(e); setSaveError(failMsg) })
         if (src === pageSource && scope === 'vessel') onAdminDefaultsChanged?.(next)
       } else {
-        saveUserColumnPrefs(src, activeImo, payload).catch(console.error)
+        saveUserColumnPrefs(src, activeImo, payload)
+          .then(() => setSaveError(null))
+          .catch(e => { console.error(e); setSaveError(failMsg) })
         if (src === pageSource && scope === 'vessel') onPageSetVisible(next)
       }
       return next
@@ -349,12 +361,17 @@ export default function ColumnPicker({
       
       const payload = { visible: [...next] }
       const activeImo = scope === 'global' ? null : vesselImo
-      
+      const failMsg = `Could not save this ${scope === 'global' ? 'Global' : 'vessel'} column change — it may not persist. Try again.`
+
       if (modeIsAdmin) {
-        saveVesselColumnDefaults(src, activeImo, payload).catch(console.error)
+        saveVesselColumnDefaults(src, activeImo, payload)
+          .then(() => setSaveError(null))
+          .catch(e => { console.error(e); setSaveError(failMsg) })
         if (src === pageSource && scope === 'vessel') onAdminDefaultsChanged?.(next)
       } else {
-        saveUserColumnPrefs(src, activeImo, payload).catch(console.error)
+        saveUserColumnPrefs(src, activeImo, payload)
+          .then(() => setSaveError(null))
+          .catch(e => { console.error(e); setSaveError(failMsg) })
         if (src === pageSource && scope === 'vessel') onPageSetVisible(next)
       }
       return next
@@ -455,6 +472,12 @@ export default function ColumnPicker({
             <button className="cp-close" onClick={onClose}><X size={15} /></button>
           </div>
         </div>
+
+        {saveError && (
+          <div className="cp-save-error" role="alert">
+            {saveError}
+          </div>
+        )}
 
         {/* Source toggle */}
         <div className="cp-source-bar">
