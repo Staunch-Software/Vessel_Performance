@@ -176,45 +176,48 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
   // Non-sticky columns
   const nonSticky = visible.filter(m => !stickySet.has(m.db_column))
 
-  // If the user has arranged columns in the picker (any user_sort_order set),
-  // honor that order verbatim — columnsMeta already arrives in user order from
-  // the backend. Otherwise fall back to the curated default layout.
-  const hasUserOrder = columnsMeta.some(m => m.user_sort_order != null)
+  // Group by category (Performance first, then Emission, then every other
+  // category in the order it first appears) REGARDLESS of whether any
+  // user_sort_order is set — mirrors ColumnPicker's buildOrder() exactly.
+  // `nonSticky` already arrives sorted by the backend's
+  // coalesce(user_sort_order, sort_order), so within each category group the
+  // relative order still reflects any manual drag; a column is placed once,
+  // under its primary category (the `performance` flag wins over `category`,
+  // matching the picker).
+  //
+  // A prior version bypassed this grouping entirely the moment ANY column
+  // anywhere had a non-null user_sort_order, rendering the raw flat backend
+  // order with no category segregation at all. That's fragile: `persist()`
+  // in the picker only assigns fresh user_sort_order to whatever column set
+  // was loaded in that particular picker session (e.g. an admin-filtered
+  // subset), so a drag done while viewing a partial column set leaves the
+  // untouched columns with stale/older order values — a Performance column
+  // could then end up ranked anywhere in the full ~500+ column list instead
+  // of staying grouped with the rest of Performance. Grouping unconditionally
+  // here means a manual drag can still reorder columns WITHIN a category
+  // (or reorder categories among themselves), but can never scatter one
+  // category's columns into another's territory.
+  const catOf = m => (m.performance ? 'Performance' : (m.category || 'Other'))
 
-  let sorted
-  if (hasUserOrder) {
-    sorted = [...stickySlots, ...nonSticky]
-  } else {
-    // Mirror ColumnPicker's buildOrder() exactly: 'Performance' category first,
-    // then 'Emission' (if any column belongs to it), then every other category in
-    // the order it first appears in the backend-sorted (sort_order) column list —
-    // NOT alphabetical. Within a category, columns keep their incoming sort_order.
-    // A column is placed once, under its primary category (the `performance` flag
-    // wins over `category`, matching the picker) — the picker's additive `emission`
-    // flag only affects visibility/grouping in the picker UI, it doesn't duplicate
-    // the column here.
-    const catOf = m => (m.performance ? 'Performance' : (m.category || 'Other'))
-
-    const catOrder = []
-    for (const m of nonSticky) {
-      const cat = catOf(m)
-      if (!catOrder.includes(cat)) catOrder.push(cat)
-    }
-    if (!catOrder.includes('Performance')) catOrder.unshift('Performance')
-    const rest = catOrder.filter(c => c !== 'Performance' && c !== 'Emission')
-    const finalCatOrder = [
-      'Performance',
-      ...(catOrder.includes('Emission') ? ['Emission'] : []),
-      ...rest,
-    ]
-
-    const others = []
-    for (const cat of finalCatOrder) {
-      others.push(...nonSticky.filter(m => catOf(m) === cat))
-    }
-
-    sorted = [...stickySlots, ...others]
+  const catOrder = []
+  for (const m of nonSticky) {
+    const cat = catOf(m)
+    if (!catOrder.includes(cat)) catOrder.push(cat)
   }
+  if (!catOrder.includes('Performance')) catOrder.unshift('Performance')
+  const rest = catOrder.filter(c => c !== 'Performance' && c !== 'Emission')
+  const finalCatOrder = [
+    'Performance',
+    ...(catOrder.includes('Emission') ? ['Emission'] : []),
+    ...rest,
+  ]
+
+  const sortedNonSticky = []
+  for (const cat of finalCatOrder) {
+    sortedNonSticky.push(...nonSticky.filter(m => catOf(m) === cat))
+  }
+
+  const sorted = [...stickySlots, ...sortedNonSticky]
 
   // Compliance status column (Phase 3a pilot — AM KIRTI/GCL FOS only; blank elsewhere).
   // Always first, ahead of the error count column.
