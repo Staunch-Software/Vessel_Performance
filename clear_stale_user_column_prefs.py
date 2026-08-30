@@ -18,41 +18,52 @@ Only deletes rows for TARGET_USER_IDS + SOURCE below — never touches
 `vessel_column_defaults` (the shared admin default) or any other user's
 personal preferences.
 
+NOTE: uses raw SQL (engine.execute), not the ORM. UserColumnPreference.user_id
+is a FK to `users.id`, but the `User` model lives in backend/auth.py (kept
+separate from models.py to avoid a circular import — see CLAUDE.md) and this
+script never imports it. SQLAlchemy's ORM delete needs to resolve that FK
+when sorting tables, which fails with NoReferencedTableError if `User` was
+never mapped in this process. Raw SQL sidesteps the ORM mapper entirely, so
+it doesn't matter whether `User` has been imported.
+
 Run once on production:
 
     python clear_stale_user_column_prefs.py
 """
 
-from backend.database import SessionLocal
-from backend.models import UserColumnPreference
+from sqlalchemy import text
+from backend.database import engine
 
 SOURCE = "mari_apps"
-TARGET_USER_IDS = [1, 5]
+TARGET_USER_IDS = (1, 5)
 
 
 def main():
-    db = SessionLocal()
-    try:
-        rows = db.query(UserColumnPreference).filter(
-            UserColumnPreference.source == SOURCE,
-            UserColumnPreference.user_id.in_(TARGET_USER_IDS),
-        ).all()
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT user_id, vessel_imo, column_prefs FROM user_column_preferences "
+                "WHERE source = :source AND user_id = ANY(:user_ids)"
+            ),
+            {"source": SOURCE, "user_ids": list(TARGET_USER_IDS)},
+        ).fetchall()
 
         if not rows:
             print("No matching rows found — nothing to clear.")
             return
 
         for r in rows:
-            print(
-                f"Deleting: user_id={r.user_id} vessel_imo={r.vessel_imo} "
-                f"(had {len(r.column_prefs.get('visible', []))} visible columns)"
-            )
-            db.delete(r)
+            visible = (r.column_prefs or {}).get("visible", [])
+            print(f"Deleting: user_id={r.user_id} vessel_imo={r.vessel_imo} (had {len(visible)} visible columns)")
 
-        db.commit()
-        print(f"Done. Cleared {len(rows)} stale personal preference row(s).")
-    finally:
-        db.close()
+        result = conn.execute(
+            text(
+                "DELETE FROM user_column_preferences "
+                "WHERE source = :source AND user_id = ANY(:user_ids)"
+            ),
+            {"source": SOURCE, "user_ids": list(TARGET_USER_IDS)},
+        )
+        print(f"Done. Cleared {result.rowcount} stale personal preference row(s).")
 
 
 if __name__ == "__main__":
