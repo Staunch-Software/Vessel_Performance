@@ -332,12 +332,19 @@ export default function ColumnPicker({
         saveVesselColumnDefaults(src, activeImo, payload)
           .then(() => setSaveError(null))
           .catch(e => { console.error(e); setSaveError(failMsg) })
-        if (src === pageSource && scope === 'vessel') onAdminDefaultsChanged?.(next)
+        // Sync the live page regardless of scope — a Global-scope edit still
+        // affects the vessel currently on screen (unless it has its own
+        // vessel-specific override, a rare edge case corrected by the next
+        // reload anyway). Previously gated to scope==='vessel' only, which
+        // meant Global edits saved correctly to the DB but the table behind
+        // the picker never learned about them until a full page reload.
+        if (src === pageSource) onAdminDefaultsChanged?.(next)
       } else {
         saveUserColumnPrefs(src, activeImo, payload)
           .then(() => setSaveError(null))
           .catch(e => { console.error(e); setSaveError(failMsg) })
-        if (src === pageSource && scope === 'vessel') onPageSetVisible(next)
+        // Same reasoning as onAdminDefaultsChanged above — sync regardless of scope.
+        if (src === pageSource) onPageSetVisible(next)
       }
       return next
     })
@@ -367,12 +374,19 @@ export default function ColumnPicker({
         saveVesselColumnDefaults(src, activeImo, payload)
           .then(() => setSaveError(null))
           .catch(e => { console.error(e); setSaveError(failMsg) })
-        if (src === pageSource && scope === 'vessel') onAdminDefaultsChanged?.(next)
+        // Sync the live page regardless of scope — a Global-scope edit still
+        // affects the vessel currently on screen (unless it has its own
+        // vessel-specific override, a rare edge case corrected by the next
+        // reload anyway). Previously gated to scope==='vessel' only, which
+        // meant Global edits saved correctly to the DB but the table behind
+        // the picker never learned about them until a full page reload.
+        if (src === pageSource) onAdminDefaultsChanged?.(next)
       } else {
         saveUserColumnPrefs(src, activeImo, payload)
           .then(() => setSaveError(null))
           .catch(e => { console.error(e); setSaveError(failMsg) })
-        if (src === pageSource && scope === 'vessel') onPageSetVisible(next)
+        // Same reasoning as onAdminDefaultsChanged above — sync regardless of scope.
+        if (src === pageSource) onPageSetVisible(next)
       }
       return next
     })
