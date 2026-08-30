@@ -403,6 +403,34 @@ export default function ColumnPicker({
     }
   }
 
+  // Clears the CURRENT USER's own saved column-visibility preference for this
+  // scope (This Vessel / Global), so their view falls back to the admin/Global
+  // default instead of a stale personal snapshot — e.g. one saved before a
+  // batch of new columns existed, which otherwise persists indefinitely with
+  // no other way to clear it (a personal preference, once non-empty, always
+  // wins over the admin default for that user's own view). Only meaningful in
+  // non-admin mode — admin mode already IS the shared default being edited.
+  async function handleResetVisibility() {
+    setSaving(true)
+    try {
+      const activeImo = scope === 'global' ? null : vesselImo
+      await saveUserColumnPrefs(src, activeImo, { visible: [] })
+      setSaveError(null)
+      await loadCols(src, modeIsAdmin, scope)
+      // Reuse onOrderChanged (a generic "refetch everything" signal, not
+      // onPageSetVisible) — the page's own load effect is what implements the
+      // fallback-to-admin-default logic when prefs.visible comes back empty.
+      // Calling onPageSetVisible(new Set()) directly would instead render zero
+      // columns until the next unrelated refetch.
+      if (src === pageSource) onOrderChanged?.()
+    } catch (e) {
+      console.error(e)
+      setSaveError('Could not reset your column selection. Try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // Search results — flat list, no drag
   const searchResults = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -575,6 +603,16 @@ export default function ColumnPicker({
           <button className="cp-reset-btn" onClick={handleReset} disabled={saving} title="Revert to the default column order">
             <RotateCcw size={12} /> Reset order
           </button>
+          {!modeIsAdmin && (
+            <button
+              className="cp-reset-btn"
+              onClick={handleResetVisibility}
+              disabled={saving}
+              title="Clear your personal column selection for this scope and fall back to the admin/Global default"
+            >
+              <RotateCcw size={12} /> Reset my columns
+            </button>
+          )}
           <span className="cp-footer-hint">Order changes save automatically</span>
         </div>
       </div>
