@@ -131,8 +131,15 @@ async function exportAnalysisExcel(rows, dataCols, vesselName) {
 // Columns that are identity but should never appear in the table
 const HIDDEN_COLS = new Set(['raw_log_id', 'raw_report_id', 'source_id'])
 
-// Identity sticky columns — vessel_imo always first, then log metadata
-const STICKY_ORDER = ['vessel_imo', 'log_type', 'event_type', 'log_date', 'date', 'log_number', 'voyage_no']
+// Identity sticky columns — vessel_imo always first, then log metadata.
+// loading_condition is_identity too, but wasn't listed here — it fell through
+// into the generic non-sticky/category-grouped bucket under a stray one-column
+// "Identity" category (its own `category` field is literally "Identity") that
+// the Column Manager can't even reorder (buildOrder() excludes is_identity
+// columns from the draggable list entirely), so it always rendered wherever
+// its raw backend sort_order happened to land it — in practice, last — with no
+// way to move it. Pinning it here like the other identity columns fixes that.
+const STICKY_ORDER = ['vessel_imo', 'log_type', 'event_type', 'log_date', 'date', 'log_number', 'voyage_no', 'loading_condition']
 
 const COMPLIANCE_CLS = {
   'Non-compliant': 'compliance-red',
@@ -162,7 +169,7 @@ function isSeaPassageReport(row) {
   return !_NON_SEA_PASSAGE_LOG_TYPES.has(logType)
 }
 
-function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors) {
+function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors, emissionFocus) {
   // Which columns to show: identity (except hidden ones) + user-toggled (pink)
   const visible = columnsMeta.filter(m => {
     if (HIDDEN_COLS.has(m.db_column)) return false
@@ -176,41 +183,62 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
   // Non-sticky columns
   const nonSticky = visible.filter(m => !stickySet.has(m.db_column))
 
-  // Group by category (Performance first, then Emission, then every other
-  // category in the order it first appears) REGARDLESS of whether any
-  // user_sort_order is set — mirrors ColumnPicker's buildOrder() exactly.
+  // Emission-focused view (the "Emission" category chip is active): every
+  // visible column here is a member of the Emission bucket, so there's no
+  // category clustering to do — just lay them out in the Emission bucket's
+  // OWN order (emission_sort_order, set by dragging inside Emission in the
+  // Column Manager), not their primary-category order. Falls back to arrival
+  // order for anything never dragged there.
+  if (emissionFocus) {
+    const hasEmissionOrder = nonSticky.some(m => m.emission_sort_order != null)
+    const sortedNonSticky = hasEmissionOrder
+      ? nonSticky
+          .map((m, i) => ({ m, key: m.emission_sort_order ?? (1e6 + i) }))
+          .sort((a, b) => a.key - b.key)
+          .map(x => x.m)
+      : nonSticky
+    return buildDataColumns([...stickySlots, ...sortedNonSticky], scanResults, complianceByDate, hideComplianceErrors)
+  }
+
+  // Group by category so columns stay clustered with the rest of their
+  // category instead of scattering across the full ~500+ column list.
   // `nonSticky` already arrives sorted by the backend's
   // coalesce(user_sort_order, sort_order), so within each category group the
   // relative order still reflects any manual drag; a column is placed once,
   // under its primary category (the `performance` flag wins over `category`,
   // matching the picker).
   //
-  // A prior version bypassed this grouping entirely the moment ANY column
-  // anywhere had a non-null user_sort_order, rendering the raw flat backend
-  // order with no category segregation at all. That's fragile: `persist()`
-  // in the picker only assigns fresh user_sort_order to whatever column set
-  // was loaded in that particular picker session (e.g. an admin-filtered
-  // subset), so a drag done while viewing a partial column set leaves the
-  // untouched columns with stale/older order values — a Performance column
-  // could then end up ranked anywhere in the full ~500+ column list instead
-  // of staying grouped with the rest of Performance. Grouping unconditionally
-  // here means a manual drag can still reorder columns WITHIN a category
-  // (or reorder categories among themselves), but can never scatter one
-  // category's columns into another's territory.
+  // Category ORDER itself (which category block comes before which) follows
+  // the same coalesced order — i.e. it respects a category-level drag done in
+  // the Column Manager — with one exception: until a source has ever had a
+  // manual reorder at all (no column carries a user_sort_order), we pin
+  // Performance first / Emission second as the sensible out-of-the-box
+  // default. Once ANY drag has happened, `persist()` in the picker stamps
+  // user_sort_order on every column for that source in one go, so this flag
+  // flips for the whole source at once and the forced default gets out of
+  // the way permanently — otherwise a category-level drag (e.g. moving "AE
+  // Cylinder Data" above Performance) would save correctly to the backend
+  // but keep getting silently reverted to Performance-first on every re-render.
   const catOf = m => (m.performance ? 'Performance' : (m.category || 'Other'))
+  const hasCustomOrder = columnsMeta.some(m => m.user_sort_order != null)
 
   const catOrder = []
   for (const m of nonSticky) {
     const cat = catOf(m)
     if (!catOrder.includes(cat)) catOrder.push(cat)
   }
-  if (!catOrder.includes('Performance')) catOrder.unshift('Performance')
-  const rest = catOrder.filter(c => c !== 'Performance' && c !== 'Emission')
-  const finalCatOrder = [
-    'Performance',
-    ...(catOrder.includes('Emission') ? ['Emission'] : []),
-    ...rest,
-  ]
+
+  const finalCatOrder = hasCustomOrder
+    ? catOrder
+    : (() => {
+        const withPerf = catOrder.includes('Performance') ? catOrder : ['Performance', ...catOrder]
+        const rest = withPerf.filter(c => c !== 'Performance' && c !== 'Emission')
+        return [
+          'Performance',
+          ...(withPerf.includes('Emission') ? ['Emission'] : []),
+          ...rest,
+        ]
+      })()
 
   const sortedNonSticky = []
   for (const cat of finalCatOrder) {
@@ -219,6 +247,14 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
 
   const sorted = [...stickySlots, ...sortedNonSticky]
 
+  return buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceErrors)
+}
+
+// Builds the actual TanStack column defs (Compliance/Errors + one per data
+// column) from an already-ordered list of column metadata. Shared by both
+// the normal (category-grouped) and Emission-focused paths above — only how
+// `sorted` gets its order differs between them.
+function buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceErrors) {
   // Compliance status column (Phase 3a pilot — AM KIRTI/GCL FOS only; blank elsewhere).
   // Always first, ahead of the error count column.
   const complianceCol = {
@@ -248,8 +284,8 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
   }
 
   const dataCols = sorted.map(m => {
-    const headerText = (m.display_name && String(m.display_name).trim() !== '') 
-      ? String(m.display_name) 
+    const headerText = (m.display_name && String(m.display_name).trim() !== '')
+      ? String(m.display_name)
       : (m.db_column ? String(m.db_column) : 'NO_COL');
 
     return {
@@ -259,7 +295,7 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
       size:        m.is_identity ? 110 : 140,
       cell:        ({ row, getValue }) => {
         let val = getValue()
-        
+
         if (m.db_column === 'VoyageMeta_latitude_operational_LF' && val != null) {
           const deg = parseFloat(val)
           if (!isNaN(deg)) {
@@ -272,7 +308,7 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
             return <span className="cell-num">{`${Math.abs(deg)}°${Number(min).toFixed(1)}'${dir}`}</span>
           }
         }
-        
+
         if (m.db_column === 'VoyageMeta_longitude_operational_LF' && val != null) {
           const deg = parseFloat(val)
           if (!isNaN(deg)) {
@@ -327,7 +363,7 @@ const TableRow = memo(({ row, idx, isSelected, sr, onClick, columns, complianceS
 })
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filtersApplied, complianceByDate, vesselName, hideComplianceErrors }) {
+export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filtersApplied, complianceByDate, vesselName, hideComplianceErrors, emissionFocus }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [exporting, setExporting] = useState(false)
   const lastSelectedIdx = useRef(null)
@@ -367,8 +403,8 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
   }, [sortedRows])
 
   const columns = useMemo(
-    () => buildColumns(columnsMeta || [], visibleExtras, scanResults, complianceByDate, hideComplianceErrors),
-    [columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors]
+    () => buildColumns(columnsMeta || [], visibleExtras, scanResults, complianceByDate, hideComplianceErrors, emissionFocus),
+    [columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors, emissionFocus]
   )
 
   const table = useReactTable({ data: sortedRows, columns, getCoreRowModel: getCoreRowModel() })

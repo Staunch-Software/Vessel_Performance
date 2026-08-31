@@ -27,8 +27,18 @@ const LS_VISIBLE_KEY_PREFIX = 'vp_visible_cols_'
 // `emission` is ADDITIVE (unlike `performance`, which replaces the category): a
 // column keeps its normal category AND is also pushed into an "Emission" bucket,
 // so the same field/toggle appears in both places in the picker.
+//
+// Category ORDER follows the incoming order (which already reflects any saved
+// category-level drag) once a source has ever been manually reordered — detected
+// via `user_sort_order` being set on any column, which `persist()` stamps on
+// every column for the source in one go. Until then, Performance/Emission are
+// pinned first as the out-of-the-box default. Without this distinction, the
+// picker would re-force Performance/Emission to the front on every reload,
+// permanently undoing a category drag the moment the panel is reopened even
+// though the new order was saved correctly.
 function buildOrder(cols) {
   const nonId = cols.filter(c => !c.is_identity)
+  const hasCustomOrder = cols.some(c => c.user_sort_order != null)
   const order = []
   const map = {}
   for (const c of nonId) {
@@ -40,20 +50,42 @@ function buildOrder(cols) {
       map['Emission'].push(c)
     }
   }
-  
+
   // Ensure 'Performance' is at the top and always exists
   if (!map['Performance']) {
     map['Performance'] = [];
     order.push('Performance');
   }
-  // Pin 'Performance' first, then 'Emission' right after — both near the front,
-  // ahead of the alphabetically-ordered rest.
-  const rest = order.filter(c => c !== 'Performance' && c !== 'Emission')
-  const finalOrder = [
-    'Performance',
-    ...(order.includes('Emission') ? ['Emission'] : []),
-    ...rest,
-  ]
+
+  // Every column in 'Emission' is a duplicate of its primary-category listing
+  // (see comment above `emission_sort_order` in models.py), so it needs its
+  // OWN order field — sorting by `user_sort_order` here would just reproduce
+  // wherever it sits in Performance/its real category, making an Emission
+  // drag look like it did nothing. Fall back to the incoming (primary-order-
+  // derived) position for anything that's never been dragged inside Emission.
+  if (map['Emission']) {
+    const hasEmissionOrder = map['Emission'].some(c => c.emission_sort_order != null)
+    if (hasEmissionOrder) {
+      map['Emission'] = map['Emission']
+        .map((c, i) => ({ c, key: c.emission_sort_order ?? (1e6 + i) }))
+        .sort((a, b) => a.key - b.key)
+        .map(x => x.c)
+    }
+  }
+
+  let finalOrder
+  if (hasCustomOrder) {
+    finalOrder = order
+  } else {
+    // Pin 'Performance' first, then 'Emission' right after — both near the
+    // front, ahead of the rest — as the default before any manual reorder.
+    const rest = order.filter(c => c !== 'Performance' && c !== 'Emission')
+    finalOrder = [
+      'Performance',
+      ...(order.includes('Emission') ? ['Emission'] : []),
+      ...rest,
+    ]
+  }
 
   return finalOrder.map(cat => ({ cat, columns: map[cat] }))
 }
@@ -90,7 +122,7 @@ function SortableField({ col, isOn, locked, onToggle }) {
 }
 
 // ── Sortable category block ─────────────────────────────────────────────────
-function SortableCategory({ group, expanded, onToggleExpand, visibleSet, onToggleField, onFieldDragEnd, onGroupAction }) {
+function SortableCategory({ group, expanded, onToggleExpand, visibleSet, onToggleField, onFieldDragEnd, onGroupAction, onResetCategoryOrder }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: group.cat })
   const style = {
@@ -117,6 +149,11 @@ function SortableCategory({ group, expanded, onToggleExpand, visibleSet, onToggl
         <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto', marginRight: '8px' }}>
           <button className="cp-action-btn" onClick={(e) => { e.stopPropagation(); onGroupAction(group, 'default') }}>Default</button>
           <button className="cp-action-btn" onClick={(e) => { e.stopPropagation(); onGroupAction(group, 'all') }}>All</button>
+          <button
+            className="cp-action-btn"
+            title="Revert this category's column order to default (other categories are untouched)"
+            onClick={(e) => { e.stopPropagation(); onResetCategoryOrder(group) }}
+          ><RotateCcw size={11} /></button>
         </div>
         <span className="cp-group-count">{shownCount}/{group.columns.length}</span>
       </div>
@@ -197,15 +234,17 @@ export default function ColumnPicker({
   const loadCols = useCallback(async (source, modeIsAdmin, currentScope) => {
     setLoading(true)
     try {
-      const fetched = await fetchExpandedColumns(source)
+      // activeImo drives both visibility (defaults/prefs) AND column order —
+      // fetching with it lets this vessel's own saved order (if any) win.
+      const activeImo = currentScope === 'global' ? null : vesselImo
+      const fetched = await fetchExpandedColumns(source, activeImo)
       const perfColsLower = new Set([...PERFORMANCE_COLUMNS].map(c => c.toLowerCase()))
       const withPerf = fetched.map(c => ({
         ...c, performance: c.performance || PERFORMANCE_COLUMNS.has(c.db_column) || perfColsLower.has((c.db_column || '').toLowerCase()),
       }))
-      
+
       let finalCols = withPerf
       let activeVisible = new Set()
-      const activeImo = currentScope === 'global' ? null : vesselImo
 
       if (source === pageSource && currentScope === 'vessel') {
         // If viewing the active page source for this vessel, we can use the pre-fetched sets
@@ -266,17 +305,59 @@ export default function ColumnPicker({
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  // Persist the current ordering (category order + field order) to the backend
+  // Persist the current ordering (category order + field order) to the backend.
+  // scope === 'vessel' saves it for vesselImo only ("This Vessel"); scope ===
+  // 'global' saves the shared order AND overrides any vessel-specific order
+  // already saved for these same columns (see reorder_columns() docstring).
   const persist = useCallback(async (nextOrder) => {
-    const list = nextOrder.flatMap(g => g.columns.map(c => c.db_column))
+    // A dual-membership column (performance=true AND emission=true, e.g.
+    // "Destination Port") is deliberately listed TWICE in `nextOrder` — once
+    // under its primary "Performance" group, once again under "Emission" — so
+    // it can be toggled from either bucket (see buildOrder() above). Naively
+    // flattening both copies into the saved order means whichever copy comes
+    // LATER in the list (Emission always follows Performance) silently
+    // overwrites the position of whichever copy you actually dragged, so the
+    // column always snaps back near its Emission-group spot no matter where
+    // you move it in Performance. Keep only the first occurrence per
+    // db_column — that's always its primary-category placement.
+    const seen = new Set()
+    const list = []
+    for (const g of nextOrder) {
+      for (const c of g.columns) {
+        if (seen.has(c.db_column)) continue
+        seen.add(c.db_column)
+        list.push(c.db_column)
+      }
+    }
+    const activeImo = scope === 'global' ? null : vesselImo
     setSaving(true)
     try {
-      await reorderColumns(src, list)
+      await reorderColumns(src, list, 'primary', activeImo)
       setSaveError(null)
       if (src === pageSource) onOrderChanged?.()
     } catch (e) {
       console.error(e)
       setSaveError('Could not save the new order — your change may not persist. Try again.')
+    } finally {
+      setSaving(false)
+    }
+  }, [src, pageSource, onOrderChanged, scope, vesselImo])
+
+  // Persist a drag done WITHIN the Emission bucket specifically. Every column
+  // there is a duplicate of its primary-category listing, so this must never
+  // touch user_sort_order (that column's real Performance/category position)
+  // — it saves to emission_sort_order instead, which only governs how the
+  // Emission bucket itself is arranged.
+  const persistEmissionOrder = useCallback(async (emissionCols) => {
+    const list = emissionCols.map(c => c.db_column)
+    setSaving(true)
+    try {
+      await reorderColumns(src, list, 'emission')
+      setSaveError(null)
+      if (src === pageSource) onOrderChanged?.()
+    } catch (e) {
+      console.error(e)
+      setSaveError('Could not save the new Emission order — your change may not persist. Try again.')
     } finally {
       setSaving(false)
     }
@@ -306,7 +387,12 @@ export default function ColumnPicker({
         if (oldI < 0 || newI < 0) return g
         return { ...g, columns: arrayMove(g.columns, oldI, newI) }
       })
-      persist(next)
+      if (cat === 'Emission') {
+        const emissionGroup = next.find(g => g.cat === 'Emission')
+        if (emissionGroup) persistEmissionOrder(emissionGroup.columns)
+      } else {
+        persist(next)
+      }
       return next
     })
   }
@@ -319,83 +405,120 @@ export default function ColumnPicker({
     })
   }
 
+  // NOTE: builds `next` from the current `visibleSet` state directly (not a
+  // setVisible(prev => ...) functional updater) because this runs once per
+  // click, synchronously, so `visibleSet` is never stale here. The updater
+  // form was avoided deliberately: React calls that callback during its
+  // render pass, and it used to call onPageSetVisible/onAdminDefaultsChanged
+  // (which setState a DIFFERENT component, LogbookPage) from inside it —
+  // triggering "Cannot update a component while rendering a different
+  // component". Doing the parent notification here, in the handler body
+  // (a plain event-handler execution, not a render), avoids that entirely.
   function toggleField(dbCol) {
-    setVisible(prev => {
-      const next = new Set(prev)
-      next.has(dbCol) ? next.delete(dbCol) : next.add(dbCol)
-      
-      const payload = { visible: [...next] }
-      const activeImo = scope === 'global' ? null : vesselImo
-      const failMsg = `Could not save this ${scope === 'global' ? 'Global' : 'vessel'} column change — it may not persist. Try again.`
+    const next = new Set(visibleSet)
+    next.has(dbCol) ? next.delete(dbCol) : next.add(dbCol)
+    setVisible(next)
 
-      if (modeIsAdmin) {
-        saveVesselColumnDefaults(src, activeImo, payload)
-          .then(() => setSaveError(null))
-          .catch(e => { console.error(e); setSaveError(failMsg) })
-        // Sync the live page regardless of scope — a Global-scope edit still
-        // affects the vessel currently on screen (unless it has its own
-        // vessel-specific override, a rare edge case corrected by the next
-        // reload anyway). Previously gated to scope==='vessel' only, which
-        // meant Global edits saved correctly to the DB but the table behind
-        // the picker never learned about them until a full page reload.
-        if (src === pageSource) onAdminDefaultsChanged?.(next)
-      } else {
-        saveUserColumnPrefs(src, activeImo, payload)
-          .then(() => setSaveError(null))
-          .catch(e => { console.error(e); setSaveError(failMsg) })
-        // Same reasoning as onAdminDefaultsChanged above — sync regardless of scope.
-        if (src === pageSource) onPageSetVisible(next)
-      }
-      return next
-    })
+    const payload = { visible: [...next] }
+    const activeImo = scope === 'global' ? null : vesselImo
+    const failMsg = `Could not save this ${scope === 'global' ? 'Global' : 'vessel'} column change — it may not persist. Try again.`
+
+    if (modeIsAdmin) {
+      saveVesselColumnDefaults(src, activeImo, payload)
+        .then(() => setSaveError(null))
+        .catch(e => { console.error(e); setSaveError(failMsg) })
+      // Sync the live page regardless of scope — a Global-scope edit still
+      // affects the vessel currently on screen (unless it has its own
+      // vessel-specific override, a rare edge case corrected by the next
+      // reload anyway). Previously gated to scope==='vessel' only, which
+      // meant Global edits saved correctly to the DB but the table behind
+      // the picker never learned about them until a full page reload.
+      if (src === pageSource) onAdminDefaultsChanged?.(next)
+    } else {
+      saveUserColumnPrefs(src, activeImo, payload)
+        .then(() => setSaveError(null))
+        .catch(e => { console.error(e); setSaveError(failMsg) })
+      // Same reasoning as onAdminDefaultsChanged above — sync regardless of scope.
+      if (src === pageSource) onPageSetVisible(next)
+    }
   }
 
+  // See the note on toggleField above — same reasoning applies here: build
+  // `next` from current state directly and setVisible(next) as a plain
+  // value, rather than doing the parent-notifying side effects inside a
+  // setVisible(prev => ...) updater (which React runs during its render pass).
   function handleGroupAction(group, action) {
-    setVisible(prev => {
-      const next = new Set(prev)
-      let colsToAdd = []
-      
-      if (action === 'all') {
-        colsToAdd = group.columns.map(c => c.db_column)
-      } else if (action === 'default') {
-        colsToAdd = group.columns.filter(c => c.is_active).map(c => c.db_column)
-      }
+    const next = new Set(visibleSet)
+    let colsToAdd = []
 
-      // First remove all columns in this group
-      group.columns.forEach(c => next.delete(c.db_column))
-      // Then add the targeted ones
-      colsToAdd.forEach(c => next.add(c))
-      
-      const payload = { visible: [...next] }
-      const activeImo = scope === 'global' ? null : vesselImo
-      const failMsg = `Could not save this ${scope === 'global' ? 'Global' : 'vessel'} column change — it may not persist. Try again.`
+    if (action === 'all') {
+      colsToAdd = group.columns.map(c => c.db_column)
+    } else if (action === 'default') {
+      colsToAdd = group.columns.filter(c => c.is_active).map(c => c.db_column)
+    }
 
-      if (modeIsAdmin) {
-        saveVesselColumnDefaults(src, activeImo, payload)
-          .then(() => setSaveError(null))
-          .catch(e => { console.error(e); setSaveError(failMsg) })
-        // Sync the live page regardless of scope — a Global-scope edit still
-        // affects the vessel currently on screen (unless it has its own
-        // vessel-specific override, a rare edge case corrected by the next
-        // reload anyway). Previously gated to scope==='vessel' only, which
-        // meant Global edits saved correctly to the DB but the table behind
-        // the picker never learned about them until a full page reload.
-        if (src === pageSource) onAdminDefaultsChanged?.(next)
-      } else {
-        saveUserColumnPrefs(src, activeImo, payload)
-          .then(() => setSaveError(null))
-          .catch(e => { console.error(e); setSaveError(failMsg) })
-        // Same reasoning as onAdminDefaultsChanged above — sync regardless of scope.
-        if (src === pageSource) onPageSetVisible(next)
-      }
-      return next
-    })
+    // First remove all columns in this group
+    group.columns.forEach(c => next.delete(c.db_column))
+    // Then add the targeted ones
+    colsToAdd.forEach(c => next.add(c))
+    setVisible(next)
+
+    const payload = { visible: [...next] }
+    const activeImo = scope === 'global' ? null : vesselImo
+    const failMsg = `Could not save this ${scope === 'global' ? 'Global' : 'vessel'} column change — it may not persist. Try again.`
+
+    if (modeIsAdmin) {
+      saveVesselColumnDefaults(src, activeImo, payload)
+        .then(() => setSaveError(null))
+        .catch(e => { console.error(e); setSaveError(failMsg) })
+      // Sync the live page regardless of scope — a Global-scope edit still
+      // affects the vessel currently on screen (unless it has its own
+      // vessel-specific override, a rare edge case corrected by the next
+      // reload anyway). Previously gated to scope==='vessel' only, which
+      // meant Global edits saved correctly to the DB but the table behind
+      // the picker never learned about them until a full page reload.
+      if (src === pageSource) onAdminDefaultsChanged?.(next)
+    } else {
+      saveUserColumnPrefs(src, activeImo, payload)
+        .then(() => setSaveError(null))
+        .catch(e => { console.error(e); setSaveError(failMsg) })
+      // Same reasoning as onAdminDefaultsChanged above — sync regardless of scope.
+      if (src === pageSource) onPageSetVisible(next)
+    }
   }
 
   async function handleReset() {
     setSaving(true)
     try {
-      await resetColumnOrder(src)
+      // Clears both order fields for the current scope — the primary order
+      // (this vessel's own, or the shared Global one) AND the Emission
+      // bucket's own order (always global) — so "Reset all order" really
+      // means all of it.
+      const activeImo = scope === 'global' ? null : vesselImo
+      await resetColumnOrder(src, null, 'primary', activeImo)
+      await resetColumnOrder(src, null, 'emission')
+      await loadCols(src, modeIsAdmin, scope)
+      if (src === pageSource) onOrderChanged?.()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Reset order for just ONE category's columns, leaving every other
+  // category's saved order untouched — unlike handleReset() above, which
+  // wipes the whole source's order. For the Emission bucket specifically,
+  // this must reset emission_sort_order, NOT user_sort_order — the columns
+  // shown there are duplicates, and their user_sort_order is their REAL
+  // position in Performance/their actual category, which this button has no
+  // business touching. For any other category, resets whichever scope
+  // (This Vessel / Global) is currently selected.
+  async function handleResetCategoryOrder(group) {
+    setSaving(true)
+    try {
+      const isEmission = group.cat === 'Emission'
+      const target = isEmission ? 'emission' : 'primary'
+      const activeImo = isEmission ? null : (scope === 'global' ? null : vesselImo)
+      await resetColumnOrder(src, group.columns.map(c => c.db_column), target, activeImo)
       await loadCols(src, modeIsAdmin, scope)
       if (src === pageSource) onOrderChanged?.()
     } finally {
@@ -590,6 +713,7 @@ export default function ColumnPicker({
                     onToggleField={toggleField}
                     onFieldDragEnd={handleFieldDragEnd}
                     onGroupAction={handleGroupAction}
+                    onResetCategoryOrder={handleResetCategoryOrder}
                   />
                 ))}
                 {order.length === 0 && <div className="cp-empty">No columns for this source.</div>}
@@ -600,8 +724,8 @@ export default function ColumnPicker({
 
         {/* Footer */}
         <div className="cp-footer">
-          <button className="cp-reset-btn" onClick={handleReset} disabled={saving} title="Revert to the default column order">
-            <RotateCcw size={12} /> Reset order
+          <button className="cp-reset-btn" onClick={handleReset} disabled={saving} title="Revert the ENTIRE column order for this source to default — every category, not just one">
+            <RotateCcw size={12} /> Reset all order
           </button>
           {!modeIsAdmin && (
             <button

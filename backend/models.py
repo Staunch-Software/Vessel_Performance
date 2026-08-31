@@ -573,6 +573,15 @@ class ExpandedColumnMetadata(Base):
                                                            # second time under "Emission" in the picker.
     sort_order   = Column(Integer, default=0)
     user_sort_order = Column(Integer, nullable=True)     # user-defined order (column picker); survives restarts
+    # Every column shown under the picker's "Emission" bucket is a DUPLICATE
+    # listing (its primary placement is Performance, or its own real
+    # category) — user_sort_order is that primary position. A drag done
+    # while the column sits in the Emission bucket needs somewhere else to
+    # save to, since overwriting user_sort_order there would silently move
+    # the column's real Performance/category position instead. This field is
+    # that separate, independent order — used only for arranging the
+    # Emission bucket's own internal list in the column picker.
+    emission_sort_order = Column(Integer, nullable=True)
 
     # Matches the ON CONFLICT (source, db_column) upsert in pipeline/expander.py.
     # Without this, Base.metadata.create_all() builds the table with no matching
@@ -1619,6 +1628,38 @@ class VesselColumnDefault(Base):
 
     __table_args__ = (
         UniqueConstraint("vessel_imo", "source", name="uq_vessel_col_default_vessel_source"),
+    )
+
+# ============================================================
+# TABLE: VESSEL COLUMN ORDER  (per-vessel column drag order)
+# ============================================================
+# Column order is global by default (expanded_column_metadata.user_sort_order),
+# shared by every vessel. This table lets ONE vessel keep its own independent
+# order for specific columns instead — a "This Vessel" scope reorder writes
+# rows here for just that vessel; other vessels are unaffected.
+#
+# A "Global" scope reorder is different from a normal fallback default: it
+# actively OVERRIDES any vessel-specific rows for the exact columns it
+# touches (see reorder_columns() in expanded_routes.py) — so a Global edit to
+# one category reaches into every vessel's own customization for THAT
+# category, while leaving their customization for every other category
+# alone. Order was never per-user, only per-source/per-vessel, same as the
+# existing global order.
+# ============================================================
+class VesselColumnOrder(Base):
+    __tablename__ = "vessel_column_order"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    vessel_imo = Column(String(20), ForeignKey("vessels.imo_number", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    source     = Column(String(20), nullable=False)   # 'mari_apps' | 'wni'
+    db_column  = Column(String(100), nullable=False)
+    position   = Column(Integer, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("vessel_imo", "source", "db_column",
+                         name="uq_vessel_col_order_vessel_source_column"),
     )
 
 # ============================================================

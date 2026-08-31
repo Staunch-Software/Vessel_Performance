@@ -831,6 +831,21 @@ def create_expanded_tables(engine):
         except Exception:
             conn.rollback()
 
+        # Add emission_sort_order column (the Emission picker bucket's OWN
+        # independent order — every column shown there is a duplicate of its
+        # primary-category listing, so a drag done inside Emission can't be
+        # allowed to overwrite user_sort_order, which is that column's REAL
+        # position elsewhere). Same reasoning as user_sort_order above: must
+        # survive restarts, so it's a real column, not something rebuilt here.
+        try:
+            conn.execute(text(
+                "ALTER TABLE expanded_column_metadata ADD COLUMN IF NOT EXISTS "
+                "emission_sort_order INTEGER"
+            ))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
         # Force-update emission flag on existing rows from the known set.
         # ADDITIVE only — unlike performance, never clear it based on absence here,
         # since the Grade columns' `emission` intent is expressed via `category`

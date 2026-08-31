@@ -180,7 +180,7 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
   useEffect(() => {
     let active = true
     Promise.all([
-      fetchExpandedColumns(effSource).catch(() => []),
+      fetchExpandedColumns(effSource, vesselImo).catch(() => []),
       vesselImo ? fetchVesselColumnDefaults(effSource, vesselImo).catch(() => ({})) : Promise.resolve({}),
       vesselImo ? fetchUserColumnPrefs(effSource, vesselImo).catch(() => ({})) : Promise.resolve({})
     ]).then(([cols, defs, prefs]) => {
@@ -422,7 +422,7 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
           ? <CPSummaryPanel imo={vesselImo} vesselName={vesselName} source={source} voyages={cpVoyages} loadingCond={filtersApplied?.loadingCond} />
           : loading
             ? <div className="loading-overlay"><div className="spinner" /> Loading reports…</div>
-            : <AnalysisTable rows={rows} columnsMeta={columnsMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} complianceByDate={complianceByDate} vesselName={vesselName} hideComplianceErrors={catFilter === 'Emission'} />
+            : <AnalysisTable rows={rows} columnsMeta={columnsMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} complianceByDate={complianceByDate} vesselName={vesselName} hideComplianceErrors={catFilter === 'Emission'} emissionFocus={catFilter === 'Emission'} />
         }
       </div>
 
