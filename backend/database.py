@@ -15,8 +15,16 @@ from .models import Base, DataSource
 # DATABASE ENGINE & SESSION FACTORY
 # ============================================================
 
-# Create SQLAlchemy engine with PostgreSQL connection
-engine = create_engine(config.DATABASE_URL)
+# Create SQLAlchemy engine with PostgreSQL connection.
+# pool_pre_ping: tests each pooled connection with a lightweight ping before
+# handing it out, transparently reconnecting if it's gone stale — without
+# this, a connection Postgres (or a firewall/load balancer) silently closed
+# while idle in the pool surfaces as "SSL connection has been closed
+# unexpectedly" on the next request that happens to reuse it, especially
+# under gunicorn where each worker keeps its own idle pool.
+# pool_recycle: proactively recycles connections older than 30 min, so we
+# never hold one long enough to hit a shorter idle-timeout on the DB side.
+engine = create_engine(config.DATABASE_URL, pool_pre_ping=True, pool_recycle=1800)
 
 # Session factory for creating database sessions
 # Each session represents a "workspace" for database operations
@@ -79,9 +87,9 @@ def init_db():
                 )
                 db.add(admin)
                 db.commit()
-                print("✅ Default admin user seeded (admin@vesselpref.com).")
+                print("[OK] Default admin user seeded (admin@vesselpref.com).")
         except Exception as seed_err:
-            print(f"⚠️  Admin seed skipped: {seed_err}")
+            print(f"[WARN] Admin seed skipped: {seed_err}")
 
     finally:
         # Always close the session
@@ -99,9 +107,9 @@ def init_db():
             conn.execute(text(
                 "ALTER TABLE vessel_column_defaults ALTER COLUMN vessel_imo DROP NOT NULL"
             ))
-        print("✅ vessel_column_defaults.vessel_imo nullable (Global defaults enabled).")
+        print("[OK] vessel_column_defaults.vessel_imo nullable (Global defaults enabled).")
     except Exception as exc:
-        print(f"⚠️  vessel_column_defaults.vessel_imo nullable migration skipped: {exc}")
+        print(f"[WARN] vessel_column_defaults.vessel_imo nullable migration skipped: {exc}")
 
 
 # ============================================================
