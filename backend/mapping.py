@@ -232,9 +232,9 @@ def map_mariapps_to_160(payload, excel_data=None, header_data=None):
         except (ValueError, TypeError):
             pass
 
-    out["eta"] = pd.to_datetime(val_str(excel, find_key_fuzzy(excel, ["ETA", "E.T.A"])), errors='coerce')
-    out["etb"] = pd.to_datetime(val_str(excel, find_key_fuzzy(excel, ["ETB", "E.T.B"])), errors='coerce')
-    out["ets"] = pd.to_datetime(val_str(excel, find_key_fuzzy(excel, ["ETS", "E.T.S"])), errors='coerce')
+    out["eta"] = pd.to_datetime(val_str(excel, find_key_fuzzy(excel, ["ETA", "E.T.A", "ETA(EOSP)", "ETA (EOSP)"])) or val_str(header, find_key_fuzzy(header, ["ETA", "E.T.A", "ETA(EOSP)", "ETA (EOSP)"])), errors='coerce')
+    out["etb"] = pd.to_datetime(val_str(excel, find_key_fuzzy(excel, ["ETB", "E.T.B"])) or val_str(header, find_key_fuzzy(header, ["ETB", "E.T.B"])), errors='coerce')
+    out["ets"] = pd.to_datetime(val_str(excel, find_key_fuzzy(excel, ["ETS", "E.T.S"])) or val_str(header, find_key_fuzzy(header, ["ETS", "E.T.S"])), errors='coerce')
 
     # --- WEATHER ---
     out["wind_speed"]      = val_num(perf, find_key_fuzzy(perf, ["Wind Speed"])) or val_num(excel, find_key_fuzzy(excel, ["Wind Speed"]))

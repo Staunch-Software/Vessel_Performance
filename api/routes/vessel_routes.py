@@ -743,14 +743,16 @@ def get_fleet_status(db: Session = Depends(get_db)):
 @router.get("/fleet/voyages")
 def get_fleet_voyages(db: Session = Depends(get_db)):
     """
-    Returns the most recent fleet status record for each vessel,
-    scraped from the Weathernews SSM (Fleet Status Monitoring) map page.
-    Used by the new FleetStatusPage React component to power the Leaflet map
-    and the data table.
+    Returns the most recent fleet status record for each vessel.
+    Primary data source: MariApps (MA) noon reports for port/ETA/voyage info.
+    WNI SSM (AIS-sourced): position, speed, heading, status, weather alerts.
+    MA overrides WNI for: last_port, next_port, eta, etb, voyage_number.
+    Fallback to WNI when MA report is missing or stale (> 48 hours).
     """
     try:
         from backend.models import FleetStatusData, VesselParticulars, RawNoonReport, Vessel
         from sqlalchemy import func
+        from datetime import timezone
 
         # ── Ozellar group owner companies ────────────────────────────────────────
         # All vessels managed by Ozellar belong to one of these three owner groups.
@@ -796,39 +798,161 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
             .all()
         )
 
-        formatted_records = [
-            {
+        # ── Fetch latest MariApps report per vessel ─────────────────────────────
+        # Used to override WNI's unreliable last_port / next_port / eta with
+        # master-reported values from MA noon reports.
+        # MariAppsReportData: to_port, eta, etb, loading_condition, log_date_utc
+        # AnalysisData (MA-sourced): From_Port, To_Port, Voyage_No
+        MA_STALE_HOURS = 48  # Fall back to WNI if MA report is older than this
+
+        # Subquery: max log_date_utc per vessel from mariapps_reports_data
+        ma_latest_sub = (
+            db.query(
+                MariAppsReportData.vessel_imo,
+                func.max(MariAppsReportData.log_date_utc).label("max_log_date_utc")
+            )
+            .filter(
+                MariAppsReportData.vessel_imo.in_(ozellar_imos),
+                MariAppsReportData.log_date_utc.isnot(None)
+            )
+            .group_by(MariAppsReportData.vessel_imo)
+            .subquery()
+        )
+        ma_rows = (
+            db.query(MariAppsReportData)
+            .join(
+                ma_latest_sub,
+                (MariAppsReportData.vessel_imo == ma_latest_sub.c.vessel_imo) &
+                (MariAppsReportData.log_date_utc == ma_latest_sub.c.max_log_date_utc)
+            )
+            .all()
+        )
+        ma_by_imo = {r.vessel_imo: r for r in ma_rows}
+
+        # Also fetch From_Port from AnalysisData (MA-sourced) — the last port the vessel departed
+        # Use source_id = 'mari_apps' and max Date per vessel.
+        ad_latest_sub = (
+            db.query(
+                AnalysisData.vessel_imo,
+                func.max(AnalysisData.Date).label("max_date")
+            )
+            .filter(
+                AnalysisData.vessel_imo.in_(ozellar_imos),
+                AnalysisData.source_id == "mari_apps",
+                AnalysisData.Date.isnot(None)
+            )
+            .group_by(AnalysisData.vessel_imo)
+            .subquery()
+        )
+        ad_rows = (
+            db.query(AnalysisData)
+            .join(
+                ad_latest_sub,
+                (AnalysisData.vessel_imo == ad_latest_sub.c.vessel_imo) &
+                (AnalysisData.Date == ad_latest_sub.c.max_date)
+            )
+            .filter(AnalysisData.source_id == "mari_apps")
+            .all()
+        )
+        ad_by_imo = {r.vessel_imo: r for r in ad_rows}
+
+        now_utc = datetime.now(timezone.utc)
+
+        def _ma_age_hours(ma_rec):
+            """Return hours since the MA report's log_date_utc, or None."""
+            if not ma_rec or not ma_rec.log_date_utc:
+                return None
+            log_dt = ma_rec.log_date_utc
+            if log_dt.tzinfo is None:
+                log_dt = log_dt.replace(tzinfo=timezone.utc)
+            return (now_utc - log_dt).total_seconds() / 3600
+
+        def _fmt_dt(dt_val):
+            """Serialize a datetime to ISO string, or return as-is if already string."""
+            if dt_val is None:
+                return None
+            if hasattr(dt_val, 'isoformat'):
+                return dt_val.isoformat()
+            return str(dt_val)
+
+        formatted_records = []
+        for r in records:
+            imo = r.FleetStatusData.imo
+            ma  = ma_by_imo.get(imo)
+            ad  = ad_by_imo.get(imo)
+
+            ma_age = _ma_age_hours(ma)
+            use_ma = ma_age is not None and ma_age <= MA_STALE_HOURS
+
+            # ── Port / ETA fields — MA-primary, WNI fallback ───────────────────
+            # next_port: prefer MA to_port (master-reported destination)
+            next_port = (
+                (ma.to_port if ma and ma.to_port and ma.to_port.strip() else None)
+                if use_ma else None
+            ) or r.FleetStatusData.next_port
+
+            # last_port: prefer MA From_Port from AnalysisData (MA-sourced)
+            last_port = (
+                (ad.From_Port if ad and ad.From_Port and ad.From_Port.strip() else None)
+                if use_ma else None
+            ) or r.FleetStatusData.last_port
+
+            # eta: prefer MA DateTime (precise, master-reported), fallback to WNI
+            eta = (_fmt_dt(ma.eta) if ma and ma.eta else None) or r.FleetStatusData.eta
+
+            # etb: prefer MA-only (Estimated Time of Berthing)
+            etb_ma = _fmt_dt(ma.etb) if ma and ma.etb else None
+            
+            # etd: WNI data (Estimated Time of Departure) — MA does not provide ETD, only ETS (which is different)
+            etd = r.FleetStatusData.etd
+
+            # voyage_number: prefer MA AnalysisData Voyage_No
+            voyage_number = (
+                (ad.Voyage_No if ad and ad.Voyage_No else None)
+                if use_ma else None
+            ) or r.FleetStatusData.voyage_number
+
+            # loading_condition: MA-only (Laden/Ballast — WNI doesn't provide this)
+            loading_condition = ma.loading_condition if ma else None
+
+            formatted_records.append({
+                # ── Identity ──────────────────────────────────────────────────
                 "vessel_name":      r.FleetStatusData.vessel_name,
                 "imo":              r.FleetStatusData.imo,
                 "callsign":         r.FleetStatusData.callsign,
                 "ship_type":        r.FleetStatusData.ship_type,
+                # ── Position / Navigation (WNI AIS — correct, unchanged) ────
                 "lat":              r.FleetStatusData.lat,
                 "lon":              r.FleetStatusData.lon,
                 "speed":            r.FleetStatusData.speed,
                 "heading":          r.FleetStatusData.heading,
                 "status":           r.FleetStatusData.status,
                 "pos_date":         r.FleetStatusData.pos_date,
-                "last_port":        r.FleetStatusData.last_port,
-                "etd":              r.FleetStatusData.etd,
-                "next_port":        r.FleetStatusData.next_port,
-                "eta":              r.FleetStatusData.eta,
-                "voyage_number":    r.FleetStatusData.voyage_number,
+                # ── Port / Voyage (MA-primary, WNI fallback) ─────────────────
+                "last_port":        last_port,
+                "etd":              etd,
+                "next_port":        next_port,
+                "eta":              eta,
+                "etb":              etb_ma,
+                "voyage_number":    voyage_number,
+                "loading_condition": loading_condition,  # NEW: MA-only (Laden/Ballast)
+                # ── Weather Alerts (WNI — always) ─────────────────────────────
                 "port_alert":       r.FleetStatusData.port_alert,
                 "coastal_storm":    r.FleetStatusData.coastal_storm,
                 "ocean_storm":      r.FleetStatusData.ocean_storm,
                 "tropical_cyclone": r.FleetStatusData.tropical_cyclone,
                 "pos_diff":         r.FleetStatusData.pos_diff,
                 "report_missing":   r.FleetStatusData.report_missing,
-                
+                # ── Metadata ──────────────────────────────────────────────────
+                "port_source":      "mariapps" if use_ma else "wni",
+                # ── Vessel Specs ───────────────────────────────────────────────
                 "dwt":              r.VesselParticulars.deadweight if r.VesselParticulars else r.FleetStatusData.dwt,
                 "rep_time":         r.FleetStatusData.rep_time,
                 "rep_type":         r.FleetStatusData.rep_type,
                 "service":          r.FleetStatusData.service,
                 "alert_detail":     r.FleetStatusData.alert_detail,
                 "rta":              r.FleetStatusData.rta,
-                
                 "scraped_at":       r.FleetStatusData.scraped_at.isoformat() if r.FleetStatusData.scraped_at else None,
-                
                 "flag_code":        r.FleetStatusData.flag_code or (r.VesselParticulars.flag if r.VesselParticulars else None),
                 "build_date":       r.FleetStatusData.build_date or (str(r.VesselParticulars.year_built) if (r.VesselParticulars and r.VesselParticulars.year_built) else None),
                 "length":           r.FleetStatusData.length or (round(r.VesselParticulars.length_overall, 2) if (r.VesselParticulars and r.VesselParticulars.length_overall) else None),
@@ -842,10 +966,12 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
                 "teu":              r.FleetStatusData.teu   or None,
                 "email":            r.FleetStatusData.email or None,
                 "fax":              r.FleetStatusData.fax   or None,
-                "phone":            r.FleetStatusData.phone or None
-            }
-            for r in records
-        ]
+                "phone":            r.FleetStatusData.phone or None,
+                # ── Data Source Metadata ───────────────────────────────────────
+                "port_source":          "mariapps" if use_ma else "wni",
+                "ma_report_age_hours":  round(ma_age, 1) if ma_age is not None else None,
+            })
+        
         
         # Manually append AMNS TUFMAX from RawNoonReport since its full data is stored in raw JSON
         tufmax_record = (
@@ -917,7 +1043,9 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
                 "etd":              etd_val,
                 "next_port":        data.get("Destination Port_Dest. Port") or data.get("To_Port_To_Port") or data.get("From_Port_To_Port"),
                 "eta":              eta_val,
+                "etb":              data.get("ETB"),         # ETB from email noon report if present
                 "voyage_number":    data.get("Voyage Number_#"),
+                "loading_condition": data.get("Loading Condition") or data.get("Load_Condition"),  # from email
                 "port_alert":       None,
                 "coastal_storm":    None,
                 "ocean_storm":      None,
@@ -944,7 +1072,9 @@ def get_fleet_voyages(db: Session = Depends(get_db)):
                 "teu":              None,
                 "email":            None,
                 "fax":              None,
-                "phone":            None
+                "phone":            None,
+                "port_source":          "email",
+                "ma_report_age_hours":  None,
             })
             
         return formatted_records

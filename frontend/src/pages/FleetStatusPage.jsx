@@ -102,7 +102,7 @@ function isAlertActive(value) {
   return s !== '' && s !== '0' && s !== 'none' && s !== 'null' && s !== '-'
 }
 
-// ── Alert dot component - matches WNI colored circle indicators ─────────────
+// ── Alert dot component - matches WNI colored circle indicators ─────────────────────
 function AlertDot({ value }) {
   const active = isAlertActive(value)
   return (
@@ -110,6 +110,39 @@ function AlertDot({ value }) {
       className={`fsm-alert-dot ${active ? 'active' : 'inactive'}`}
       title={active ? String(value) : 'No alert'}
     />
+  )
+}
+
+// ── Port Source Badge ─────────────────────────────────────────────────────────────────────
+// Small pill badge showing whether port/ETA data comes from MA or WNI.
+// Shown next to Last Port and Next Port cells.
+function PortSourceBadge({ source }) {
+  if (!source) return null
+  const isMa = source === 'mariapps'
+  const isEmail = source === 'email'
+  const label = isMa ? 'MA' : isEmail ? 'Email' : 'WNI'
+  const color = isMa ? '#22c55e' : isEmail ? '#a78bfa' : '#64748b'
+  const bg    = isMa ? '#052e16' : isEmail ? '#2e1065' : '#1e293b'
+  return (
+    <span
+      title={`Port data source: ${isMa ? 'MariApps noon report' : isEmail ? 'Email noon report' : 'WNI fleet status'}`}
+      style={{
+        display: 'inline-block',
+        marginLeft: 5,
+        padding: '1px 5px',
+        borderRadius: 3,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: '0.04em',
+        color,
+        background: bg,
+        border: `1px solid ${color}55`,
+        verticalAlign: 'middle',
+        lineHeight: '14px',
+      }}
+    >
+      {label}
+    </span>
   )
 }
 
@@ -125,29 +158,32 @@ async function exportExcel(data) {
 
   // 1. Define column widths and keys ONLY — no header (header writes to row 1 and conflicts)
   sheet.columns = [
-    { key: 'vessel_name',    width: 22 }, // A
-    { key: 'port_alert',     width: 14 }, // B
-    { key: 'coastal_storm',  width: 15 }, // C
-    { key: 'ocean_storm',    width: 14 }, // D
-    { key: 'tropical_cyclone', width: 18 }, // E
-    { key: 'pos_diff',       width: 12 }, // F
-    { key: 'voyage_number',  width: 14 }, // G
-    { key: 'speed',          width: 12 }, // H
-    { key: 'heading',        width: 14 }, // I
-    { key: 'pos_date',       width: 20 }, // J
-    { key: 'status',         width: 14 }, // K
-    { key: 'last_port',      width: 20 }, // L
-    { key: 'etd',            width: 20 }, // M
-    { key: 'next_port',      width: 20 }, // N
-    { key: 'eta',            width: 20 }, // O
-    { key: 'lat',            width: 14 }, // P
-    { key: 'lon',            width: 14 }, // Q
+    { key: 'vessel_name',        width: 22 }, // A
+    { key: 'port_alert',         width: 14 }, // B
+    { key: 'coastal_storm',      width: 15 }, // C
+    { key: 'ocean_storm',        width: 14 }, // D
+    { key: 'tropical_cyclone',   width: 18 }, // E
+    { key: 'pos_diff',           width: 12 }, // F
+    { key: 'voyage_number',      width: 14 }, // G
+    { key: 'speed',              width: 12 }, // H
+    { key: 'heading',            width: 14 }, // I
+    { key: 'pos_date',           width: 20 }, // J
+    { key: 'status',             width: 14 }, // K
+    { key: 'last_port',          width: 20 }, // L
+    { key: 'etd',                width: 20 }, // M
+    { key: 'next_port',          width: 20 }, // N
+    { key: 'eta',                width: 20 }, // O
+    { key: 'etb',                width: 20 }, // P
+    { key: 'loading_condition',  width: 14 }, // Q
+    { key: 'lat',                width: 14 }, // R
+    { key: 'lon',                width: 14 }, // S
+    { key: 'port_source',        width: 12 }, // T
   ]
 
   // 2. Row 1 — Group headers (merged)
   sheet.mergeCells('B1:F1') // Alert (5 cols)
   sheet.mergeCells('G1:K1') // AIS Information (5 cols)
-  sheet.mergeCells('L1:Q1') // Report Information (6 cols)
+  sheet.mergeCells('L1:T1') // Report Information (9 cols)
 
   const setGroupStyle = (cellRef, label, bgColor) => {
     const cell = sheet.getCell(cellRef)
@@ -164,7 +200,7 @@ async function exportExcel(data) {
   setGroupStyle('A1', 'Vessel Name',        'FF1E293B') // Slate 800
   setGroupStyle('B1', 'Alert',              'FF7F1D1D') // Red 900
   setGroupStyle('G1', 'AIS Information',    'FF1E3A8A') // Blue 900
-  setGroupStyle('L1', 'Report Information', 'FF14532D') // Green 900
+  setGroupStyle('L1', 'Report Information (MA Primary)', 'FF14532D') // Green 900
 
   sheet.getRow(1).height = 24
 
@@ -173,7 +209,7 @@ async function exportExcel(data) {
     'Vessel Name',
     'Port Alert', 'Coastal Storm', 'Ocean Storm', 'Tropical Cyclone', 'Pos Diff',
     'Voyage No.', 'Speed (kts)', 'Heading (deg)', 'Pos. Date', 'Status',
-    'Last Port', 'ETD', 'Next Port', 'ETA', 'Lat', 'Lon',
+    'Last Port', 'ETD', 'Next Port', 'ETA', 'ETB', 'Loading', 'Lat', 'Lon', 'Port Source',
   ]
   const row2 = sheet.getRow(2)
   subHeaders.forEach((label, idx) => {
@@ -196,23 +232,26 @@ async function exportExcel(data) {
   // 5. Append Data Rows
   data.forEach((r) => {
     sheet.addRow({
-      vessel_name:      fmt(r.vessel_name),
-      port_alert:       fmtAlert(r.port_alert),
-      coastal_storm:    fmtAlert(r.coastal_storm),
-      ocean_storm:      fmtAlert(r.ocean_storm),
-      tropical_cyclone: fmtAlert(r.tropical_cyclone),
-      pos_diff:         fmtAlert(r.pos_diff),
-      voyage_number:    fmt(r.voyage_number),
-      speed:            formatDecimal(r.speed, 1),
-      heading:          formatDecimal(r.heading, 1),
-      pos_date:         formatDate(r.pos_date),
-      status:           fmt(r.status),
-      last_port:        cleanPort(r.last_port),
-      etd:              formatDate(r.etd),
-      next_port:        cleanPort(r.next_port),
-      eta:              formatDate(r.eta),
-      lat:              formatLat(r.lat),
-      lon:              formatLon(r.lon),
+      vessel_name:       fmt(r.vessel_name),
+      port_alert:        fmtAlert(r.port_alert),
+      coastal_storm:     fmtAlert(r.coastal_storm),
+      ocean_storm:       fmtAlert(r.ocean_storm),
+      tropical_cyclone:  fmtAlert(r.tropical_cyclone),
+      pos_diff:          fmtAlert(r.pos_diff),
+      voyage_number:     fmt(r.voyage_number),
+      speed:             formatDecimal(r.speed, 1),
+      heading:           formatDecimal(r.heading, 1),
+      pos_date:          formatDate(r.pos_date),
+      status:            fmt(r.status),
+      last_port:         cleanPort(r.last_port),
+      etd:               formatDate(r.etd),
+      next_port:         cleanPort(r.next_port),
+      eta:               formatDate(r.eta),
+      etb:               formatDate(r.etb),
+      loading_condition: fmt(r.loading_condition),          // NEW
+      lat:               formatLat(r.lat),
+      lon:               formatLon(r.lon),
+      port_source:       fmt(r.port_source),               // NEW
     })
   })
 
@@ -691,22 +730,36 @@ function VesselModal({ vessel, onClose }) {
 
           {activeTab === 'ais' && (
             <div className="fsm-tab-pane">
+              {/* Data source badge row */}
+              {vessel.port_source && (
+                <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#94a3b8', fontSize: 12 }}>Port / ETA data source:</span>
+                  <PortSourceBadge source={vessel.port_source} />
+                  {vessel.ma_report_age_hours != null && (
+                    <span style={{ color: '#64748b', fontSize: 11 }}>
+                      (MA report {vessel.ma_report_age_hours}h ago)
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="fsm-info-grid">
                 {[
-                  ['Voyage No.',   fmt(vessel.voyage_number)],
-                  ['Speed',        `${formatDecimal(vessel.speed, 1)} kn`],
-                  ['Heading',      `${formatDecimal(vessel.heading, 1)}°`],
-                  ['Status',       fmt(vessel.status)],
-                  ['Position',     `${formatLat(vessel.lat)}, ${formatLon(vessel.lon)}`],
-                  ['Pos. Date',    formatDate(vessel.pos_date)],
-                  ['Last Port',    cleanPort(vessel.last_port)],
-                  ['ETD',          formatDate(vessel.etd)],
-                  ['Next Port',    cleanPort(vessel.next_port)],
-                  ['ETA',          formatDate(vessel.eta)],
-                  ['RTA',          formatDate(vessel.rta)],
-                  ['Last Report',  `${fmt(vessel.rep_type)} @ ${formatDate(vessel.rep_time)}`],
-                  ['Service',      fmt(vessel.service)],
-                  ['DWT',          fmt(vessel.dwt)],
+                  ['Voyage No.',         fmt(vessel.voyage_number)],
+                  ['Speed',              `${formatDecimal(vessel.speed, 1)} kn`],
+                  ['Heading',            `${formatDecimal(vessel.heading, 1)}°`],
+                  ['Status',             fmt(vessel.status)],
+                  ['Loading Condition',  fmt(vessel.loading_condition)],   // NEW
+                  ['Position',           `${formatLat(vessel.lat)}, ${formatLon(vessel.lon)}`],
+                  ['Pos. Date',          formatDate(vessel.pos_date)],
+                  ['Last Port',          cleanPort(vessel.last_port)],
+                  ['ETD',                formatDate(vessel.etd)],
+                  ['Next Port',          cleanPort(vessel.next_port)],
+                  ['ETA',                formatDate(vessel.eta)],
+                  ['ETB',                formatDate(vessel.etb)],           // NEW
+                  ['RTA',                formatDate(vessel.rta)],
+                  ['Last Report',        `${fmt(vessel.rep_type)} @ ${formatDate(vessel.rep_time)}`],
+                  ['Service',            fmt(vessel.service)],
+                  ['DWT',                fmt(vessel.dwt)],
                 ].map(([label, val]) => (
                   <div className="fsm-info-item" key={label}>
                     <span className="fsm-info-label">{label}</span>
@@ -936,9 +989,10 @@ export default function FleetStatusPage() {
                     Vessel Name{sortIcon('vessel_name')}
                   </th>
                   <th colSpan={5} className="fsm-th-alert-group">Alert</th>
-                  {/* AIS: 5 cols now includes Voyage No. */}
+                  {/* AIS: 5 cols */}
                   <th colSpan={5} className="fsm-th-ais-group">AIS Information</th>
-                  <th colSpan={6} className="fsm-th-report-group">Report Information</th>
+                  {/* Report: 8 cols (Last Port, ETD, Next Port, ETA, ETB, Loading, Lat, Lon) */}
+                  <th colSpan={8} className="fsm-th-report-group">Report Information (MA Primary)</th>
                 </tr>
                 <tr>
                   {/* Alert (6) */}
@@ -954,11 +1008,13 @@ export default function FleetStatusPage() {
                   <th className="fsm-th-ais fsm-sortable" onClick={() => handleSort('heading')}>Heading (deg){sortIcon('heading')}</th>
                   <th className="fsm-th-ais fsm-sortable" onClick={() => handleSort('pos_date')}>Pos.Date{sortIcon('pos_date')}</th>
                   <th className="fsm-th-ais fsm-sortable" onClick={() => handleSort('status')}>Status{sortIcon('status')}</th>
-                  {/* Report Information (6) */}
+                  {/* Report Information (MA-primary) */}
                   <th className="fsm-th-report fsm-sortable" onClick={() => handleSort('last_port')}>Last Port{sortIcon('last_port')}</th>
                   <th className="fsm-th-report fsm-sortable" onClick={() => handleSort('etd')}>ETD{sortIcon('etd')}</th>
                   <th className="fsm-th-report fsm-sortable" onClick={() => handleSort('next_port')}>Next Port{sortIcon('next_port')}</th>
                   <th className="fsm-th-report fsm-sortable" onClick={() => handleSort('eta')}>ETA{sortIcon('eta')}</th>
+                  <th className="fsm-th-report fsm-sortable" onClick={() => handleSort('etb')}>ETB{sortIcon('etb')}</th>
+                  <th className="fsm-th-report fsm-sortable" onClick={() => handleSort('loading_condition')}>Loading{sortIcon('loading_condition')}</th>
                   <th className="fsm-th-report">Lat</th>
                   <th className="fsm-th-report">Lon</th>
                 </tr>
@@ -1002,11 +1058,19 @@ export default function FleetStatusPage() {
                         ? <span className={`fsm-status ${statusClass(v.status)}`}>{v.status}</span>
                         : '-'}
                     </td>
-                    {/* Report Information */}
-                    <td>{cleanPort(v.last_port)}</td>
+                    {/* Report Information (MA-primary) */}
+                    <td>
+                      {cleanPort(v.last_port)}
+                      <PortSourceBadge source={v.port_source} />
+                    </td>
                     <td className="fsm-date-cell">{formatDate(v.etd)}</td>
-                    <td>{cleanPort(v.next_port)}</td>
+                    <td>
+                      {cleanPort(v.next_port)}
+                      <PortSourceBadge source={v.port_source} />
+                    </td>
                     <td className="fsm-date-cell">{formatDate(v.eta)}</td>
+                    <td className="fsm-date-cell">{formatDate(v.etb)}</td>
+                    <td>{fmt(v.loading_condition)}</td>
                     <td>{formatLat(v.lat)}</td>
                     <td>{formatLon(v.lon)}</td>
                   </tr>

@@ -1,9 +1,9 @@
 import axios from 'axios'
 
 // --- LOCAL (original hardcoded dev URL — uncomment to use against a local backend) ---
-// const api = axios.create({ baseURL: 'http://localhost:8000/api/v1' })
+const api = axios.create({ baseURL: 'http://localhost:8000/api/v1' })
 // --- VM / PRODUCTION: relative path (same origin via nginx); override with VITE_API_BASE_URL ---
-const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1' })
+// const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1' })
 
 // ── Auth token interceptor ────────────────────────────────────────────
 // Automatically attaches the JWT token (stored in localStorage) to every request.
