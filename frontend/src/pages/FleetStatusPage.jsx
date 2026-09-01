@@ -117,16 +117,6 @@ function AlertDot({ value }) {
 // Small pill badge showing whether port/ETA data comes from MA or WNI.
 // Shown next to Last Port and Next Port cells.
 function PortSourceBadge({ source }) {
-  if (!source) return null
-  const isMa = source === 'mariapps'
-  const isEmail = source === 'email'
-  const label = isMa ? 'MA' : isEmail ? 'Email' : 'WNI'
-  const color = isMa ? '#22c55e' : isEmail ? '#a78bfa' : '#64748b'
-  const bg    = isMa ? '#052e16' : isEmail ? '#2e1065' : '#1e293b'
-  return (
-    <span
-      title={`Port data source: ${isMa ? 'MariApps noon report' : isEmail ? 'Email noon report' : 'WNI fleet status'}`}
-      style={{
         display: 'inline-block',
         marginLeft: 5,
         padding: '1px 5px',
