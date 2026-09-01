@@ -117,23 +117,7 @@ function AlertDot({ value }) {
 // Small pill badge showing whether port/ETA data comes from MA or WNI.
 // Shown next to Last Port and Next Port cells.
 function PortSourceBadge({ source }) {
-        display: 'inline-block',
-        marginLeft: 5,
-        padding: '1px 5px',
-        borderRadius: 3,
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: '0.04em',
-        color,
-        background: bg,
-        border: `1px solid ${color}55`,
-        verticalAlign: 'middle',
-        lineHeight: '14px',
-      }}
-    >
-      {label}
-    </span>
-  )
+  return null;
 }
 
 // ── Excel export helper ────────────────────────────────────────────────────────
