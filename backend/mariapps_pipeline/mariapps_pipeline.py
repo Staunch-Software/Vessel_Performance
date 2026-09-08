@@ -119,7 +119,10 @@ def run():
         browser = p.chromium.launch(headless=headless)
 
         log.info("[AUTH]     Restoring authentication session...")
-        context = browser.new_context(storage_state=auth_file)
+        # TEMPORARY: see generate_auth.py — DeploymentVM01's CA trust store is
+        # missing the root for smartpal.ozellar.com's cert chain. Remove
+        # ignore_https_errors once the VM's trust store is fixed properly.
+        context = browser.new_context(storage_state=auth_file, ignore_https_errors=True)
         main_page = context.new_page()
         log.info("[AUTH]     Authentication successful.")
 
@@ -139,7 +142,7 @@ def run():
             # so reaching here means the session is still invalid. Only offer the
             # interactive manual login when a real terminal is attached (local dev).
             # Under cron/systemd there is no TTY — never block on input().
-            if sys.stdin and sys.stdin.isatty():
+            if not headless and sys.stdin and sys.stdin.isatty():
                 log.warning("[NAV]      Session invalid. Please login manually in the browser window.")
                 print("\n==================================================")
                 print("ACTION REQUIRED:")

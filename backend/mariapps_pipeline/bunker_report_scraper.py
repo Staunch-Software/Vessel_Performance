@@ -455,7 +455,10 @@ def run():
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=headless)
-            context = browser.new_context(storage_state=auth_file)
+            # TEMPORARY: see generate_auth.py — DeploymentVM01's CA trust store is
+            # missing the root for smartpal.ozellar.com's cert chain. Remove
+            # ignore_https_errors once the VM's trust store is fixed properly.
+            context = browser.new_context(storage_state=auth_file, ignore_https_errors=True)
             page = context.new_page()
 
             log.info(f"[NAV]      Navigating to: {config.MARIAPPS_BUNKER_REPORT_URL}")
