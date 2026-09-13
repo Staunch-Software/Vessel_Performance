@@ -1,16 +1,15 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { memoryStore } from './utils/memoryStore'
 
-import { Zap, AlertTriangle, FileText, Database, BarChart2, ChevronDown, Users, LogOut, Shield, BookOpen, Map, ScrollText, Leaf, Fuel, Columns, Droplet } from 'lucide-react'
-import {
-  queryAnalysis, queryExpandedData, fetchExpandedColumns, fetchCPCompliancePilotVessels, fetchCPCompliance,
-  fetchCategoryOrder, fetchCalculationCategories, fetchCalcCategoryColumns,
-} from './api/vesselApi'
+import { Zap, AlertTriangle, FileText, Database, BarChart2, ChevronDown, Users, LogOut, Shield, BookOpen, Map, ScrollText, Leaf, Fuel, Droplet } from 'lucide-react'
+import { queryAnalysis, queryExpandedData, fetchExpandedColumns, fetchUserColumnPrefs, fetchVesselColumnDefaults, fetchCPCompliancePilotVessels, fetchCPCompliance } from './api/vesselApi'
+import { PERFORMANCE_COLUMNS } from './utils/performanceColumns'
 import TopFilterBar from './components/TopFilterBar'
 import FuelBarChart from './components/FuelBarChart'
 import AverageValuesPanel from './components/AverageValuesPanel'
 import CPSummaryPanel from './components/CPSummaryPanel'
 import AnalysisTable from './components/AnalysisTable'
+import ColumnPicker from './components/ColumnPicker'
 import SpeedLossChart from './components/SpeedLossChart'
 import ScanPage from './pages/ScanPage'
 import SavedReportsPage from './pages/SavedReportsPage'
@@ -21,7 +20,6 @@ import FleetStatusPage from './pages/FleetStatusPage'
 import CPDescriptionPage from './pages/CPDescriptionPage'
 import EmissionPage from './pages/EmissionPage'
 import ImoDcsPage from './pages/ImoDcsPage'
-import EmissionComingSoonPage from './pages/EmissionComingSoonPage'
 import EuMrvPage from './pages/EuMrvPage'
 import EuEtsPage from './pages/EuEtsPage'
 import FuelEuPage from './pages/FuelEuPage'
@@ -29,7 +27,6 @@ import BiofuelCalcPage from './pages/BiofuelCalcPage'
 import BunkerReportPage from './pages/BunkerReportPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
-import ColumnConfigPage from './pages/ColumnConfigPage'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import './App.css'
 
@@ -38,7 +35,7 @@ const MIN_TOP = 160
 const MAX_TOP = 520
 
 // ── Avatar dropdown ────────────────────────────────────────────────────────────
-function AvatarMenu({ user, isAdmin, onAdmin, onColumnConfig, onLogout }) {
+function AvatarMenu({ user, isAdmin, onAdmin, onLogout }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -95,19 +92,6 @@ function AvatarMenu({ user, isAdmin, onAdmin, onColumnConfig, onLogout }) {
             </button>
           )}
 
-          {/* Configure Columns — admin-only, defines the calc categories
-              (Performance/Emission/custom) and the "All" category order
-              everyone else's Logbook+ view reads from. */}
-          {isAdmin && (
-            <button
-              className="av-dropdown-item"
-              onClick={() => { setOpen(false); onColumnConfig() }}
-            >
-              <Columns size={13} />
-              Configure Columns
-            </button>
-          )}
-
           {/* Sign out */}
           <button
             className="av-dropdown-item danger"
@@ -126,7 +110,7 @@ function AvatarMenu({ user, isAdmin, onAdmin, onColumnConfig, onLogout }) {
 // Two-level nav: top-level groups, some of which (Vessel Performance, Emission)
 // fan out into a click-to-open dropdown of the pages that actually live under
 // them. This is purely a navigation regroup — `page` ids and the routing in
-// VesselPerfApp below are completely unchanged, only how you get to each id
+// AuthenticatedApp below are completely unchanged, only how you get to each id
 // changed. A group with no `children` navigates directly on click, same as a
 // plain tab always did.
 const NAV_GROUPS = [
@@ -156,7 +140,7 @@ const NAV_GROUPS = [
   },
 ]
 
-function PageTabBar({ active, onChange, isAdmin, onLogout, currentUser, onAdmin, onColumnConfig }) {
+function PageTabBar({ active, onChange, isAdmin, onLogout, currentUser, onAdmin }) {
   const [openGroup, setOpenGroup] = useState(null)
   const navRef = useRef(null)
 
@@ -229,7 +213,6 @@ function PageTabBar({ active, onChange, isAdmin, onLogout, currentUser, onAdmin,
         user={currentUser}
         isAdmin={isAdmin}
         onAdmin={onAdmin}
-        onColumnConfig={onColumnConfig}
         onLogout={onLogout}
       />
     </div>
@@ -251,8 +234,11 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
   const [topHeight, setTopH]        = useState(() => parseInt(memoryStore.getItem('vp_top_height'), 10) || 290)
   const [dragging, setDrag]         = useState(false)
   const [columnsMeta, setColsMeta]  = useState([])
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerAdminMode, setPickerAdminMode] = useState(false)
   const [source, setSource]         = useState(() => memoryStore.getItem('vp_source') || 'mari_apps')
   const [catFilter, setCatFilter]   = useState(() => memoryStore.getItem('vp_cat_filter') || 'All')
+  const [colsVersion, setColsVersion] = useState(0)
   const [pilotVessels, setPilotVessels] = useState([])
   const [complianceByDate, setComplianceByDate] = useState({})
 
@@ -264,16 +250,8 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
 
   const effSource = source === 'all' ? 'wni' : source
 
-  // Column visibility/order now comes entirely from the admin-only Configure
-  // Columns page (see ColumnConfigPage.jsx) rather than the old per-user/
-  // per-vessel column picker (removed) — `calcCategories` are the named
-  // calculation categories (Performance/Emission/custom) an admin built
-  // there, `categoryOrder` is the "All" mode category ordering, and
-  // `calcFieldOrder` is the exact field order for whichever calc category
-  // is currently selected via catFilter.
-  const [calcCategories, setCalcCategories] = useState([])
-  const [categoryOrder, setCategoryOrder]   = useState([])
-  const [calcFieldOrder, setCalcFieldOrder] = useState([])
+  const [vesselDefaults, setVesselDefaults] = useState(new Set())
+  const [userVisible, setUserVisible] = useState(new Set())
 
   const dragStartY = useRef(0)
   const dragStartH = useRef(0)
@@ -282,31 +260,38 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
   useEffect(() => {
     let active = true
     Promise.all([
-      fetchExpandedColumns(effSource).catch(() => []),
-      fetchCalculationCategories(effSource).catch(() => []),
-      fetchCategoryOrder(effSource).catch(() => []),
-    ]).then(([cols, calcCats, catOrder]) => {
+      fetchExpandedColumns(effSource, vesselImo).catch(() => []),
+      vesselImo ? fetchVesselColumnDefaults(effSource, vesselImo).catch(() => ({})) : Promise.resolve({}),
+      vesselImo ? fetchUserColumnPrefs(effSource, vesselImo).catch(() => ({})) : Promise.resolve({})
+    ]).then(([cols, defs, prefs]) => {
       if (!active) return
-      setColsMeta(cols)
-      setCalcCategories(calcCats)
-      const activeCats = new Set(cols.filter(c => c.is_active && !c.is_identity).map(c => c.category || 'Other'))
-      const filtered = catOrder.filter(c => activeCats.has(c))
-      const missing = [...activeCats].filter(c => !filtered.includes(c)).sort()
-      setCategoryOrder([...filtered, ...missing])
+      setColsMeta(cols.map(c => ({ ...c, performance: c.performance || PERFORMANCE_COLUMNS.has(c.db_column) })))
+      
+      const vDef = new Set(defs.visible || [])
+      setVesselDefaults(vDef)
+      
+      let uVis = new Set(prefs.visible || [])
+      if (uVis.size === 0) {
+        const defaultCols = cols.filter(c => c.is_active).map(c => c.db_column)
+        if (vDef.size > 0) {
+          uVis = new Set(defaultCols.filter(col => vDef.has(col)))
+        } else {
+          uVis = new Set(defaultCols)
+        }
+      }
+
+      // ── TUFMAX: always show Tufmax-specific columns when this vessel is selected ──
+      const TUFMAX_IMO = '9486295'
+      if (vesselImo === TUFMAX_IMO) {
+        uVis.add('wni_tufmax_me_ldo_mt')
+        uVis.add('wni_tufmax_ae_hfhsd_mt')
+      }
+      // ────────────────────────────────────────────────────────────────────────────
+
+      setUserVisible(uVis)
     })
     return () => { active = false }
-  }, [effSource])
-
-  // When catFilter matches a calc category (by name), load its exact field
-  // list + order — this is what makes a reorder made on the Configure
-  // Columns page actually show up here.
-  useEffect(() => {
-    const cat = calcCategories.find(c => c.name === catFilter)
-    if (!cat) { setCalcFieldOrder([]); return }
-    let active = true
-    fetchCalcCategoryColumns(cat.id).catch(() => []).then(cols => { if (active) setCalcFieldOrder(cols) })
-    return () => { active = false }
-  }, [catFilter, calcCategories])
+  }, [effSource, vesselImo, colsVersion])
 
   // Charter-Party compliance pilot (AM KIRTI / GCL FOS only) — per-day status lookup used to
   // annotate the Month/Period data table + fuel chart. Not tied to voyage view at all.
@@ -374,6 +359,14 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
     }
   }, [])
 
+  function handleSetUserVisible(newSet) {
+    setUserVisible(newSet)
+  }
+
+  function handleAdminDefaultsChanged(newDefaultsSet) {
+    setVesselDefaults(newDefaultsSet)
+  }
+
   function onDragMouseDown(e) {
     e.preventDefault()
     dragStartY.current = e.clientY
@@ -394,37 +387,42 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
   const hasChartData = chartRows.length > 0
   const voyageView = !!(cpVoyages && cpVoyages.length > 0)
 
-  // Plain source categories (Vessel General Data, Weather Data, etc.) — excludes
-  // whatever's a calc category name (Performance/Emission/custom), since those are
-  // rendered as their own pinned pills, not via this alphabetical list. Also
-  // requires at least one is_active column — otherwise a category whose every
-  // column was pruned as permanently-empty still showed up as a clickable chip
-  // that yielded zero columns when picked.
+  // "Emission" is rendered as its own pinned chip (like Performance), not via the
+  // alphabetical category list — excluded here so it doesn't also show up twice.
   const categories = useMemo(() => {
-    const calcNames = new Set(calcCategories.map(c => c.name))
     const cats = [...new Set(
-      columnsMeta.filter(c => !c.is_identity && c.is_active).map(c => c.category || 'Other')
-    )].filter(cat => !calcNames.has(cat)).sort((a, b) => a.localeCompare(b))
+      columnsMeta.filter(c => !c.is_identity).map(c => c.category || 'Other')
+    )].filter(cat => cat !== 'Emission').sort((a, b) => a.localeCompare(b))
     return cats
-  }, [columnsMeta, calcCategories])
+  }, [columnsMeta])
 
-  // Column visibility/order is entirely admin-configured now (Configure Columns
-  // page) — no personal per-user toggle layer anymore.
-  //   'All'          → every active column, ordered by category (per categoryOrder).
-  //   a calc category → exactly that category's field list, in its saved order.
-  //   a plain category (e.g. "Weather Data") → that category's active columns.
+  // Note: We no longer override `is_active` to act as the category filter.
+  // The category filter just determines which columns are allowed in `effectiveExtras`.
   const effectiveExtras = useMemo(() => {
+    const baseVisible = vesselDefaults.size === 0
+      ? userVisible
+      : new Set([...userVisible].filter(k => vesselDefaults.has(k)))
+
     if (catFilter === 'All') {
-      return new Set(columnsMeta.filter(c => c.is_active && !c.is_identity).map(c => c.db_column))
+      return baseVisible
     }
-    const isCalcCategory = calcCategories.some(c => c.name === catFilter)
-    if (isCalcCategory) {
-      return new Set(calcFieldOrder)
-    }
-    return new Set(
-      columnsMeta.filter(c => !c.is_identity && c.is_active && (c.category || 'Other') === catFilter).map(c => c.db_column)
+
+    const isPerf = catFilter === 'Performance'
+    const isEmission = catFilter === 'Emission'
+    // Emission focus = columns whose own category IS "Emission" (the Grade fields)
+    // OR columns flagged `emission` (dual-membership fields that keep their normal
+    // category too, e.g. Weather/Voyage/Vessel General Data fields also relevant to
+    // emissions) — matches the picker's "also show under Emission" behavior.
+    const inFocus = c => isPerf ? c.performance
+      : isEmission ? (c.category === 'Emission' || c.emission === true)
+      : (c.category || 'Other') === catFilter
+
+    const focusKeys = new Set(
+      columnsMeta.filter(c => !c.is_identity && inFocus(c)).map(c => c.db_column)
     )
-  }, [catFilter, columnsMeta, calcCategories, calcFieldOrder])
+
+    return new Set([...baseVisible].filter(k => focusKeys.has(k)))
+  }, [catFilter, userVisible, vesselDefaults, columnsMeta])
 
   useEffect(() => { setCatFilter('All') }, [source])
 
@@ -439,6 +437,14 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
         onSourceChange={setSource}
         onFiltersChange={handleFilters}
         defaultVesselImo={preloadVesselImo}
+        onColumnsClick={(imo, name) => {
+          if (imo) {
+            setVesselImo(imo)
+            setVesselName(name)
+          }
+          setPickerOpen(true)
+        }}
+        isAdminMode={pickerAdminMode}
       />
 
       {error && <div className="error-bar"><AlertTriangle size={13} style={{ flexShrink: 0 }} /> {error}</div>}
@@ -468,16 +474,19 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
         <div className="drag-handle-grip" />
       </div>
 
-      {!voyageView && (categories.length > 0 || calcCategories.length > 0) && (
+      {!voyageView && categories.length > 0 && (
         <div className="cat-filter-bar">
           <button className={`cat-chip${catFilter === 'All' ? ' active' : ''}`} onClick={() => setCatFilter('All')}>All</button>
-          {calcCategories.map(cat => (
-            <button
-              key={cat.id}
-              className={`cat-chip${cat.name === 'Performance' ? ' cat-perf-chip' : cat.name === 'Emission' ? ' cat-emission-chip' : ''}${catFilter === cat.name ? ' active' : ''}`}
-              onClick={() => setCatFilter(cat.name)}
-            >{cat.name}</button>
-          ))}
+          <button
+            className={`cat-chip cat-perf-chip${catFilter === 'Performance' ? ' active' : ''}`}
+            onClick={() => setCatFilter('Performance')}
+            title="Show only NoonData / Calc Engine performance columns"
+          >Performance</button>
+          <button
+            className={`cat-chip cat-emission-chip${catFilter === 'Emission' ? ' active' : ''}`}
+            onClick={() => setCatFilter('Emission')}
+            title="Show only emission-relevant columns (Grade + Voyage/Weather/Fuel fields)"
+          >Emission</button>
           {categories.map(cat => (
             <button
               key={cat}
@@ -493,21 +502,26 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
           ? <CPSummaryPanel imo={vesselImo} vesselName={vesselName} source={source} voyages={cpVoyages} loadingCond={filtersApplied?.loadingCond} />
           : loading
             ? <div className="loading-overlay"><div className="spinner" /> Loading reports…</div>
-            : <AnalysisTable
-                rows={rows}
-                columnsMeta={columnsMeta}
-                visibleExtras={effectiveExtras}
-                filtersApplied={filtersApplied}
-                complianceByDate={complianceByDate}
-                vesselName={vesselName}
-                hideComplianceErrors={catFilter === 'Emission'}
-                emissionExactOrder={catFilter === 'Emission'}
-                categoryOrder={catFilter === 'All' ? categoryOrder : null}
-                fieldOrder={catFilter !== 'All' && catFilter !== 'Emission' && calcCategories.some(c => c.name === catFilter) ? calcFieldOrder : null}
-              />
-
+            : <AnalysisTable rows={rows} columnsMeta={columnsMeta} visibleExtras={effectiveExtras} filtersApplied={filtersApplied} complianceByDate={complianceByDate} vesselName={vesselName} hideComplianceErrors={catFilter === 'Emission'} emissionFocus={catFilter === 'Emission'} />
         }
       </div>
+
+      {pickerOpen && (
+        <ColumnPicker
+          pageSource={effSource}
+          pageUserVisible={userVisible}
+          pageVesselDefaults={vesselDefaults}
+          vesselImo={vesselImo}
+          vesselName={vesselName}
+          currentUser={currentUser}
+          onPageSetVisible={handleSetUserVisible}
+          onOrderChanged={() => setColsVersion(v => v + 1)}
+          onClose={() => setPickerOpen(false)}
+          onAdminDefaultsChanged={handleAdminDefaultsChanged}
+          modeIsAdmin={pickerAdminMode}
+          onModeChange={setPickerAdminMode}
+        />
+      )}
     </div>
   )
 }
@@ -539,7 +553,6 @@ function AuthenticatedApp() {
   const [scanPreload,      setScanPreload]      = useState(null)
   const [logbookVesselImo, setLogbookVesselImo] = useState(null)
   const [showAdmin,        setShowAdmin]        = useState(false)
-  const [showColumnConfig, setShowColumnConfig] = useState(false)
 
   function navigateToScan(savedReport, vesselImo) {
     setScanPreload({ savedReport, vesselImo, editMode: false })
@@ -559,7 +572,6 @@ function AuthenticatedApp() {
   function handleTabChange(id) {
     if (id === 'logbook') setLogbookVesselImo(null)
     setShowAdmin(false)
-    setShowColumnConfig(false)
     setPage(id)
     localStorage.setItem('vp_current_page', id)
   }
@@ -567,30 +579,13 @@ function AuthenticatedApp() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-primary)', overflow: 'hidden' }}>
       <PageTabBar
-        active={showAdmin ? '__admin__' : showColumnConfig ? '__column_config__' : page}
+        active={showAdmin ? '__admin__' : page}
         onChange={handleTabChange}
         isAdmin={isAdmin}
         onLogout={logout}
         currentUser={user}
-        onAdmin={() => { setShowColumnConfig(false); setShowAdmin(true) }}
-        onColumnConfig={() => { setShowAdmin(false); setShowColumnConfig(true) }}
+        onAdmin={() => setShowAdmin(true)}
       />
-
-      {/* Configure Columns full page — admin-only */}
-      {showColumnConfig && isAdmin && (
-        <div className="admin-overlay">
-          <div className="admin-overlay-header">
-            <button className="admin-overlay-back" onClick={() => setShowColumnConfig(false)}>
-              ← Back to App
-            </button>
-            <span className="admin-overlay-title">
-              <Columns size={15} /> Configure Columns
-            </span>
-            <div style={{ width: 140 }} />
-          </div>
-          <ColumnConfigPage />
-        </div>
-      )}
 
       {/* Admin full page */}
       {showAdmin && isAdmin && (
@@ -608,8 +603,8 @@ function AuthenticatedApp() {
         </div>
       )}
 
-      {/* Main pages — hidden when admin panel or column config is open */}
-      {!showAdmin && !showColumnConfig && (
+      {/* Main pages — hidden when admin panel is open */}
+      {!showAdmin && (
         <>
           {page === 'logbook' && <LogbookPage preloadVesselImo={logbookVesselImo} currentUser={user} />}
           {page === 'scan' && (
