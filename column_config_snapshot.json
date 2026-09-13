@@ -1,0 +1,7363 @@
+{
+  "is_active": [
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_mFOCAE_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_pFOFoutAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_phtcwinAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFObasicload_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_rhoEIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_rhoFOAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_rhoLPGBAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_rhoLPGPAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_rhoMAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FuelrackAE_Avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FuelrackAE_Avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FuelrackAE_Avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_RHAE_Cnt_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_NTCTCAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_rhoEBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_CF_IMODCS_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_LiqTemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_List_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_Trim_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_VapTemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_LCVLPGPME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_pegTCoutTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_CargoLoaded_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_CargoOpenCTMS_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "log_date",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_DEelAE_dCnt_1_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_VFOCAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Compressor_RHDeckServiceCompCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Compressor_RHMAC_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_FODPP_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_LCVFODPP_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_RHDPP_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_RHDPP_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_SulFODPP_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_VFOCDPP_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_mFOCDPP_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_nFODPP_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_rhoFODPP_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DPP_vFODPP_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DrainOil_RunPistcount_do_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "SG_PelcalSG_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_pcompcylAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_TGOFMinAE_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOCinAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFOreeferconsumption_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_CrctActVolLiq_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_WtLiq15_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_SulLPGPComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_SulMComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_mEComBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_mMComBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_LCVFOEG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_RHEG_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_vFOEG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_mLPGPIGG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_mMIGG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_AMPALTAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_TGOinAE_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_rhoFOFMinAE_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_vEAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_vLPGPAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_vMAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_GIAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_GIAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_PelcalAE_avg_3_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_ThtcwinAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_ThtcwinAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Twdgph1AE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Twdgph3AE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_phtcwinAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_FOGBL_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_SulFOBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_rhoFOBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_LCV_biocomp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_WtWCF_biocomp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFOballastoperation_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGBLFOcargodischarging_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_GIAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_PelAE_avg_1_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_PelAE_avg_2_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_PelAE_avg_3_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_PelcalAE_avg_2_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_PengAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_SOConsAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOoutAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_dpairACTCAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_dpairAFTCAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_dpairAFTCAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_ThtcwinAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Twdgph2AE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Twdgph2AE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Twdgph2AE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Twdgph3AE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_SulMBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGBLFObasicload_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_RHComBL_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_rhoLPGPComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_nFOGIGG_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_FOGAE_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_NTCAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_dpairACTCAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_SulEBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFOmaincargotemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_BLFObasicload_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGBLFOballastoperation_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_VolLiquid_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_blQty_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DrainOil_FeCOME_do_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DrainOil_SCOCME_set_do_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_rhoFOIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_vFOIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_vLPGBIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_vLPGPIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_phiEVOcorcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_phiIgncylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_SulEME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_VFOCME_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_VFOCME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_VGOCME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FPIME_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_IntBKFME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOADFEME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TltcwACinTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_pegTCoutTCME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TltcwACinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TltcwACoutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TltcwLOCinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TltcwLOCoutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOFTinAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_BLFOcargodischarging_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_BLFOtankcleaning_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFOreeferconsumption_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFOtankcleaning_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "FWG_RHFWG_Cnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Flowmeter_TFOFM_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Flowmeter_VFOCFM_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Flowmeter_VdotFOCFM_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Flowmeter_mFOCFM_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_mFOCcalGCU_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_vEGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_pindcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_FOGME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_LCVMME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_pSOTCinTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TscavME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pSORME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_phiInjBegME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_phiInjComOffsetME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_phuFoutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_CargoOnboard_m3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_ContOnboard_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_DTW_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_DateTimeEndTug_UTC_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_TFOinAE_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOFToutAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_FPIcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_VITcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_pcompcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_pcomppscavcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pFORME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pGasinjdeltaME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_phuFinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_CargoDischarged_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_DateTimeStartTug_UTC_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_ETAChangeReason_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_FEUOnboard_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_OperationTug_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_PositionTug_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_RHForcingVapour_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_RHSubCooler_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_ReeferOnboard_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_mGOSubCooler_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_mfwC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_mfwP_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_mfwR_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_pambairER_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_date_local_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_date_utc_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_datetime_of_all_fast_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_datetime_of_last_line_away_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_duration_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_etb_estimated_time_of_berthing_lt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_latitude_minutes_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_lattitude_direction_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_longitude_degree_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "vessel_imo",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_pFOFoutAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOinAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOinAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOinAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_phtcwinAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_pltcwinAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_pltcwinAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_SulFOME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_SulLPGPME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_SulMME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_TFOFMinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_TFOPPinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_TFOVME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_TFOinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_TGOFMinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_TGOinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_DOG_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_etb_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_longitude_direction_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_longitude_lon_degree_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_longitude_lon_direction_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_longitude_lon_minutes_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_nox_emmited_mt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_time_to_eosp_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "log_number",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_mLPGPAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_nFOGAE_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_pFOFoutAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_rhoEAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TscavME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_VITCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_VITDME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_VITFQSME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_VITME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_mcrMOPME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_nFIME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pFORME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_me1_load_pct_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_section3_rob_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_time_remaining_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Ucut_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_psicut_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_grand_total_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_total_hfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_total_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "cpx_remarks",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_engine_density_kg_m3",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_engine_rob_after_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_engine_last_bunkered_at",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_boiler_iso_grade",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_boiler_fuel_type",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_boiler_sulphur_pct",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_boiler_density_kg_m3",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_main_engine_iso_grade",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_main_engine_fuel_type",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_mcrALTcalAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "wni_tufmax_me_ldo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "raw_log_id",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_FPIcylAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_TegEVoutcylAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_TegEVoutcylAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TairACoutTCAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TairTCinTCAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TegTCoutTCAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TegTCoutTCAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwLOCoutAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TscavAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TscavAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TscavAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_VLTALTAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_mcrALTcalAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_mcrALTcalAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_pscavAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_pscavAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_pscavAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_LCVEBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_NameTug_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwACinAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwACinAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwACinAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwACinAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwLOCoutAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_VLTALTAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_pcrkcAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_pcrkcAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_pltcwinAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_LCVFOBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_phuPPinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pmaxMOPME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_posSPME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pscavME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_pegRME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_pegRME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_phtcwinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_pltcwinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "PropMotor_RHPMotor_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "wni_tufmax_ae_hfhsd_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_ThtcwoutcylAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_LCVEAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_LCVMBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_RHBL_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_SulLPGBBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_TGOFMinBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFOcargohold_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "PropMotor_mcrPMotor_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "RefCompressor_RHrefComp_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "SG_DEelSG_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "SG_DEelSG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "SG_RHSG_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "SG_RHSG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "SG_mcrcalSG_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_CargoCloseCTMS_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_boiler_rob_after_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_boiler_last_bunkered_at",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_main_engine_density_kg_m3",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_main_engine_rob_after_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_longitude_lon_minutes_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_mcr_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_me_hfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_me_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_me_mdo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_Vcf_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_VolLiq15_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_TFOFMinEG_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_Sludgetot_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_TEUOnboard_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_TEUReeferOnboard_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_TEUonDeck_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_TambairER_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_TambairER_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_Voyage_Adjustment_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_azbow_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_mGOForcedVapour_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_me_biofuel_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_pcompcylAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_pcompcylAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_pcrkcAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_RelatPress_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_SubTotWtAir_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_SOConsAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFOcargodischarging_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFOcargotransfer_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFOinertgas_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_mLPGPGCU_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_mMGCU_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_nFOGGCU_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_pGOinGCU_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_rhoEGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_RunInPISTcylME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_ets_estimated_time_of_sailing_lt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_ets_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_latitude_degree_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_latitude_lat_degree_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_latitude_lat_direction_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_latitude_lat_minutes_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_ae_hfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_ae_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_ae_mdo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_ae_biofuel_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_bl_hfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_bl_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_loaded_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_rob_hsfo_0_5_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_RHBL_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_vFOBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_vLPGBBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_vLPGPBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_vMBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_BDNUNID_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_CF_EUMRV_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_WtW_bioblend_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_WtW_biocomp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_Pg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_Tape_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_VFOCINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_mFOCINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_nFOGINC_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_rhoEINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_rhoFOINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_rhoLPGBINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_rhoLPGPINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_longitude_minutes_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_mcr_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwACoutAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_VCF_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOCtotCargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_GAVoffsetcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_GAVtimcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_PFIcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_time_zone_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Hsl_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Sasw_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Sasw_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Tsl_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Twv_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_SOConsAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_SulLPGPBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_TFOFMinBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_nFOGBL_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_pGOinBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_psteamBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_engine_viscosity_cst",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_AMPALTAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_FPIcylAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_FPIcylAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_GOGME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_to_country",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_to_eu_port",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_bdn_ref",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_composite_boiler_iso_grade",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_composite_boiler_fuel_type",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_composite_boiler_sulphur_pct",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_composite_boiler_viscosity_cst",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_composite_boiler_density_kg_m3",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_engine_iso_grade",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_engine_fuel_type",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_engine_sulphur_pct",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Compressor_RHMACNo2Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_PengAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_mFOCBL_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_mLPGPBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_rhoFOFMinBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_rhoGOBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_rhoLPGBBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_rhoLPGPBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_rhoMBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_LCV_bioblend_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFOraisingcargotemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_PercLq_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_vEComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_vFOComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_vLPGBComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_vLPGPComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Compressor_RHComp_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Compressor_RHEngineServiceCompCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Compressor_RHMACNo1Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOoutAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TairTCinTCAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TegTCinTCAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TegTCoutTCAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_pegTCoutTCAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TegTCinAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TegTCinAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_WtWCF_bioblend_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_mFOCcalME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_main_engine_last_bunkered_at",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_cp_warranted_speed_kn",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_cp_speed_tolerance_kn",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_cp_warranted_consumption_mtday",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_cp_consumption_tolerance_pct",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "loading_condition",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "date",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_FO_mGOCAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_FO_mLPGBAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_FO_mLPGPAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_FO_mMAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_PelcalAE_avg_1_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_mcrALTcalAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TegTCoutAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TegTCoutAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_ThtcwinAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_ThtcwinAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_ThtcwinAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_WtVapour_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_RHME_Cnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_XBPME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_mcrALTcalAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AuxBoiler_mEBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AuxBoiler_mGOCBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AuxBoiler_mLPGBBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AuxBoiler_mLPGPBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_rhoGOAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_PengAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TegTCinAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TegTCoutAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_NTCAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_BilgeROB_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AuxBoiler_mMBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "CompositeBoiler_RHComBL_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "INC_FO_mLPGBINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "INC_FO_mLPGPINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "ME_FO_mEME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "ME_FO_mGOCME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "ME_FO_mLPGPME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "ME_FO_mMME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_apparent_slip_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "log_type",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_ThtcwoutcylAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_pmaxcylAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_pmaxcylAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_NAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_NAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_NTCAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_BLFOmaintaincargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_LCVEGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_mFOCIGG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_mFOCcalIGG_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_mLPGBIGG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_rhoLPGBIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_rhoMIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_vEIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_bl_mdo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_bl_biofuel_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_ig_other_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_grand_total_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_total_hfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_total_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_current_wni_relative_current_dir",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_cooling_fuel_consumption_mdo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_engine_m_e_power_kw",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_engine_m_e_load",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_type_primary",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_total_cargo_weight_on_dep_arr_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_mcrALTcalAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_BLFOinertgas_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_DEelAE_Cnt_1_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_TFOFMinAE_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_GOGBL_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGBLFOinertgas_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_SulLPGPGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_SulLPGBIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_LCVFOINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_LCVLPGBINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_LCVLPGPINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_RHINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_SulEINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_SulLPGPINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_SulMINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_eeoi_gco2mtnm_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_VGOCBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_CargoDisch_DESME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_CargoDisch_DESMEcal_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOCtotCargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFOballastoperation_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFObasicload_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFOcargodischarging_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFOcargohold_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFOcargotransfer_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFOinertgas_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_SubTotWt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_TapeCor_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_TotVolTank_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_TotWtAir_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_TotWt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_TrimCor_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_Ullage_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_VapDens_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_rhoLPGPIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGBLFObasicload_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGBLFOcargodischarging_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGBLFOcargotransfer_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGBLFOfreshwater_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Monitoring_VapWeight_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_VapTmp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_vMINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_AVME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_AuxBlowME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_AuxBlowME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_ACCcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_SulLPGBME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_voyage_no",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFOinertgas_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFOtankcleaning_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGBLFOballastoperation_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_LLcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_PFIOffsetcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_SCOCcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_TLIWATcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_pair_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_CrctUllage_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_Deadwt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_Dens15_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_LCVFOComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_LCVLPGBComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_LCVLPGPComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_SulLPGBINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_mFOCcalINC_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_HLcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_HMIcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_rhoEComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_rhoFOComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_rhoLPGBComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "DrainOil_BNCOME_do_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_mFOCME_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_NME_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_NME_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_PSME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_PSME_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_PeffcalME_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_PeffestME_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_RHME_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "voyage_no",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_FO_mEAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOCinAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOCinAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOCoutAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOCoutAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOCoutAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_NLBEMME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TairTCinTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TclTCinTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TclTCoutTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TcwTCbcoutTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TegTCinTCME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TegTCoutTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TegTCoutTCME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TltcwACoutTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TltcwACoutTCME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_dpairACTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_dpairACTCME_inst_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_ACTRoutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "source_id",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "loading_condition",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_vLPGBAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOFTinAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOFTinAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOFToutAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOLOFToutAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOinAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOinAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOoutAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOoutAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOoutAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOoutAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_pSOAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_pSOAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_pSOAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_NTCTCAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_NTCTCAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TairACoutTCAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_dpairACTCAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_TtW_fossil_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFOraisingcargotemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFOreeferconsumption_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_AEFOtankcleaning_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_BLFOballastoperation_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_BLFOraisingcargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_CargoCool_DESME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_CargoCool_DESMEcal_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_CargoCool_PelAEest_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_CargoCool_RHAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFOraisingcargotemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_QME_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_FQSME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_dpairAFTCAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_pSOTCinTCAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_LCV_fossil_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_ThtcwoutcylAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_NAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGBLFOcargotransfer_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGBLFOfreshwater_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGBLFOmaintaincargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGBLFOraisingcargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGBLFOtankcleaning_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGFOCtotCargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_Reefer_DESME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFOballastoperation_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFObasicload_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFOcargodischarging_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFOcargohold_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFOcargotransfer_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGAEFOmaincargotemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_pcrkcME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGBLFOraisingcargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGBLFOtankcleaning_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Monitoring_LiqWeight15_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Monitoring_bottomtemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Monitoring_cargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Monitoring_midtemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Monitoring_perceliq_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Monitoring_toptemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_CrctActVolVap_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_FloatCor_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_Grade_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_ListCor_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_LqDensObsTmp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_LqTmp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_MoleWt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_pscavME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGBLFOinertgas_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_nFOGBLFOmaintaincargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_shipshorePress_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_shipshoretemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_FOGComBL_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_LCVEComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_LCVMComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_RHComBL_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_SulEComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_SulFOComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_SulLPGBComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "ME_FO_mLPGBME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_LCVLPGPGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_LCVMGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_RHGCU_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_SulEGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_SulLPGBGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_SulMGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_TFOFMinGCU_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_TGOinGCU_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_mEGCU_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_SludgetotROB_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wind_reported_bf_wind",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_m_e_fuel_consumption_bio_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_a_e_fuel_consumption_hsfo_0_5_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_a_e_fuel_consumption_vlsfo_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_a_e_fuel_consumption_vlsfo_hfo_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_ThtcwoutcylAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Flowmeter_rhoFOFM_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_FOGGCU_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_LCVFOGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_LCVLPGBGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_LCVGOBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_LCVLPGBBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_LCVLPGPBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_TGOinBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_TTOBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_VFOCBL_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_VFOCBL_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_mEBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_mFOCBL_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_mFOCcalBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_mGOCBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_mLPGBBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_vEBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_WtWCF_fossil_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_WtW_fossil_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_fossiltype_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_issustfu_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_mass_bioblend_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "BlendedFuels_mass_fossil_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_FloatCorr_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_LiqDens15_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_LiqDens_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_DOG_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Tair_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Tair_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_psiwir_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_psiwit_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_psiwit_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_psiwvt_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_BLFOcargotransfer_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_BLFOfreshwater_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_Shrink_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_mLPGBINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_mLPGPINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_mMINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_DESME_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_DRME_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_Ta_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_composite_boiler_rob_after_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_rhoMComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_vMComBL_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_mdotFOCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_nFOGME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_rhoFOME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_vFOME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_vFOME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FPIME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_BNCOME_spec_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_COGME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_OMDcrankME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_OMDsupunME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_SCOCME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_VCOCME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_SOG_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_SOG_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_STW_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_STWcal_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_composite_boiler_last_bunkered_at",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_rhoFOEG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_posLBDSloME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_posLBDSupME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_posLBME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_rhoCOME_spec_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_NTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_NTCME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_NcalME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_PindME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_log_durationh_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_longitude_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_real_slip_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_trimm_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Hsl_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Hwv_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Hwv_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Tsl_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_aux_boiler_viscosity_cst",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "event_type",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_SulFOEG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_VFOCEG_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Flowmeter_mdotFOCFM_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_VFOCGCU_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_mFOCGCU_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_mGOCGCU_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_mLPGBGCU_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_rhoFOGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_rhoLPGBGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_rhoLPGPGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_rhoMGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "HPP_RHHPP_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_FOGIGG_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_LCVEIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_LCVFOIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_LCVMIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_RHIGG_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_RHIGG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_SulEIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_SulFOIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_SulLPGPIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_SulMIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_TFOFMinIGG_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_VFOCIGG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_mEIGG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_mEINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_rhoMINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_vFOINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_vLPGPINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_GAVdurcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_PFIdurcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_SCOCcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_TLOCHBRGcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_TLOMBRGcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_TLOPISToutcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_TegEVoutcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_ThtcwoutcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_ThtcwoutcylME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_vMIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_FOGINC_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_LCVEINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_TFOFMinINC_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_LCVEME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_LCVGOME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_LCVLPGBME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "ME_RHME_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_DH_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_DISP_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_DOG_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_HEAD_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_SOG_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_STW_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_Ta_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_Tf_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_eeoi_gco2mtnm_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_latitude_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_DEelAE_Cnt_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_pmaxcylME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_pmaxcylME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_DRME_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_FOGAEFOmaincargotemp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_SulFOGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_VdotFOCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_mEME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_mFOCME_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_mGOCME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_mLPGBME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_mLPGPME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_mMME_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_rhoEME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_rhoFOFMinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_rhoGOME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_rhoLPGBME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_rhoLPGPME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_rhoMME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_vEME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_vLPGBME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_vLPGPME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_vMME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_dtLBME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_dtLBME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_fLBME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_fLBPPME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_TegEVoutcylAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_ThtcwoutcylAE_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_ThtcwoutcylAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_VFOCAE_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_mMAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_SysOil_TSOinAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TLOCSinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TLOCSoutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TSOLOCinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TSOLOCoutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TSOLOFTinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TSOLOFToutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TSOTSME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TSOinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TSOinME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TSOoutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_TSOoutME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOADDEME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_pindcylAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_pindcylAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_GOGAE_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOCHBRGME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOGeisME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOMBRGME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOPISTinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOPISToutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOVDACTRME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pSOME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pSOME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_NTCTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_NTCTCME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TCCOTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TLOTCinTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TLOTCoutTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TairACinTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TairACoutTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TltcwACinTCME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_pmaxcylAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_pSOTCinTCAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_pSOTCinTCAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_pegTCoutTCAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_pegTCoutTCAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwACinAE_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwACinAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwACoutAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwACoutAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwLOCinAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwLOCinAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwLOCinAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TltcwLOCoutAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_dpairAFTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "Weather_hsw_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_pindcylAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Twdgph1AE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Twdgph1AE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Twdgph3AE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_VLTALTAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TVFEfME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TVdtME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TegTCinME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TegTCoutME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_ThtcwinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_ThtcwinME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "PropMotor_DRPMotor_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "PropMotor_NPMotor_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "PropMotor_NcalPMotor_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_BallastTot_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Weather_psiwvt_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_TegEVoutcylAE_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_pGOinAE_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_AMPALTAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_DEelAE_Cnt_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_DEelAE_dCnt_2_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_DEelAE_dCnt_3_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_LCVFOAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_LCVGOAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_FQAME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_GIME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_NbarME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_NrpmME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_COG_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Uwit_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_hsw_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wind_wni_relative_wind_dir",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wind_wni_wind_dir",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wind_wni_bf_wind",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wave_reported_wind_seas_m",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wave_reported_swell_dir",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wave_reported_swell_hgt_m",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wave_wni_sig_wave_m",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wave_wni_swell_dir",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_current_wni_current_factor_kts",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_m_e_fuel_consumption_mdo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_engine_slip",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_VGOCAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_VdotFOCAE_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_mEAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_mFOCAE_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_mFOCcalAE_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_mGOCAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_mLPGBAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_mdotFOCAE_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_PflexestME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_VITAME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_VITBME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_LCVLPGBAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_LCVLPGPAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_LCVMAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_SulEAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_SulFOAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_SulLPGBAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_SulLPGPAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_SulMAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_RHAE_dCnt_2_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_RHAE_dCnt_3_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pSORME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pairCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pairSPEVME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pcompMOPME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_pcomppscavMOPME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_phiEVCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_phiEVOME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_DEOSP_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_DH_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_DISP_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_DTW_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_FO_vFOAE_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_PelcalAE_avg_1_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_RHAE_Cnt_1_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_RHAE_Cnt_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_RHAE_dCnt_1_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TairTCinTCAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_VdotFOCBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_mMBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AuxBoiler_mdotFOCBL_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_tDeadInjBegME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_tInjME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_tdecayrefME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_XBPME_set_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_mcrcalME_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_FEUReeferOnboard_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_HEAD_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_HEAD_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_HrTEOSP_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_LNGBunkered_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_LNGROB_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_RHairER_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_ROT_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_SOGcal_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_STW_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TairACoutTCAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_Cargo_onboard_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_Tf_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_TypeTug_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_TegEVoutcylAE_avg_1_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_Cylinder_TegEVoutcylAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TegTCinTCAE_avg_2_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "AE_TC_TegTCinTCAE_avg_3_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_pscavME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "PropMotor_DEelPMotor_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "PropMotor_PelPMotor_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "PropMotor_PelcalPMotor_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "PropMotor_PelestPMotor_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_pambairER_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_phirud_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_phirud_max_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_phirud_min_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_phirud_rms_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_pitchCPP_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_rhoLNGCargo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_apparent_slip_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_calculated_scoc_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_cargo_grade_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_date_line_crossed_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_departure_port_last_leg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_eeoi_since_last_bosp_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_eta_estimated_time_of_arrival_lt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_eta_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_etaeosp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_to_port_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Tsw_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Tsw_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_pair_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_psicut_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_total_mdo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_total_biofuel_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_op_status",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_from_country",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_from_eu_port",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_FO_mFOCAE_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_AH_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_BallastTot_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_Cargo_onboard_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_mLPGPComBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_nFOGComBL_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_PelcalAE_avg_2_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_PelcalAE_avg_3_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_RHAE_dCnt_1_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_RHAE_dCnt_2_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AE_RHAE_dCnt_3_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AuxBoiler_RHBL_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "AuxBoiler_mFOCBL_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_eta_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_etb_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_ets_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_latitude_lat_direction_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_latitude_lat_minutes_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_longitude_lon_direction_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_longitude_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_CargoDisch_PelAEest_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Consumption_CargoDisch_RHAE_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_mLPGBComBL_dCntn_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_mFOCEG_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_nFOGEG_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_GOGGCU_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "CompositeBoiler_mLPGPComBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "EG_RHEG_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "EG_mFOCEG_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "INC_FO_RHINC_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "ME_FO_mFOCME_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Vessel_DEOSP_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wave_wni_swell_hgt_m",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_speed_reported_spd_kts",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_speed_instructed_spd_kts",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_speed_diff_reported_instructed_kts",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_speed_tw_spd_instructed_kts",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_fuel_efficiency_nm_ton_nm",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_fuel_efficiency_ton_nm_nm",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_m_e_fuel_consumption_vlsfo_hfo_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_m_e_fuel_consumption_mgo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_m_e_fuel_consumption_lsmgo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Monitoring_pg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Monitoring_status_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_CargoTankNo_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_time_zone_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Weather_Hsl_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Weather_Hwv_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Weather_Tsw_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Weather_Ucut_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Weather_Uwit_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Weather_psicut_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "Weather_psiwit_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CargoTank_ObsUllage_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Cargo_Ops_symb_WtLiqObsTmp_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "CompositeBoiler_mFOCComBL_dCnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_FOGEG_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_vFOGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_vLPGBGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_vLPGPGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "GCU_FO_vMGCU_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "HPP_RHHPP_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_nox_emmited_mt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_LCVMINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_RHINC_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_total_mdo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_total_biofuel_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_op_status",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_from_country",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_from_eu_port",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_to_country",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "emissionx_to_eu_port",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_distance_nm_reported_distance_nm",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_time_sailed_hrs",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wind_reported_relative_wind_dir",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_wind_reported_wind_dir",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_a_e_fuel_consumption_mgo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_a_e_fuel_consumption_lsmgo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_a_e_fuel_consumption_mdo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_a_e_fuel_consumption_bio_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_boiler_fuel_consumption_hsfo_0_5_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_heating_fuel_consumption_mgo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_heating_fuel_consumption_mdo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_cooling_fuel_consumption_hsfo_0_5_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_cooling_fuel_consumption_mgo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_engine_rpm",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "EG_mFOCcalEG_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_LCVLPGBIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "IGG_FO_LCVLPGPIGG_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Cylinder_TegEVoutcylME_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_SulFOINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_vEINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "INC_FO_vLPGBINC_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_pFOFinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_pFOFoutME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_pGOinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_DESME_Cnt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_FO_LCVFOME_an_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLOCSME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_SysOil_pLODynexinME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_Lub_NLBME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TVFEtME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TC_TegTCinTCME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "ME_TypeSpec_phuMME_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "SG_PelSG_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Vessel_AH_dCnt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Twv_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Ucut_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_arrival_port_current_leg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "VoyageMeta_latitude_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_main_engine_sulphur_pct",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "mariappsx_main_engine_viscosity_cst",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "source_id",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_departure_port_last_leg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Uwir_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_Uwit_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_hsw_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_psislt_avg_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_psislt_operational_LF",
+      "is_active": false
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "Weather_psiwvt_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "wni_tufmax_me_ldo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "wni_tufmax_ae_hfhsd_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_me_hfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_me_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_me_mdo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_me_biofuel_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_ae_hfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_ae_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_ae_mdo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_ae_biofuel_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_bl_hfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_bl_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_bl_mdo_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_bl_biofuel_mt",
+      "is_active": true
+    },
+    {
+      "source": "mari_apps",
+      "db_column": "emissionx_ig_other_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "vessel_imo",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_log_durationh_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_real_slip_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_to_port_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "VoyageMeta_trimm_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_speed_tw_spd_kts",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "ME_NME_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "ME_PSME_avg_operational_LF",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_boiler_fuel_consumption_vlsfo_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_boiler_fuel_consumption_mgo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_boiler_fuel_consumption_lsmgo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_boiler_fuel_consumption_mdo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_boiler_fuel_consumption_bio_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_igg_and_gcu_consumption_hsfo_0_5_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_igg_and_gcu_consumption_mgo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_igg_and_gcu_consumption_mdo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_heating_fuel_consumption_hsfo_0_5_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_cargo_unloaded_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_bunkered_mgo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_rob_vlsfo_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_rob_vlsfo_hfo_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_rob_mgo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_rob_lsmgo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_rob_mdo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_rob_bio_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_bunkered_hsfo_0_5_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_bunkered_mdo_0_1_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_bunkered_bio_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_total_fuel_consumption_lfo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_total_fuel_consumption_go_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_total_fuel_consumption_bio_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_speed_and_consumption_order_speed_kts",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_speed_and_consumption_order_fo_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_speed_and_consumption_order_do_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_m_e_fuel_consumption_hsfo_0_5_mt",
+      "is_active": true
+    },
+    {
+      "source": "wni",
+      "db_column": "wnix_m_e_fuel_consumption_vlsfo_hfo_mt",
+      "is_active": true
+    }
+  ],
+  "categories": [
+    {
+      "source": "mari_apps",
+      "name": "Performance",
+      "is_builtin": true
+    },
+    {
+      "source": "mari_apps",
+      "name": "Emission",
+      "is_builtin": true
+    },
+    {
+      "source": "wni",
+      "name": "Performance",
+      "is_builtin": true
+    },
+    {
+      "source": "wni",
+      "name": "Emission",
+      "is_builtin": true
+    }
+  ],
+  "category_columns": [
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_voyage_no",
+      "sort_order": 0
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "VoyageMeta_to_port_operational_LF",
+      "sort_order": 1
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "VoyageMeta_departure_port_last_leg_operational_LF",
+      "sort_order": 2
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "VoyageMeta_log_durationh_operational_LF",
+      "sort_order": 3
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_from_country",
+      "sort_order": 4
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_from_eu_port",
+      "sort_order": 5
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "Vessel_SOG_avg_operational_LF",
+      "sort_order": 6
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_to_country",
+      "sort_order": 7
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_to_eu_port",
+      "sort_order": 8
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "ME_FO_mFOCME_dCnt_operational_LF",
+      "sort_order": 9
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "VoyageMeta_latitude_operational_LF",
+      "sort_order": 10
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "AE_FO_mFOCAE_dCnt_operational_LF",
+      "sort_order": 11
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "VoyageMeta_longitude_operational_LF",
+      "sort_order": 12
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_op_status",
+      "sort_order": 13
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "Vessel_DOG_dCnt_operational_LF",
+      "sort_order": 14
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "Vessel_Tf_avg_operational_LF",
+      "sort_order": 15
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "Vessel_Ta_avg_operational_LF",
+      "sort_order": 16
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "Vessel_Cargo_onboard_operational_LF",
+      "sort_order": 17
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_me_hfo_mt",
+      "sort_order": 18
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_me_lfo_mt",
+      "sort_order": 19
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_me_mdo_mt",
+      "sort_order": 20
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_me_biofuel_mt",
+      "sort_order": 21
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_ae_hfo_mt",
+      "sort_order": 22
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_ae_lfo_mt",
+      "sort_order": 23
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_ae_mdo_mt",
+      "sort_order": 24
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_ae_biofuel_mt",
+      "sort_order": 25
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_bl_hfo_mt",
+      "sort_order": 26
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_bl_lfo_mt",
+      "sort_order": 27
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_bl_mdo_mt",
+      "sort_order": 28
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_bl_biofuel_mt",
+      "sort_order": 29
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_ig_other_mt",
+      "sort_order": 30
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_grand_total_mt",
+      "sort_order": 31
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_total_hfo_mt",
+      "sort_order": 32
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_total_lfo_mt",
+      "sort_order": 33
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_total_mdo_mt",
+      "sort_order": 34
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_total_biofuel_mt",
+      "sort_order": 35
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "db_column": "emissionx_bdn_ref",
+      "sort_order": 36
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "VoyageMeta_to_port_operational_LF",
+      "sort_order": 0
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "VoyageMeta_departure_port_last_leg_operational_LF",
+      "sort_order": 1
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "VoyageMeta_latitude_operational_LF",
+      "sort_order": 2
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "VoyageMeta_longitude_operational_LF",
+      "sort_order": 3
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "VoyageMeta_log_durationh_operational_LF",
+      "sort_order": 4
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_RHME_dCnt_operational_LF",
+      "sort_order": 5
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_NME_avg_operational_LF",
+      "sort_order": 6
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_mcrcalME_avg_operational_LF",
+      "sort_order": 7
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_SOG_avg_operational_LF",
+      "sort_order": 8
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_SOGcal_avg_operational_LF",
+      "sort_order": 9
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_STW_avg_operational_LF",
+      "sort_order": 10
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "VoyageMeta_real_slip_operational_LF",
+      "sort_order": 11
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_FO_mFOCME_dCnt_operational_LF",
+      "sort_order": 12
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "AE_FO_mFOCAE_dCnt_operational_LF",
+      "sort_order": 13
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_DOG_dCnt_operational_LF",
+      "sort_order": 14
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_DESME_dCnt_operational_LF",
+      "sort_order": 15
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_Tf_avg_operational_LF",
+      "sort_order": 16
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_Ta_avg_operational_LF",
+      "sort_order": 17
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_PeffcalME_avg_operational_LF",
+      "sort_order": 18
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_PeffestME_avg_operational_LF",
+      "sort_order": 19
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_Cargo_onboard_operational_LF",
+      "sort_order": 20
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "VoyageMeta_trimm_operational_LF",
+      "sort_order": 21
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_DISP_avg_operational_LF",
+      "sort_order": 22
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_DRME_dCnt_operational_LF",
+      "sort_order": 23
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_NME_operational_LF",
+      "sort_order": 24
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_PSME_operational_LF",
+      "sort_order": 25
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "ME_QME_avg_operational_LF",
+      "sort_order": 26
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_AH_dCnt_operational_LF",
+      "sort_order": 27
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_BallastTot_operational_LF",
+      "sort_order": 28
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_COG_avg_operational_LF",
+      "sort_order": 29
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_DH_dCnt_operational_LF",
+      "sort_order": 30
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_DTW_dCnt_operational_LF",
+      "sort_order": 31
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_HEAD_avg_operational_LF",
+      "sort_order": 32
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_SOG_operational_LF",
+      "sort_order": 33
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_STW_operational_LF",
+      "sort_order": 34
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Vessel_STWcal_avg_operational_LF",
+      "sort_order": 35
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "VoyageMeta_arrival_port_current_leg_operational_LF",
+      "sort_order": 36
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Hwv_avg_operational_LF",
+      "sort_order": 37
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Hwv_operational_LF",
+      "sort_order": 38
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Tair_avg_operational_LF",
+      "sort_order": 39
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Tair_operational_LF",
+      "sort_order": 40
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Tsw_avg_operational_LF",
+      "sort_order": 41
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Tsw_operational_LF",
+      "sort_order": 42
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Twv_avg_operational_LF",
+      "sort_order": 43
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Ucut_avg_operational_LF",
+      "sort_order": 44
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Uwir_avg_operational_LF",
+      "sort_order": 45
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Uwit_avg_operational_LF",
+      "sort_order": 46
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_Uwit_operational_LF",
+      "sort_order": 47
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_hsw_avg_operational_LF",
+      "sort_order": 48
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_hsw_operational_LF",
+      "sort_order": 49
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_pair_avg_operational_LF",
+      "sort_order": 50
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_pair_operational_LF",
+      "sort_order": 51
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_psicut_avg_operational_LF",
+      "sort_order": 52
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_psiwir_avg_operational_LF",
+      "sort_order": 53
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_psiwit_avg_operational_LF",
+      "sort_order": 54
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_psiwit_operational_LF",
+      "sort_order": 55
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "Weather_psiwvt_avg_operational_LF",
+      "sort_order": 56
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "mariappsx_cp_warranted_speed_kn",
+      "sort_order": 57
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "mariappsx_cp_speed_tolerance_kn",
+      "sort_order": 58
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "mariappsx_cp_warranted_consumption_mtday",
+      "sort_order": 59
+    },
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "db_column": "mariappsx_cp_consumption_tolerance_pct",
+      "sort_order": 60
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "VoyageMeta_to_port_operational_LF",
+      "sort_order": 0
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "VoyageMeta_departure_port_last_leg_operational_LF",
+      "sort_order": 1
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "VoyageMeta_log_durationh_operational_LF",
+      "sort_order": 2
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_from_country",
+      "sort_order": 3
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_from_eu_port",
+      "sort_order": 4
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "Vessel_SOG_avg_operational_LF",
+      "sort_order": 5
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_to_country",
+      "sort_order": 6
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_to_eu_port",
+      "sort_order": 7
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "ME_FO_mFOCME_dCnt_operational_LF",
+      "sort_order": 8
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "VoyageMeta_latitude_operational_LF",
+      "sort_order": 9
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "AE_FO_mFOCAE_dCnt_operational_LF",
+      "sort_order": 10
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "VoyageMeta_longitude_operational_LF",
+      "sort_order": 11
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "AuxBoiler_mFOCBL_dCnt_operational_LF",
+      "sort_order": 12
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_op_status",
+      "sort_order": 13
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "Vessel_DOG_dCnt_operational_LF",
+      "sort_order": 14
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "Vessel_Tf_avg_operational_LF",
+      "sort_order": 15
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "Vessel_Ta_avg_operational_LF",
+      "sort_order": 16
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "Vessel_Cargo_onboard_operational_LF",
+      "sort_order": 17
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_me_hfo_mt",
+      "sort_order": 18
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_me_lfo_mt",
+      "sort_order": 19
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_me_mdo_mt",
+      "sort_order": 20
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_me_biofuel_mt",
+      "sort_order": 21
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_ae_hfo_mt",
+      "sort_order": 22
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_ae_lfo_mt",
+      "sort_order": 23
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_ae_mdo_mt",
+      "sort_order": 24
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_ae_biofuel_mt",
+      "sort_order": 25
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_bl_hfo_mt",
+      "sort_order": 26
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_bl_lfo_mt",
+      "sort_order": 27
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_bl_mdo_mt",
+      "sort_order": 28
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_bl_biofuel_mt",
+      "sort_order": 29
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_ig_other_mt",
+      "sort_order": 30
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_grand_total_mt",
+      "sort_order": 31
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_total_hfo_mt",
+      "sort_order": 32
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_total_lfo_mt",
+      "sort_order": 33
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_total_mdo_mt",
+      "sort_order": 34
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "db_column": "emissionx_total_biofuel_mt",
+      "sort_order": 35
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "VoyageMeta_to_port_operational_LF",
+      "sort_order": 0
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "VoyageMeta_departure_port_last_leg_operational_LF",
+      "sort_order": 1
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "VoyageMeta_log_durationh_operational_LF",
+      "sort_order": 2
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "ME_RHME_dCnt_operational_LF",
+      "sort_order": 3
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_SOG_avg_operational_LF",
+      "sort_order": 4
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_STW_avg_operational_LF",
+      "sort_order": 5
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "VoyageMeta_real_slip_operational_LF",
+      "sort_order": 6
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "ME_FO_mFOCME_dCnt_operational_LF",
+      "sort_order": 7
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "VoyageMeta_latitude_operational_LF",
+      "sort_order": 8
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "AE_FO_mFOCAE_dCnt_operational_LF",
+      "sort_order": 9
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "VoyageMeta_longitude_operational_LF",
+      "sort_order": 10
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "AuxBoiler_mFOCBL_dCnt_operational_LF",
+      "sort_order": 11
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "ME_NME_avg_operational_LF",
+      "sort_order": 12
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_DOG_dCnt_operational_LF",
+      "sort_order": 13
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "ME_PSME_avg_operational_LF",
+      "sort_order": 14
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_Tf_avg_operational_LF",
+      "sort_order": 15
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_Ta_avg_operational_LF",
+      "sort_order": 16
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_Cargo_onboard_operational_LF",
+      "sort_order": 17
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "VoyageMeta_trimm_operational_LF",
+      "sort_order": 18
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_DISP_avg_operational_LF",
+      "sort_order": 19
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_AH_dCnt_operational_LF",
+      "sort_order": 20
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_BallastTot_operational_LF",
+      "sort_order": 21
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_DH_dCnt_operational_LF",
+      "sort_order": 22
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Vessel_HEAD_avg_operational_LF",
+      "sort_order": 23
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "VoyageMeta_eeoi_gco2mtnm_operational_LF",
+      "sort_order": 24
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Weather_Hsl_avg_operational_LF",
+      "sort_order": 25
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Weather_Hwv_avg_operational_LF",
+      "sort_order": 26
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Weather_Tsw_avg_operational_LF",
+      "sort_order": 27
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Weather_Ucut_avg_operational_LF",
+      "sort_order": 28
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Weather_Uwit_avg_operational_LF",
+      "sort_order": 29
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Weather_hsw_avg_operational_LF",
+      "sort_order": 30
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Weather_psicut_avg_operational_LF",
+      "sort_order": 31
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Weather_psiwit_avg_operational_LF",
+      "sort_order": 32
+    },
+    {
+      "source": "wni",
+      "category": "Performance",
+      "db_column": "Weather_psiwvt_avg_operational_LF",
+      "sort_order": 33
+    }
+  ],
+  "category_order": [
+    {
+      "source": "mari_apps",
+      "category": "Performance",
+      "sort_order": 0
+    },
+    {
+      "source": "mari_apps",
+      "category": "ME General Data",
+      "sort_order": 1
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emission",
+      "sort_order": 2
+    },
+    {
+      "source": "mari_apps",
+      "category": "AE FO Data",
+      "sort_order": 3
+    },
+    {
+      "source": "mari_apps",
+      "category": "AE General Data",
+      "sort_order": 4
+    },
+    {
+      "source": "mari_apps",
+      "category": "Auxiliary Boiler Data",
+      "sort_order": 5
+    },
+    {
+      "source": "mari_apps",
+      "category": "Composite Boiler Data",
+      "sort_order": 6
+    },
+    {
+      "source": "mari_apps",
+      "category": "Emergency Generator Data",
+      "sort_order": 7
+    },
+    {
+      "source": "mari_apps",
+      "category": "Fresh Water Generator Data",
+      "sort_order": 8
+    },
+    {
+      "source": "mari_apps",
+      "category": "Fuel",
+      "sort_order": 9
+    },
+    {
+      "source": "mari_apps",
+      "category": "Fuel Grade",
+      "sort_order": 10
+    },
+    {
+      "source": "mari_apps",
+      "category": "ME FO Data",
+      "sort_order": 11
+    },
+    {
+      "source": "mari_apps",
+      "category": "Vessel General Data",
+      "sort_order": 12
+    },
+    {
+      "source": "mari_apps",
+      "category": "Voyage Metadata",
+      "sort_order": 13
+    },
+    {
+      "source": "mari_apps",
+      "category": "Weather Data",
+      "sort_order": 14
+    },
+    {
+      "source": "wni",
+      "category": "Emission",
+      "sort_order": 0
+    },
+    {
+      "source": "wni",
+      "category": "A/E Fuel Consumption",
+      "sort_order": 1
+    },
+    {
+      "source": "wni",
+      "category": "AE FO Data",
+      "sort_order": 2
+    },
+    {
+      "source": "wni",
+      "category": "AE General Data",
+      "sort_order": 3
+    },
+    {
+      "source": "wni",
+      "category": "Auxiliary Boiler Data",
+      "sort_order": 4
+    },
+    {
+      "source": "wni",
+      "category": "Boiler Fuel Consumption",
+      "sort_order": 5
+    },
+    {
+      "source": "wni",
+      "category": "Bunkered",
+      "sort_order": 6
+    },
+    {
+      "source": "wni",
+      "category": "Cargo",
+      "sort_order": 7
+    },
+    {
+      "source": "wni",
+      "category": "Cargo Cooling Fuel Consumption",
+      "sort_order": 8
+    },
+    {
+      "source": "wni",
+      "category": "Cargo Heating Fuel Consumption",
+      "sort_order": 9
+    },
+    {
+      "source": "wni",
+      "category": "Composite Boiler Data",
+      "sort_order": 10
+    },
+    {
+      "source": "wni",
+      "category": "Current (WNI)",
+      "sort_order": 11
+    },
+    {
+      "source": "wni",
+      "category": "Distance (nm)",
+      "sort_order": 12
+    },
+    {
+      "source": "wni",
+      "category": "Emergency Generator Data",
+      "sort_order": 13
+    },
+    {
+      "source": "wni",
+      "category": "Engine",
+      "sort_order": 14
+    },
+    {
+      "source": "wni",
+      "category": "Fuel",
+      "sort_order": 15
+    },
+    {
+      "source": "wni",
+      "category": "Fuel Efficiency",
+      "sort_order": 16
+    },
+    {
+      "source": "wni",
+      "category": "IGG and GCU Consumption",
+      "sort_order": 17
+    },
+    {
+      "source": "wni",
+      "category": "M/E Fuel Consumption",
+      "sort_order": 18
+    },
+    {
+      "source": "wni",
+      "category": "ME FO Data",
+      "sort_order": 19
+    },
+    {
+      "source": "wni",
+      "category": "ME General Data",
+      "sort_order": 20
+    },
+    {
+      "source": "wni",
+      "category": "ROB",
+      "sort_order": 21
+    },
+    {
+      "source": "wni",
+      "category": "Speed",
+      "sort_order": 22
+    },
+    {
+      "source": "wni",
+      "category": "Speed and Consumption Order",
+      "sort_order": 23
+    },
+    {
+      "source": "wni",
+      "category": "Total Fuel Consumption",
+      "sort_order": 24
+    },
+    {
+      "source": "wni",
+      "category": "Vessel General Data",
+      "sort_order": 25
+    },
+    {
+      "source": "wni",
+      "category": "Voyage Metadata",
+      "sort_order": 26
+    },
+    {
+      "source": "wni",
+      "category": "Wave (Reported)",
+      "sort_order": 27
+    },
+    {
+      "source": "wni",
+      "category": "Wave (WNI)",
+      "sort_order": 28
+    },
+    {
+      "source": "wni",
+      "category": "Weather Data",
+      "sort_order": 29
+    },
+    {
+      "source": "wni",
+      "category": "Wind (Reported)",
+      "sort_order": 30
+    },
+    {
+      "source": "wni",
+      "category": "Wind (WNI)",
+      "sort_order": 31
+    }
+  ]
+}
