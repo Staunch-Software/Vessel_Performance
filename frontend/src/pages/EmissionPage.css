@@ -165,3 +165,26 @@
 
 .icon-spin { animation: spin 0.8s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ── EU MRV voyage-category badges ────────────────────────────────────────── */
+.mrv-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mrv-badge-eu { background: #1a6bb5; color: #fff; }
+.mrv-badge-outside { background: #1e3a5f; color: #9fb8d4; }
+.mrv-badge-unknown { background: #6b4a1a; color: #f0c880; }
+
+.em-ref-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #4a9eff;
+  text-decoration: none;
+  font-size: 11px;
+}
+.em-ref-link:hover { text-decoration: underline; }

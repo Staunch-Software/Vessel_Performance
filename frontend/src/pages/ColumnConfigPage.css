@@ -1,0 +1,226 @@
+.ccfg-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 24px;
+  overflow: auto;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.ccfg-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ccfg-source-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.ccfg-source-toggle button {
+  padding: 5px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ccfg-source-toggle button.active {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.ccfg-saving {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ccfg-spin { animation: ccfg-rotate 0.8s linear infinite; }
+@keyframes ccfg-rotate { to { transform: rotate(360deg); } }
+
+.ccfg-pillbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.ccfg-pillbar-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.ccfg-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ccfg-pill.active {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+  background: rgba(56, 189, 248, 0.1);
+  font-weight: 600;
+}
+.ccfg-pill-del {
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+.ccfg-pill-del:hover { color: #e05050; }
+.ccfg-pill-add { border-style: dashed; }
+
+.ccfg-add-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ccfg-add-form input {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.ccfg-add-form button {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ccfg-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+
+.ccfg-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 40px 0;
+  justify-content: center;
+}
+
+.ccfg-panes {
+  display: grid;
+  grid-template-columns: 220px 260px 1fr;
+  gap: 14px;
+  align-items: start;
+  flex: 1;
+  min-height: 0;
+}
+
+.ccfg-pane {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-height: 300px;
+  max-height: calc(100vh - 240px);
+  overflow: auto;
+}
+.ccfg-pane-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.ccfg-pane-head {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 0 0 10px;
+}
+
+.ccfg-src-row {
+  padding: 8px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.ccfg-src-row:hover { background: var(--row-hover); }
+.ccfg-src-row.active {
+  background: var(--row-selected);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.ccfg-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.ccfg-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.ccfg-row-clickable { cursor: pointer; }
+.ccfg-row-clickable:hover { background: var(--row-hover); }
+.ccfg-row.active {
+  background: var(--row-selected);
+  border-color: var(--accent-2);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.ccfg-row-static {
+  background: transparent;
+  border-style: dashed;
+  opacity: 0.7;
+}
+.ccfg-drag {
+  color: var(--text-muted);
+  cursor: grab;
+  display: flex;
+}
+.ccfg-row-label { flex: 1; }
+.ccfg-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent-2);
+  white-space: nowrap;
+}
+.ccfg-rm {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+}
+.ccfg-rm:hover { color: #e05050; }

@@ -649,6 +649,13 @@ class VesselParticulars(Base):
     mct = Column(Float, nullable=True)                                   # MCT (Moment to Change Trim 1cm) [MT-m]
     gross_tonnage = Column(Float, nullable=True)                         # Gross Tonnage (GT)
 
+    # --- IMO DCS Enhanced (MEPC.385(81) Item 6) ---
+    # Innovative technology category — A / B-1 / B-2 / C-1 / C-2 / None, per
+    # MEPC.1/Circ.896. Not derivable from operational data (it's a fitted-
+    # equipment classification, e.g. scrubber/rotor sail/waste heat recovery),
+    # so it's a manual per-vessel field set once via the IMO DCS page.
+    innovative_tech_category = Column(String(10), nullable=True)
+
     # --- Main Engine (extended) ---
     me_mcr_rpm = Column(Float, nullable=True)                            # Engine MCR RPM
     ncr_kw = Column(Float, nullable=True)                                # NCR [kW]
@@ -1621,6 +1628,70 @@ class VesselColumnDefault(Base):
         UniqueConstraint("vessel_imo", "source", name="uq_vessel_col_default_vessel_source"),
     )
 
+
+# ============================================================
+# TABLES: COLUMN CONFIGURATOR (admin-only "Configure Columns" page)
+# ============================================================
+# Generalizes the old ad-hoc `performance`/`emission` boolean flags on
+# expanded_column_metadata into named "calculation categories" an admin can
+# create/edit via a dedicated 3-pane page: pick a source category on the
+# left, pick its fields in the middle, and the picked fields (across every
+# source category visited) accumulate into a freely-reorderable list on the
+# right — that final list + order IS what a calc category "means" from
+# then on. Performance and Emission are migrated into this same model
+# rather than kept as a separate special case, so the page has one code
+# path for built-in and custom categories alike.
+# ============================================================
+class CategoryOrder(Base):
+    """The "All" mode's category ordering — what Section 1 writes to when
+    no calculation category is selected on the Configure Columns page.
+    Replaces the old first-appearance-in-the-column-list ordering with
+    something an admin can deliberately set."""
+    __tablename__ = "category_order"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    source     = Column(String(20), nullable=False)   # 'mari_apps' | 'wni'
+    category   = Column(String(100), nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("source", "category", name="uq_category_order_source_category"),
+    )
+
+
+class CalculationCategory(Base):
+    """A named calc category (Performance, Emission, or admin-created) —
+    just the name; its field list + order lives in
+    CalculationCategoryColumn."""
+    __tablename__ = "calculation_categories"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    source     = Column(String(20), nullable=False)   # 'mari_apps' | 'wni'
+    name       = Column(String(100), nullable=False)
+    is_builtin = Column(Boolean, nullable=False, default=False)  # Performance/Emission — not deletable
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("source", "name", name="uq_calc_category_source_name"),
+    )
+
+
+class CalculationCategoryColumn(Base):
+    """One field belonging to a calculation category, with its position in
+    that category's final output order (Section 3 in calc-category mode)."""
+    __tablename__ = "calculation_category_columns"
+
+    id                      = Column(Integer, primary_key=True, autoincrement=True)
+    calculation_category_id = Column(Integer, ForeignKey("calculation_categories.id", ondelete="CASCADE"),
+                                     nullable=False, index=True)
+    db_column               = Column(String(150), nullable=False)
+    sort_order              = Column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("calculation_category_id", "db_column", name="uq_calc_cat_col_category_column"),
+    )
+
+
 # ============================================================
 # TABLE: FLEET STATUS DATA (WNI SSM — live map tracking)
 # ============================================================
@@ -1767,3 +1838,53 @@ class MariAppsBunkerReport(Base):
     raw_json      = Column(JSONB, nullable=True)   # full scraped row, for anything not mapped above
     fingerprint   = Column(String(255), index=True, unique=True)  # SHA256 of IMO|transactionDtId (one row per MariApps transaction)
     scraped_at    = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+# ============================================================
+# BIOFUEL BUNKER STEM LEDGER — manually maintained, NOT scraped.
+# ============================================================
+# This is a 1:1 rebuild of the client's "Biofuel_Calc" worksheet from
+# Unified_Emissions_2026_v6 - Final.xlsx — one row per bunker stem (BDN),
+# same 9 input fields (the sheet's yellow cells) as that sheet's columns
+# A-I plus R (Total Qty). Every other column on that sheet (J through Q,
+# S, T — the green auto-calculated cells) is NOT stored here; it is
+# recomputed on every read by biofuel_calculator.py using the exact same
+# formulas as the sheet (see that module's docstring for the cell-by-cell
+# citations back to RefConstants).
+#
+# MariAppsBunkerReport above records what MariApps' own grid exposes for a
+# delivery (quantity, grade, supplier, lab analysis) — it has no concept of
+# a biofuel blend at all, hence this separate manually-maintained ledger.
+# bdn_number is a free-text cross-reference to a MariAppsBunkerReport row
+# (matched by the API layer if at all, not a DB foreign key), matching the
+# sheet's plain "BDN #" column — a stem can be logged before the matching
+# bunker report row is scraped, or for a vessel with none scraped at all.
+class BiofuelBunkerStem(Base):
+    __tablename__ = "biofuel_bunker_stems"
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    vessel_imo     = Column(String(20), ForeignKey("vessels.imo_number", ondelete="CASCADE"), index=True, nullable=False)
+
+    # When set, BDN #/Date/Port/Total Qty below were copied from this real
+    # scraped delivery (mariapps_bunker_reports) at creation time rather than
+    # typed by hand — see biofuel_routes.py's bunker-candidates endpoint.
+    # Only ever populated for the handful of vessels MariApps bunker-report
+    # scraping actually covers; every other vessel still needs manual entry,
+    # since there is no other source for "this delivery was a biofuel blend"
+    # at all (the MariApps grid itself has no such field — see the class
+    # docstring below).
+    bunker_report_id = Column(Integer, ForeignKey("mariapps_bunker_reports.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
+
+    bdn_number     = Column(String(100), nullable=True, index=True)  # sheet col A "BDN #"
+    delivery_date  = Column(Date, nullable=True)                     # sheet col B "Date"
+    port           = Column(String(255), nullable=True)              # sheet col C "Port"
+    base_fuel_grade = Column(String(10), nullable=False)             # sheet col D "Base Fuel" — 'HFO' | 'LFO' | 'MDO'
+    biofuel_type   = Column(String(100), nullable=False, default="FAME Biodiesel")  # sheet col E — single-option dropdown on the sheet
+    input_basis    = Column(String(10), nullable=False, default="Mass%")  # sheet col F — 'Vol%' | 'Mass%'
+    bio_pct        = Column(Float, nullable=False, default=0)        # sheet col G "Bio %" — 0-100, meaning depends on input_basis
+    rho_base       = Column(Float, nullable=True)                    # sheet col H, kg/m3 — only needed when input_basis='Vol%'
+    rho_bio        = Column(Float, nullable=True)                    # sheet col I, kg/m3 — only needed when input_basis='Vol%'
+    quantity_mt    = Column(Float, nullable=False)                   # sheet col R "Total Qty (MT)"
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

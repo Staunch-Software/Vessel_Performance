@@ -130,6 +130,39 @@ class MariAppsDetailExtractor:
             except Exception:
                 continue
 
+        # Some tabs (notably Position) also carry a standalone labeled textarea
+        # below the grid boxes — e.g. "Remarks", which can hold the master's
+        # free-text CP speed/consumption instruction for that day. It lives
+        # outside any tr[role='row'] grid, so the scan above never sees it;
+        # this looks it up by its own <label>, generically for any tab.
+        try:
+            textareas = pane.locator("textarea").all()
+            for ta in textareas:
+                try:
+                    label_text = ta.evaluate("""el => {
+                        const id = el.id;
+                        if (id) {
+                            const lbl = document.querySelector(`label[for="${id}"]`);
+                            if (lbl) return lbl.innerText.trim();
+                        }
+                        let sib = el.previousElementSibling;
+                        while (sib) {
+                            if (sib.tagName.toLowerCase() === 'label') return sib.innerText.trim();
+                            sib = sib.previousElementSibling;
+                        }
+                        const parent = el.closest('.form-group, .panel-body, div');
+                        const lbl = parent ? parent.querySelector('label') : null;
+                        return lbl ? lbl.innerText.trim() : null;
+                    }""")
+                    val = (ta.evaluate("el => el.value") or "").strip()
+                    key = (label_text or "Remarks").replace("*", "").strip()
+                    if val:
+                        tab_data[key] = val
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
         log.info(f"  {tab_name}: {len(tab_data)} fields.")
         return tab_data
 

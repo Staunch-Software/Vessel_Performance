@@ -14,12 +14,25 @@ class MariAppsLogTabHandler:
         Waits for the new tab to fully load before returning it.
 
         Returns the new Page object, or None if it could not be opened.
+
+        Popup-leak fix: if the popup DOES open but a later wait (page load,
+        Weather-tab-visible) times out, the old code fell through to the
+        except block and returned None WITHOUT ever closing `new_page` — a
+        real bug found during the CP Remarks historical backfill, where
+        each such failure left an orphaned tab open in the same browser
+        context. Over ~170 consecutive failures on one vessel this piled up
+        enough open tabs to degrade the whole context (one gap between log
+        lines was ~85 minutes), which then cascaded into near-100% failures
+        on every subsequent log for the rest of that run. `new_page` is now
+        tracked outside the risky waits and explicitly closed on any
+        failure path before returning None.
         """
         log_number = row_data.get("log_number")
         if not log_number:
             log.warning("open_log_tab called with no log_number in row_data.")
             return None
 
+        new_page = None
         try:
             # Find the frame that contains the grid links
             target = self.page
@@ -57,4 +70,10 @@ class MariAppsLogTabHandler:
 
         except Exception as e:
             log.error(f"  ❌ Error opening tab for log {log_number}: {e}")
+            if new_page is not None:
+                try:
+                    if not new_page.is_closed():
+                        new_page.close()
+                except Exception:
+                    pass
             return None

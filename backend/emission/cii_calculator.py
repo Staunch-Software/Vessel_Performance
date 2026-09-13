@@ -46,10 +46,14 @@ REFERENCE_LINE = {
 }
 
 # Annual reduction factor Z (%) vs the 2019 reference line — MEPC.338(76) Table 1 (2023-2026),
-# MEPC.400(83) (2027-2030, adopted 11 Apr 2025).
+# MEPC.400(83) (2027-2030, adopted 11 Apr 2025). The 2027-2030 values are the actual
+# published MEPC.400(83) figures (confirmed against the client's own RefConstants
+# sheet) — a prior version of this table used linearly-interpolated placeholders
+# (13.625/16.25/18.875/21.5) instead of the real cited values, understating the
+# required-CII tightening for those years.
 Z_FACTOR_PCT = {
     2023: 5.0, 2024: 7.0, 2025: 9.0, 2026: 11.0,
-    2027: 13.625, 2028: 16.250, 2029: 18.875, 2030: 21.500,
+    2027: 14.28, 2028: 20.41, 2029: 26.53, 2030: 32.65,
 }
 
 # Rating boundaries exp(d1..d4), multiplied by required CII — MEPC.354(78) Table 2.

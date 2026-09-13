@@ -433,6 +433,23 @@ MARIAPPS_TO_NEWCOL = {
     'section0_aux_boiler_mass_consumption_mt': 'AuxBoiler_mFOCBL_dCnt_operational_LF',
     'section0_aux_boiler_temperature_at_inlet_flowmeter_c': 'AuxBoiler_TFOFMinBL_avg_operational_LF',
     'section0_aux_boiler_volume_consumption_m3': 'AuxBoiler_VFOCBL_dCnt_operational_LF',
+    # cons_-prefixed twins of the 6 keys directly above — flatten_mariapps()
+    # always prefixes Consumption_Data keys with "cons_" (see MARIAPPS_SECTIONS
+    # in expander.py), but this generated dict only ever had the unprefixed
+    # form, so every one of these was silently dropped by _map_flat_to_newcols
+    # for every row, always (confirmed: AuxBoiler_mFOCBL_dCnt_operational_LF
+    # was NULL on all 1,921 rows fleet-wide before this fix, despite the
+    # value being correctly captured in raw_json — it just landed in
+    # AuxBoiler_VFOCBL_dCnt_operational_LF, a mislabeled "Volume" column,
+    # via a different, older raw key instead). Added manually per this
+    # file's own established convention for post-hoc gaps (see the
+    # VoyageMeta_ non-standard-field precedent in expander.py).
+    'cons_section0_aux_boiler_calculated_mass_consumption_mt': 'AuxBoiler_mFOCcalBL_avg_operational_LF',
+    'cons_section0_aux_boiler_gas_pressure_at_engine_inlet_avg_bar': 'AuxBoiler_pGOinBL_avg_operational_LF',
+    'cons_section0_aux_boiler_grade': 'AuxBoiler_FOGBL_operational_LF',
+    'cons_section0_aux_boiler_mass_consumption_mt': 'AuxBoiler_mFOCBL_dCnt_operational_LF',
+    'cons_section0_aux_boiler_temperature_at_inlet_flowmeter_c': 'AuxBoiler_TFOFMinBL_avg_operational_LF',
+    'cons_section0_aux_boiler_volume_consumption_m3': 'AuxBoiler_VFOCBL_dCnt_operational_LF',
     'section0_aux_engine_calculated_mass_consumption_mt': 'AE_section0_aux_engine_calculated_mass_consumption_mt_operational_LF',
     'section0_aux_engine_gas_pressure_at_engine_inlet_avg_bar': 'AE_section0_aux_engine_gas_pressure_at_engine_inlet_avg_bar_operational_LF',
     'section0_aux_engine_grade': 'AE_section0_aux_engine_grade_operational_LF',

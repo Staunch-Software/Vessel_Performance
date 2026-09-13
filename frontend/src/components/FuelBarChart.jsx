@@ -170,6 +170,11 @@ function buildData(rows, mode, voyageView, complianceByDate) {
         'ME FOC': me,
         'AE FOC': ae,
         total: me + ae,
+        // CP compliance star: Event-wise Data shows one bar per report row rather
+        // than per calendar date, but complianceByDate is still keyed by date
+        // (worst-status-wins across a day's reports) — same lookup as the
+        // daily/underway branch below, just applied per-row instead of per-date.
+        nonCompliant: complianceByDate?.[String(r.log_date || r.Date || '').slice(0, 10)] === 'Non-compliant',
       })
     })
     return data
@@ -217,6 +222,8 @@ function buildData(rows, mode, voyageView, complianceByDate) {
         'ME FOC': item.me,
         'AE FOC': item.ae,
         total: item.me + item.ae,
+        // CP compliance star: Daily Data never shows it, only Event-wise/Underway.
+        nonCompliant: mode === 'underway' && complianceByDate?.[item.date] === 'Non-compliant',
       })
     })
     return data
@@ -236,7 +243,10 @@ function buildData(rows, mode, voyageView, complianceByDate) {
         const { me, ae } = byDate[key]
         return {
           key, label: fmt(key), 'ME FOC': me, 'AE FOC': ae, total: me + ae,
-          nonCompliant: complianceByDate?.[key] === 'Non-compliant',
+          // CP compliance star: Daily Data never shows it, only Event-wise/Underway
+          // (this branch is shared by both 'daily' and 'underway' modes — `source`
+          // above was already pre-filtered to underway rows when mode==='underway').
+          nonCompliant: mode === 'underway' && complianceByDate?.[key] === 'Non-compliant',
         }
       })
   }

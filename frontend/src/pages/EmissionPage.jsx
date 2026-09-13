@@ -1,209 +1,144 @@
-import { useState, useEffect, useCallback } from 'react'
-import { memoryStore } from '../utils/memoryStore'
-import { Loader2, AlertTriangle, Leaf, Clock } from 'lucide-react'
-import { fetchVessels, fetchEmissionYears, fetchEmissionCII } from '../api/vesselApi'
+import { BookOpen, Link as LinkIcon } from 'lucide-react'
 import './EmissionPage.css'
 
-const SOURCE_TABS = [
-  { id: '', label: 'All' },
-  { id: 'wni', label: 'WNI' },
-  { id: 'mari_apps', label: 'MariApps' },
+// Emission landing page — reference material only (RefConstants +
+// Regulatory_Refs from the client's Unified_Emissions workbook). The actual
+// calculators (CII moved to IMO DCS; EU MRV/ETS/FuelEU/Biofuel Calc as they're
+// built) live on their own pages under this same nav group. Values here are
+// cited directly from the governing IMO/EU instruments — do not hand-edit
+// without an update to the source regulation (matches the workbook's own
+// "do NOT modify unless regulation is amended" note).
+
+const CF_TABLE = [
+  ['HFO', 3.114, 40.2, 'MEPC.364(79)'],
+  ['LFO', 3.151, 41.0, 'VLSFO (0.5% S)'],
+  ['MDO/MGO', 3.206, 42.7, ''],
+  ['LNG', 2.750, 49.1, ''],
+  ['Methanol', 1.375, 19.9, ''],
+  ['LPG', 3.030, 46.0, ''],
+  ['Biodiesel (FAME)', 2.834, 37.2, 'Same combustion Cf as fossil equivalent'],
+  ['Bio-LNG', 2.750, 49.1, 'Same combustion Cf as fossil equivalent'],
+  ['Bio-methanol', 1.375, 19.9, 'Same combustion Cf as fossil equivalent'],
+  ['e-Diesel (RFNBO)', 3.206, 42.7, 'Zero WtT credit; same combustion Cf'],
+  ['e-Methanol (RFNBO)', 1.375, 19.9, 'Zero WtT credit; same combustion Cf'],
 ]
 
-const RATING_COLORS = { A: 'a', B: 'b', C: 'c', D: 'd', E: 'e' }
+const WTW_TABLE = [
+  ['HFO', 91.16, 1, 40.2, ''],
+  ['LFO', 91.16, 1, 41.0, ''],
+  ['MDO/MGO', 91.76, 1, 42.7, ''],
+  ['LNG', 0, 1, 49.1, 'Engine-dependent: 76.08–89.20 (see engine table)'],
+  ['Methanol', 103.15, 1, 19.9, ''],
+  ['LPG', 73.6, 1, 46.0, ''],
+  ['Biodiesel (FAME)', 16.38, 1, 37.2, 'Certified sustainable — Annex II Table 1'],
+  ['Bio-methanol', 13.14, 1, 19.9, ''],
+  ['e-Diesel (RFNBO)', 6.58, 2, 42.7, '2x reward through 2033 — Art. 9(1)(b)'],
+  ['e-Methanol (RFNBO)', 6.48, 2, 19.9, '2x reward through 2033 — Art. 9(1)(b)'],
+]
 
-function RatingBadge({ rating }) {
-  if (!rating) return <span className="em-rating-badge none">—</span>
-  return <span className={`em-rating-badge ${RATING_COLORS[rating] || ''}`}>{rating}</span>
-}
+const CII_Z_FACTORS = [
+  [2023, '5%', 'MEPC.338(76)'], [2024, '7%', 'MEPC.338(76)'], [2025, '9%', 'MEPC.338(76)'],
+  [2026, '11%', 'MEPC.338(76)'], [2027, '14.28%', 'MEPC.400(83)'], [2028, '20.41%', 'MEPC.400(83)'],
+  [2029, '26.53%', 'MEPC.400(83)'], [2030, '32.65%', 'MEPC.400(83)'],
+]
 
-// Horizontal scale showing where attained CII falls among the A-E boundaries
-function RatingScale({ attained, boundaries }) {
-  if (!boundaries || attained == null) return null
-  const { superior, lower, upper, inferior } = boundaries
-  const max = inferior * 1.15
-  const pct = v => Math.min(100, (v / max) * 100)
+const FUELEU_TARGETS = [
+  [2025, 89.34, '-2%'], [2026, 89.34, '-2%'], [2030, 85.69, '-6%'],
+  [2035, 77.94, '-14.5%'], [2040, 62.90, '-31%'], [2045, 34.64, '-62%'], [2050, 18.23, '-80%'],
+]
+
+const IMO_REFS = [
+  ['MARPOL Annex VI Reg. 27', 'DCS — Data Collection System', 'Fuel consumption reporting — annual submission to Admin/RO by 31 March'],
+  ['MEPC.385(81)', 'Enhanced DCS — 6 new data items from CY2026', 'Fuel by consumer, NOT UW by consumer, OPS kWh, transport work, laden dist, innov. tech'],
+  ['MEPC.401(83)', 'Operational status definitions', 'Under Way = FAOP to EOSP. Not Under Way = EOSP to next FAOP.'],
+  ['MARPOL Annex VI Reg. 28', 'CII — Carbon Intensity Indicator', 'Annual operational CII rating A–E. D/E triggers corrective action plan in SEEMP III.'],
+  ['MEPC.364(79)', 'CO2 emission factors (Cf)', 'Supersedes MEPC.352(78). Cf values for all fuel types incl. biofuels.'],
+  ['MEPC.353(78)', 'CII reference lines', 'Ship-type-specific a, c coefficients. Bulk carrier: a=4745, c=0.622.'],
+  ['MEPC.354(78)', 'CII rating boundaries', 'dd1–dd4 per ship type. Bulk carrier: 0.86, 0.94, 1.06, 1.18.'],
+  ['MEPC.376(80)', 'LCA / GWP for maritime', 'GWP100 AR5: CH4=28, N2O=265. IMO standard for GHG equivalence.'],
+  ['MEPC.1/Circ.905-Rev.1', 'Biofuel Cf methodology', 'Mass-weighted blended Cf. Cf_blend = Σ(mᵢ×Cfᵢ)/Σ(mᵢ).'],
+  ['MEPC.1/Circ.896', 'Innovative technology categories', 'Cat. A / B-1 / B-2 / C-1 / C-2 — Enhanced DCS Item 6.'],
+]
+
+const EU_REFS = [
+  ['Reg. (EU) 2015/757', 'EU MRV — Monitoring, Reporting, Verification', 'https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32015R0757'],
+  ['Reg. (EU) 2023/957', 'MRV amendment — CH4, N2O, scope extension', 'https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32023R0957'],
+  ['Dir. 2003/87/EC', 'EU ETS — Emissions Trading System (original)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32003L0087'],
+  ['Dir. (EU) 2023/959', 'ETS maritime extension — Fit for 55', 'https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32023L0959'],
+  ['Reg. (EU) 2023/1805', 'FuelEU Maritime — GHG intensity regulation', 'https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32023R1805'],
+  ['Del. Reg. (EU) 2023/2776', 'TtW emission factors — CO2 Cf, CH4 EF, N2O EF', 'https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=OJ:L_202302776'],
+  ['Dir. (EU) 2018/2001 (RED II)', 'Renewable Energy Directive — biofuel sustainability criteria', 'https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32018L2001'],
+]
+
+function RefTable({ head, rows }) {
   return (
-    <div className="em-scale">
-      <div className="em-scale-track">
-        <div className="em-scale-band a" style={{ width: `${pct(superior)}%` }} />
-        <div className="em-scale-band b" style={{ width: `${pct(lower) - pct(superior)}%` }} />
-        <div className="em-scale-band c" style={{ width: `${pct(upper) - pct(lower)}%` }} />
-        <div className="em-scale-band d" style={{ width: `${pct(inferior) - pct(upper)}%` }} />
-        <div className="em-scale-band e" style={{ width: `${100 - pct(inferior)}%` }} />
-        <div className="em-scale-marker" style={{ left: `${pct(attained)}%` }} title={`Attained: ${attained}`} />
-      </div>
-      <div className="em-scale-labels">
-        <span>0</span>
-        <span>{superior}</span>
-        <span>{lower}</span>
-        <span>{upper}</span>
-        <span>{inferior}</span>
-      </div>
-    </div>
-  )
-}
-
-function CIICard({ imo, year, source }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    if (!imo || !year) return
-    setLoading(true)
-    setError(null)
-    fetchEmissionCII(imo, year, source || undefined)
-      .then(d => setData(d))
-      .catch(e => { setError(e?.response?.data?.detail ?? 'Failed to load CII data.'); setData(null) })
-      .finally(() => setLoading(false))
-  }, [imo, year, source])
-
-  return (
-    <div className="em-card">
-      <div className="em-card-title">
-        <Leaf size={13} /> AER &amp; CII
-        <span className="em-card-meta">IMO MEPC.336(76) — bulk carrier reference (MEPC.353(78)/354(78))</span>
-      </div>
-
-      {loading && <div className="em-empty"><Loader2 size={16} className="icon-spin" /> Calculating…</div>}
-      {!loading && error && <div className="em-empty error"><AlertTriangle size={13} /> {error}</div>}
-      {!loading && !error && data && data.note && <div className="em-empty">{data.note}</div>}
-
-      {!loading && !error && data && data.attained_cii != null && (
-        <>
-          <div className="em-headline">
-            <div className="em-headline-stat">
-              <span className="em-headline-label">Attained CII / AER</span>
-              <span className="em-headline-value">{data.attained_cii}</span>
-              <span className="em-headline-unit">gCO₂ / dwt·nm</span>
-            </div>
-            <RatingBadge rating={data.rating} />
-            <div className="em-headline-stat">
-              <span className="em-headline-label">Required CII ({year})</span>
-              <span className="em-headline-value muted">{data.required_cii}</span>
-            </div>
-            <div className="em-headline-stat">
-              <span className="em-headline-label">Total CO₂</span>
-              <span className="em-headline-value muted">{data.co2_total_mt} mt</span>
-            </div>
-            <div className="em-headline-stat">
-              <span className="em-headline-label">Distance Sailed</span>
-              <span className="em-headline-value muted">{data.distance_nm} nm</span>
-            </div>
-            <div className="em-headline-stat">
-              <span className="em-headline-label">DWT</span>
-              <span className="em-headline-value muted">{data.dwt}</span>
-            </div>
-          </div>
-
-          <RatingScale attained={data.attained_cii} boundaries={data.rating_boundaries} />
-
-          <div className="em-table-wrap">
-            <table className="em-table">
-              <thead>
-                <tr><th>Fuel Grade</th><th>Consumed (mt)</th><th>Cf (t-CO₂/t-fuel)</th><th>CO₂ (mt)</th></tr>
-              </thead>
-              <tbody>
-                {data.fuel_breakdown.map((f, i) => (
-                  <tr key={i}>
-                    <td>{f.grade.toUpperCase()}</td>
-                    <td>{f.fuel_mt}</td>
-                    <td>{f.cf}</td>
-                    <td>{f.co2_mt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function PendingReportCard({ title }) {
-  return (
-    <div className="em-card">
-      <div className="em-card-title">
-        <Clock size={13} /> {title}
-      </div>
-      <div className="em-empty">
-        Report definition pending — scope and format to be finalized before this can be built.
-      </div>
+    <div className="em-table-wrap">
+      <table className="em-table">
+        <thead><tr>{head.map(h => <th key={h}>{h}</th>)}</tr></thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>{r.map((c, j) => (
+              j === r.length - 1 && typeof c === 'string' && c.startsWith('http')
+                ? <td key={j}><a href={c} target="_blank" rel="noreferrer" className="em-ref-link"><LinkIcon size={11} /> Source</a></td>
+                : <td key={j}>{c}</td>
+            ))}</tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
 
 export default function EmissionPage() {
-  const [vessels, setVessels] = useState([])
-  const [selectedImo, setImo] = useState('')
-  const [years, setYears] = useState([])
-  const [year, setYear] = useState(null)
-  const [source, setSource] = useState('')
-
-  useEffect(() => {
-    fetchVessels()
-      .then(list => {
-        setVessels(list)
-        if (list.length > 0) {
-          const saved = memoryStore.getItem('vp_last_vessel_emission')
-          setImo(saved && list.find(v => v.imo_number === saved) ? saved : list[0].imo_number)
-        }
-      })
-      .catch(console.error)
-  }, [])
-
-  const loadYears = useCallback((imo) => {
-    if (!imo) return
-    fetchEmissionYears(imo)
-      .then(list => {
-        setYears(list)
-        setYear(list.length > 0 ? list[list.length - 1] : null)
-      })
-      .catch(() => { setYears([]); setYear(null) })
-  }, [])
-
-  useEffect(() => { loadYears(selectedImo) }, [selectedImo, loadYears])
-
   return (
     <div className="em-page">
       <div className="em-topbar">
-        <div className="em-topbar-left">
-          <span className="em-title">Emission</span>
-          <select
-            className="em-vessel-select"
-            value={selectedImo}
-            onChange={e => {
-              setImo(e.target.value)
-              memoryStore.setItem('vp_last_vessel_emission', e.target.value)
-            }}
-          >
-            {vessels.map(v => (
-              <option key={v.imo_number} value={v.imo_number}>{v.vessel_name} ({v.imo_number})</option>
-            ))}
-          </select>
-          <select className="em-year-select" value={year ?? ''} onChange={e => setYear(Number(e.target.value))}>
-            {years.length === 0 && <option value="">No data</option>}
-            {years.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-        <div className="em-source-tabs">
-          {SOURCE_TABS.map(t => (
-            <button
-              key={t.id}
-              className={`em-source-tab${source === t.id ? ' active' : ''}`}
-              onClick={() => setSource(t.id)}
-            >{t.label}</button>
-          ))}
-        </div>
+        <span className="em-title">Emission — Reference</span>
       </div>
-
       <div className="em-body">
-        <CIICard imo={selectedImo} year={year} source={source} />
-        <PendingReportCard title="ESG Report" />
-        <PendingReportCard title="SCC Report" />
-        <PendingReportCard title="ESI Report" />
+        <div className="em-card">
+          <div className="em-card-title">
+            <BookOpen size={13} /> How to use this section
+          </div>
+          <div className="em-empty" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+            <p style={{ margin: 0 }}>
+              This page is reference material only — the emission-factor and regulatory constants every
+              calculator on the other Emission pages (IMO DCS, EU MRV, EU ETS, FuelEU Maritime, Biofuel Calc)
+              is built on. Values are cited directly from the governing IMO/EU instruments; don't hand-edit
+              them without a corresponding regulation update.
+            </p>
+          </div>
+        </div>
+
+        <div className="em-card">
+          <div className="em-card-title">TtW CO₂ Emission Factors (Cf) <span className="em-card-meta">MEPC.364(79) / Del. Reg. 2023/2776</span></div>
+          <RefTable head={['Fuel Type', 'Cf (t-CO₂/t-fuel)', 'LCV (MJ/kg)', 'Notes']} rows={CF_TABLE} />
+        </div>
+
+        <div className="em-card">
+          <div className="em-card-title">WtW Default Emission Factors (FuelEU) <span className="em-card-meta">Reg. 2023/1805 Annex II</span></div>
+          <RefTable head={['Fuel Type', 'WtW (gCO₂e/MJ)', 'RFNBO Multiplier', 'LCV (MJ/kg)', 'Notes']} rows={WTW_TABLE} />
+        </div>
+
+        <div className="em-card">
+          <div className="em-card-title">CII Annual Reduction Factor (Z%) <span className="em-card-meta">MEPC.338(76) / MEPC.400(83)</span></div>
+          <RefTable head={['Year', 'Z-factor', 'Source']} rows={CII_Z_FACTORS} />
+        </div>
+
+        <div className="em-card">
+          <div className="em-card-title">FuelEU GHG Intensity Targets <span className="em-card-meta">Reg. 2023/1805 Art. 4(2)</span></div>
+          <RefTable head={['Year', 'Target (gCO₂e/MJ)', 'Reduction vs. Baseline']} rows={FUELEU_TARGETS} />
+        </div>
+
+        <div className="em-card">
+          <div className="em-card-title">IMO Instruments</div>
+          <RefTable head={['Instrument', 'Subject', 'Notes']} rows={IMO_REFS} />
+        </div>
+
+        <div className="em-card">
+          <div className="em-card-title">EU Primary Legislation</div>
+          <RefTable head={['Regulation', 'Subject', 'Link']} rows={EU_REFS} />
+        </div>
       </div>
     </div>
   )

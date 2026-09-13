@@ -183,6 +183,32 @@ export async function fetchBunkerReport(imo) {
   return Array.isArray(data) ? data : []
 }
 
+// ── Biofuel Calc ──────────────────────────────────────────────────────────────
+export async function fetchBiofuelStems(imo) {
+  const { data } = await api.get(`/biofuel/${imo}/stems`)
+  return data
+}
+
+export async function fetchBiofuelBunkerCandidates(imo) {
+  const { data } = await api.get(`/biofuel/${imo}/bunker-candidates`)
+  return Array.isArray(data) ? data : []
+}
+
+export async function createBiofuelStem(payload) {
+  const { data } = await api.post('/biofuel/stems', payload)
+  return data
+}
+
+export async function updateBiofuelStem(id, payload) {
+  const { data } = await api.patch(`/biofuel/stems/${id}`, payload)
+  return data
+}
+
+export async function deleteBiofuelStem(id) {
+  const { data } = await api.delete(`/biofuel/stems/${id}`)
+  return data
+}
+
 // ── ISO 19030 ─────────────────────────────────────────────────────────────────
 export async function fetchISOConfig(imo) {
   const { data } = await api.get(`/iso19030/${imo}/config`)
@@ -330,6 +356,42 @@ export async function saveVesselColumnDefaults(source, vesselImo, columnPrefs) {
   return data
 }
 
+// ── Column Configurator (admin-only "Configure Columns" page) ────────────────
+export async function fetchCategoryOrder(source) {
+  const { data } = await api.get('/category-order', { params: { source } })
+  return data.categories || []
+}
+
+export async function saveCategoryOrder(source, categories) {
+  const { data } = await api.put('/category-order', { source, categories })
+  return data
+}
+
+export async function fetchCalculationCategories(source) {
+  const { data } = await api.get('/calculation-categories', { params: { source } })
+  return Array.isArray(data) ? data : []
+}
+
+export async function createCalculationCategory(source, name) {
+  const { data } = await api.post('/calculation-categories', { source, name })
+  return data
+}
+
+export async function deleteCalculationCategory(id) {
+  const { data } = await api.delete(`/calculation-categories/${id}`)
+  return data
+}
+
+export async function fetchCalcCategoryColumns(id) {
+  const { data } = await api.get(`/calculation-categories/${id}/columns`)
+  return data.db_columns || []
+}
+
+export async function saveCalcCategoryColumns(id, dbColumns) {
+  const { data } = await api.put(`/calculation-categories/${id}/columns`, { db_columns: dbColumns })
+  return data
+}
+
 // ── Fleet Status Monitoring ───────────────────────────────────────────────────
 export async function fetchFleetVoyages() {
   const { data } = await api.get('/fleet/voyages')
@@ -349,5 +411,63 @@ export async function fetchEmissionYears(imo) {
 
 export async function fetchEmissionCII(imo, year, source) {
   const { data } = await api.get(`/emission/${imo}/cii`, { params: { year, ...(source ? { source } : {}) } })
+  return data
+}
+
+export async function fetchImoDcs(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/imo-dcs`, { params: { year, ...(source ? { source } : {}) } })
+  return data
+}
+
+export async function saveInnovativeTech(imo, category) {
+  const { data } = await api.patch(`/emission/${imo}/innovative-tech`, { category })
+  return data
+}
+
+// source is required here (never blended) — pass 'wni' or 'mari_apps'.
+export async function fetchImoDcsMonthly(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/imo-dcs/monthly`, { params: { year, source } })
+  return data
+}
+
+export async function fetchImoDcsLegs(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/imo-dcs/legs`, { params: { year, source } })
+  return data
+}
+
+export async function fetchImoDcsEvents(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/imo-dcs/events`, { params: { year, source } })
+  return data
+}
+
+export async function fetchEuMrv(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/eu-mrv`, { params: { year, source } })
+  return data
+}
+
+export async function fetchEuMrvLegs(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/eu-mrv/legs`, { params: { year, source } })
+  return data
+}
+
+export async function fetchEuEts(imo, year, source, euaPrice) {
+  const { data } = await api.get(`/emission/${imo}/eu-ets`, {
+    params: { year, source, ...(euaPrice != null && euaPrice !== '' ? { eua_price: euaPrice } : {}) },
+  })
+  return data
+}
+
+export async function fetchEuEtsLegs(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/eu-ets/legs`, { params: { year, source } })
+  return data
+}
+
+export async function fetchFuelEu(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/fueleu`, { params: { year, source } })
+  return data
+}
+
+export async function fetchFuelEuLegs(imo, year, source) {
+  const { data } = await api.get(`/emission/${imo}/fueleu/legs`, { params: { year, source } })
   return data
 }

@@ -1,0 +1,312 @@
+/* ── Biofuel Calc page layout — palette matches BunkerReportPage/EmissionPage ── */
+.bf-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0e1a2b;
+  color: #c8d8eb;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+}
+
+.bf-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  background: #0a1422;
+  border-bottom: 1px solid #1e3a5f;
+  flex-shrink: 0;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.bf-topbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bf-title { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #e2eaf5; }
+.bf-vessel-select {
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  color: #c8d8eb;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bf-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 18px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.bf-body::-webkit-scrollbar { width: 6px; height: 6px; }
+.bf-body::-webkit-scrollbar-track { background: #0a1422; }
+.bf-body::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+
+.bf-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 30px 14px;
+  color: #5a7fa8;
+  font-size: 12px;
+}
+.bf-empty.error { color: #e05050; }
+
+/* ── Section titles (mirror the sheet's "A./B./C." headers) ─────────────────── */
+.bf-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #7fd4e0;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #1e3a5f;
+}
+.bf-section-title span { font-size: 10.5px; font-weight: 400; color: #5a7fa8; }
+
+.bf-methodology, .bf-refnotes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  background: #0c1826;
+  font-size: 11.5px;
+  color: #a9c2dc;
+  line-height: 1.5;
+}
+.bf-methodology b, .bf-refnotes b { color: #c8d8eb; }
+
+/* ── Input vs Calculated columns — mirrors the sheet's yellow/green cells ──── */
+.bf-col-input { background: rgba(255, 220, 60, 0.06); }
+.bf-col-calc { background: rgba(60, 180, 120, 0.06); }
+thead .bf-col-input { color: #d8c060; }
+thead .bf-col-calc { color: #6bc47f; }
+
+.bf-summary-row-tr td {
+  background: #0f1f35;
+  border-top: 2px solid #1e3a5f;
+  font-weight: 700;
+}
+.bf-summary-label { color: #7fa8cc; text-align: right; padding-right: 12px !important; }
+
+.bf-field-inactive { opacity: 0.45; }
+
+/* ── Bunker-report source cell in the table ──────────────────────────────── */
+.bf-src-cell { text-align: center; color: #4a9eff; }
+.bf-src-manual { color: #3a5578; }
+
+/* ── Add/Edit modal: source toggle + candidate picker ────────────────────── */
+.bf-source-toggle { display: flex; gap: 6px; margin-bottom: 12px; }
+.bf-source-tab {
+  flex: 1;
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  color: #7fa8cc;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bf-source-tab.active { background: #1a6bb5; border-color: #1a6bb5; color: #fff; }
+.bf-source-tab:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.bf-candidate-picker { margin-bottom: 14px; }
+.bf-candidate-picker select {
+  width: 100%;
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  color: #e2eaf5;
+  padding: 7px 9px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.bf-empty.small { padding: 10px 2px; font-size: 11.5px; }
+
+.bf-linked-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(74, 158, 255, 0.1);
+  color: #4a9eff;
+  border: 1px solid rgba(74, 158, 255, 0.3);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  margin-bottom: 12px;
+}
+
+/* ── Table ─────────────────────────────────────────────────────────────────── */
+.bf-table-wrap {
+  border: 1px solid #1e3a5f;
+  border-radius: 6px;
+  overflow: auto;
+  background: #0c1826;
+}
+.bf-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 11.5px; white-space: nowrap; }
+.bf-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 7px 12px;
+  background: #0a1422;
+  color: #7fa8cc;
+  font-weight: 600;
+  border-bottom: 1px solid #1e3a5f;
+}
+.bf-table td { padding: 7px 12px; border-bottom: 1px solid #142943; color: #c8d8eb; }
+.bf-table tr:last-child td { border-bottom: none; }
+.bf-table tr:hover td { background: #101f33; }
+.bf-num { text-align: right; font-variant-numeric: tabular-nums; }
+.bf-dt, .bf-bdn { color: #a9c2dc; }
+.bf-highlight { font-weight: 700; color: #7fd4e0; }
+
+.bf-source-tag {
+  font-size: 9.5px;
+  margin-top: 2px;
+  white-space: normal;
+}
+.bf-source-tag.certified_direct, .bf-source-tag.certified_savings { color: #4a9a5a; }
+.bf-source-tag.fallback_no_pos { color: #c08a3a; }
+
+.bf-pos-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.bf-pos-badge.verified { background: rgba(74, 154, 90, 0.18); color: #6bc47f; }
+.bf-pos-badge.unverified { background: rgba(192, 138, 58, 0.18); color: #d4a35d; }
+
+.bf-actions { display: flex; gap: 6px; }
+.bf-icon-btn {
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  color: #7fa8cc;
+  width: 24px; height: 24px;
+  border-radius: 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.bf-icon-btn:hover { color: #c8d8eb; }
+.bf-icon-btn.danger:hover { color: #e05050; border-color: #e05050; }
+
+.bf-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border: 1px solid #3a2e1e;
+  border-radius: 6px;
+  background: rgba(192, 138, 58, 0.08);
+  color: #d4a35d;
+  font-size: 11.5px;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.bf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #1a6bb5;
+  border: none;
+  color: #fff;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bf-btn:hover { background: #1a5a99; }
+.bf-btn:disabled { background: #1e3a5f; color: #5a7fa8; cursor: not-allowed; }
+.bf-btn.secondary { background: #132238; border: 1px solid #1e3a5f; color: #c8d8eb; }
+.bf-btn.secondary:hover { background: #1a3050; }
+
+.icon-spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ── Modal ────────────────────────────────────────────────────────────────── */
+.bf-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 10, 18, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.bf-modal {
+  width: min(680px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: #0c1826;
+  border: 1px solid #1e3a5f;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  color: #c8d8eb;
+  font-family: 'Inter', sans-serif;
+}
+.bf-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1e3a5f;
+}
+.bf-modal-title { font-size: 13.5px; font-weight: 700; color: #e2eaf5; }
+.bf-modal-close {
+  background: transparent;
+  border: none;
+  color: #7fa8cc;
+  cursor: pointer;
+  display: flex;
+}
+.bf-modal-close:hover { color: #e05050; }
+
+.bf-modal-body { padding: 14px 16px; overflow-y: auto; }
+.bf-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+.bf-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #7fa8cc;
+}
+.bf-form-grid input, .bf-form-grid select, .bf-form-grid textarea {
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  color: #e2eaf5;
+  padding: 6px 9px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: inherit;
+}
+.bf-checkbox-label { flex-direction: row !important; align-items: center; gap: 7px !important; font-size: 12px !important; color: #c8d8eb !important; }
+.bf-notes-label { grid-column: span 2; }
+.bf-form-hint { margin-top: 10px; font-size: 10.5px; color: #5a7fa8; line-height: 1.5; }
+.bf-form-error {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 10px; color: #e05050; font-size: 11.5px;
+}
+
+.bf-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #1e3a5f;
+}

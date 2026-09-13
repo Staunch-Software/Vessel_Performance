@@ -1,0 +1,34 @@
+.dcs-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 14px;
+}
+.dcs-stat { display: flex; flex-direction: column; gap: 2px; }
+.dcs-stat-label { font-size: 10.5px; color: #7fa8cc; text-transform: uppercase; letter-spacing: 0.3px; }
+.dcs-stat-value { font-size: 15px; font-weight: 600; color: #e2eaf5; }
+.dcs-stat-unit { font-size: 10px; font-weight: 400; color: #5a7fa8; }
+
+.dcs-enhanced-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0;
+  border-top: 1px solid #142943;
+}
+.dcs-enhanced-block {
+  padding: 10px 14px;
+  border-right: 1px solid #142943;
+  border-bottom: 1px solid #142943;
+}
+.dcs-enhanced-head {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9fb8d4;
+  margin: 0 0 4px;
+}
+.dcs-unavailable {
+  font-size: 11.5px;
+  color: #c08a3a;
+  line-height: 1.5;
+  margin: 0;
+}

@@ -54,7 +54,23 @@
 }
 
 .analysis-table {
-  border-collapse: collapse;
+  /* `border-collapse: collapse` + `position: sticky` is a well-documented
+     Chrome rendering bug: sticky cells inside a collapsed-border table can
+     visually ghost/duplicate/stack during scroll and paint, even though the
+     underlying layout geometry (getBoundingClientRect) is completely
+     correct — this is a paint/compositing issue, not a layout one, which is
+     exactly why it reproduced live in Chrome but never showed up in any DOM
+     measurement here. `separate` + zero spacing renders identically for our
+     single-sided (border-right only) cell borders, with no double-border
+     side effect, and isn't subject to this bug. Row-bottom borders had to
+     move from `tbody tr` (a rule that only visually applies in collapse
+     mode — the border-collapse algorithm can factor in row borders when
+     resolving collapsed cell edges; in `separate` mode a <tr> border is
+     never rendered by any browser) onto `tbody tr td` instead, so the
+     existing look is preserved exactly.
+  */
+  border-collapse: separate;
+  border-spacing: 0;
   width: max-content;
   min-width: 100%;
   font-size: 12px;
@@ -68,6 +84,8 @@
   font-weight: 600;
   white-space: nowrap;
   padding: 6px 10px;
+  height: 32px;
+  box-sizing: border-box;
   border-bottom: 2px solid var(--border);
   border-right: 1px solid rgba(45,74,106,0.4);
   position: sticky;
@@ -77,25 +95,62 @@
   user-select: none;
 }
 
-/* Sticky first 5 column headers: Compliance | Errors | Event/Log Type | Date | Voyage/Log # */
-.analysis-table thead tr th:nth-child(1),
-.analysis-table thead tr th:nth-child(2),
-.analysis-table thead tr th:nth-child(3),
-.analysis-table thead tr th:nth-child(4),
-.analysis-table thead tr th:nth-child(5) {
+/* Sticky first 5 column headers: Compliance | Errors | Event/Log Type | Date | Voyage/Log #.
+   Scoped to :not(.tr-group-header) — with a 2-row grouped thead (Emission Log),
+   this must NOT also match the group row's 2nd-5th cells (Navigation, Vessel,
+   Cargo, ME Fuel Consumption, ...), which would otherwise inherit these
+   single-column left offsets meant for individual leaf columns and render
+   stuck at the wrong horizontal position while scrolling. */
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(1),
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(2),
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(3),
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(4),
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(5) {
   position: sticky;
   z-index: 3;
   background: var(--bg-table-head);
 }
-.analysis-table thead tr th:nth-child(1) { left: 0px;   min-width: 90px;  }
-.analysis-table thead tr th:nth-child(2) { left: 90px;  min-width: 62px;  }
-.analysis-table thead tr th:nth-child(3) { left: 152px; min-width: 110px; }
-.analysis-table thead tr th:nth-child(4) { left: 262px; min-width: 110px; }
-.analysis-table thead tr th:nth-child(5) { left: 372px; min-width: 110px; }
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(1) { left: 0px;   min-width: 90px;  }
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(2) { left: 90px;  min-width: 62px;  }
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(3) { left: 152px; min-width: 110px; }
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(4) { left: 262px; min-width: 110px; }
+.analysis-table thead tr:not(.tr-group-header) th:nth-child(5) { left: 372px; min-width: 110px; }
+
+/* ── Emission Log grouped header (2-row thead) ──
+   Both rows are `position: sticky` (from the base rule above). Without an
+   exact, uniform `height` on every header cell (added to the base rule),
+   the leaf row's fixed `top` offset below can't reliably line up with the
+   group row's actual rendered bottom edge — a few px of mismatch is enough
+   for the two sticky rows to visually overlap instead of stack while
+   scrolling, which is exactly what was happening. Group row pins at the very
+   top; the column-name row underneath sticks just below it (one header
+   height down, per the explicit `height: 32px` above).
+   The group row's cells are deliberately NOT also made left-sticky: a group
+   cell's colSpan width doesn't necessarily match the number of genuinely
+   sticky leaf columns beneath it (e.g. "Event Info" spans 5 columns for
+   MariApps — 4 sticky identity columns + 1 plain Voyage No. column — but a
+   single spanned <th> can't be "partially" sticky). Making it sticky at its
+   full colSpan width made it visually cover/overlap the correctly-scrolling
+   non-sticky column beneath during horizontal scroll (confirmed live — the
+   group label stayed pinned wider than the actual sticky columns). Leaving
+   it non-sticky horizontally means the group label scrolls away with the
+   row during horizontal scroll — a minor cosmetic tradeoff — while the
+   sticky data columns beneath (still pinned via the leaf-row rules) stay
+   correctly readable, which is the behavior that actually matters. */
+.analysis-table thead tr.tr-group-header th {
+  top: 0;
+}
+.analysis-table thead tr.tr-group-header + tr th {
+  top: 32px;
+}
+.th-group {
+  background: #10233b !important;
+  text-align: center !important;
+  letter-spacing: 0.4px;
+}
 
 /* ── Body rows ── */
 .analysis-table tbody tr {
-  border-bottom: 1px solid rgba(45,74,106,0.3);
   transition: background 0.1s;
 }
 
@@ -107,6 +162,9 @@
   color: var(--text-primary);
   white-space: nowrap;
   border-right: 1px solid rgba(45,74,106,0.2);
+  /* Moved here from `tbody tr` — a <tr> border never renders in
+     `border-collapse: separate` mode (see the .analysis-table comment). */
+  border-bottom: 1px solid rgba(45,74,106,0.3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -142,6 +200,47 @@
 .analysis-table tbody tr td:nth-child(3) { left: 152px; min-width: 110px; }
 .analysis-table tbody tr td:nth-child(4) { left: 262px; min-width: 110px; }
 .analysis-table tbody tr td:nth-child(5) { left: 372px; min-width: 110px; }
+
+/* Views with Compliance/Errors hidden (Emission Log) have only 4 real
+   sticky-worthy leading columns (Vessel IMO/Log Type/Log Date/Log Number —
+   matching the "Event Info" group's colSpan=4), not the 5 the rules above
+   assume (which counts Compliance+Errors+3 identity for the default view).
+   Without this, the 5th column here (the first real data column, e.g.
+   Departure Port) inherits sticky-left positioning it was never meant to
+   have, rendering it stuck at left:372px — overlapping both the 4 genuinely-
+   sticky columns and the "Event Info" group header cell above them.
+   `.analysis-table--compact-sticky` is applied on the <table> element
+   whenever hideComplianceErrors is true. Higher-specificity + declared-after
+   so it reliably wins regardless of source order (a same-specificity
+   "reorder to win" approach was NOT reliable in this codebase before — see
+   the cat-chip.active CSS history).
+
+   The header cell keeps `position: sticky` (only `left` is cleared) because
+   it still needs its TOP/vertical pinning during scroll, same as every other
+   header cell. The BODY cell is different and was the real remaining bug,
+   confirmed live in Chrome even after the border-collapse fix: leaving a td
+   at `position: sticky` with `left: auto` and no `top` set at all gives it
+   no active offset in either axis, but it still participates in the browser's
+   sticky-constraint/compositing machinery — sharing a scroll container with
+   genuinely-sticky siblings (the 4 real sticky columns to its left, and the
+   sticky header row above) was enough to make Chrome occasionally duplicate-
+   paint this column's cells as ghost copies at stale scroll offsets, exactly
+   the floating repeated-text box reported live. Setting `position: static`
+   removes it from that machinery entirely — there is nothing left for it to
+   stick to, so there is nothing left to ghost. */
+.analysis-table.analysis-table--compact-sticky thead tr:not(.tr-group-header) th:nth-child(5) {
+  left: auto;
+  z-index: 2;
+}
+.analysis-table.analysis-table--compact-sticky tbody tr td:nth-child(5),
+.analysis-table.analysis-table--compact-sticky tbody tr:hover td:nth-child(5),
+.analysis-table.analysis-table--compact-sticky tbody tr.selected td:nth-child(5),
+.analysis-table.analysis-table--compact-sticky tbody tr.row-noncompliant td:nth-child(5),
+.analysis-table.analysis-table--compact-sticky tbody tr.row-noncompliant:hover td:nth-child(5) {
+  position: static;
+  left: auto;
+  z-index: auto;
+}
 
 /* ── Compliance column + row highlight (Phase 3a pilot) ── */
 .compliance-pill {
