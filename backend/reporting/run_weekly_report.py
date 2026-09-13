@@ -89,14 +89,14 @@ def main():
         week_label = get_current_week_label()
 
     # ---- 2. GENERATE HTML DASHBOARD ----
-    print("\n📊 Generating HTML Dashboard...")
+    print("\n[INFO] Generating HTML Dashboard...")
     html_content = generate_weekly_report(
         week_label=week_label,
         use_previous_week=(args.previous_week or is_monday)
     )
     
     # ---- 3. GENERATE YTD EXCEL (SINCE JAN 1) ----
-    print("📂 Fetching YTD Audit History...")
+    print("[INFO] Fetching YTD Audit History...")
     ytd_logs = query_ytd_logs() # Ensure this function filters from Jan 1, 2026
     excel_path = create_ytd_excel(ytd_logs)
 
@@ -105,15 +105,15 @@ def main():
         output_path = Path(__file__).parent.parent / "quality_report_preview.html"
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
-        print(f"✅ Dashboard Preview: {output_path}")
-        print(f"✅ Excel Preview: {excel_path}")
+        print(f"[OK] Dashboard Preview: {output_path}")
+        print(f"[OK] Excel Preview: {excel_path}")
         return
 
     # ---- 5. SEND EMAIL ----
     source_tag = "WNI" # Clearly define the source
     subject_week = week_label if week_label else "Weekly Update"
     
-    print(f"\n📧 Sending {source_tag} Dashboard email...")
+    print(f"\n[INFO] Sending {source_tag} Dashboard email...")
     
     success = send_email(
         subject=f"{source_tag} Data Quality Report - {subject_week}",
@@ -122,9 +122,9 @@ def main():
     )
     
     if success:
-        print("✅ Weekly report sent successfully with YTD history.")
+        print("[OK] Weekly report sent successfully with YTD history.")
     else:
-        print("❌ Failed to send email.")
+        print("[FAIL] Failed to send email.")
         sys.exit(1)
 
 if __name__ == "__main__":

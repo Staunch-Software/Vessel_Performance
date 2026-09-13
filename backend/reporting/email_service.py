@@ -306,17 +306,17 @@ def test_email_configuration():
     print("="*60)
     
     if EmailConfig.is_azure_ad_configured():
-        print("✅ Azure AD configuration detected")
+        print("[OK] Azure AD configuration detected")
         print(f"   Tenant ID: {EmailConfig.AZURE_TENANT_ID}")
         print(f"   Client ID: {EmailConfig.AZURE_CLIENT_ID}")
         print(f"   From: {EmailConfig.MAIL_FROM}")
     elif EmailConfig.is_smtp_configured():
-        print("✅ SMTP configuration detected")
+        print("[OK] SMTP configuration detected")
         print(f"   Host: {EmailConfig.MAIL_HOST}:{EmailConfig.MAIL_PORT}")
         print(f"   Username: {EmailConfig.MAIL_USERNAME}")
         print(f"   From: {EmailConfig.MAIL_FROM}")
     else:
-        print("❌ No email configuration found!")
+        print("[FAIL] No email configuration found!")
         print("\nPlease add to .env file:")
         print("\nFor Azure AD:")
         print("  AZURE_TENANT_ID=your-tenant-id")
@@ -338,9 +338,9 @@ def test_email_configuration():
     )
     
     if success:
-        print("\n✅ Test email sent successfully!")
+        print("\n[OK] Test email sent successfully!")
     else:
-        print("\n❌ Failed to send test email. Check logs for details.")
+        print("\n[FAIL] Failed to send test email. Check logs for details.")
     
     print("="*60 + "\n")
 

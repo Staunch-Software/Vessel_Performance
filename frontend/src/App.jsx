@@ -505,6 +505,7 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
                 categoryOrder={catFilter === 'All' ? categoryOrder : null}
                 fieldOrder={catFilter !== 'All' && catFilter !== 'Emission' && calcCategories.some(c => c.name === catFilter) ? calcFieldOrder : null}
               />
+
         }
       </div>
     </div>

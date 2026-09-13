@@ -25,7 +25,11 @@ export default function LoginPage() {
     try {
       await login(username.trim(), password)
     } catch (err) {
-      const msg = err?.response?.data?.detail || 'Incorrect username or password.'
+      const status = err?.response?.status
+      const detail = err?.response?.data?.detail
+      const msg = status === 401 || status === 403
+        ? (detail || 'Incorrect username or password.')
+        : (detail || 'Server error — please try again in a moment.')
       setError(msg)
     } finally {
       setLoading(false)

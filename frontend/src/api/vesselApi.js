@@ -60,8 +60,10 @@ export async function runScan(payload) {
   return data
 }
 
-export async function fetchExpandedColumns(source) {
-  const { data } = await api.get('/expanded/columns', { params: { source } })
+export async function fetchExpandedColumns(source, vesselImo = null) {
+  const params = { source }
+  if (vesselImo) params.vessel_imo = vesselImo
+  const { data } = await api.get('/expanded/columns', { params })
   return Array.isArray(data) ? data : []
 }
 
@@ -86,16 +88,31 @@ export async function toggleExpandedColumn(colId, isActive) {
   return data
 }
 
-// Persist a user-defined column order (shared by all users) for a source.
-// order = array of db_column names in the desired order.
-export async function reorderColumns(source, order) {
-  const { data } = await api.put('/expanded/columns/reorder', { source, order })
+// Persist a user-defined column order for a source. order = array of db_column
+// names in the desired order. target='primary' (default) saves each column's
+// real position; target='emission' saves the Emission picker bucket's own
+// independent order instead (always global — vesselImo is ignored for it).
+// For target='primary': pass vesselImo to save it for THAT VESSEL ONLY
+// ("This Vessel" scope); omit it to save the shared Global order, which also
+// overrides any vessel-specific order already saved for these same columns.
+export async function reorderColumns(source, order, target = 'primary', vesselImo = null) {
+  const payload = { source, order, target }
+  if (vesselImo) payload.vessel_imo = vesselImo
+  const { data } = await api.put('/expanded/columns/reorder', payload)
   return data
 }
 
-// Revert a source's column order back to the default.
-export async function resetColumnOrder(source) {
-  const { data } = await api.delete('/expanded/columns/reorder', { params: { source } })
+// Revert a source's column order back to the default. Pass `columns` (an array
+// of db_column names, e.g. one category's columns) to reset only those; omit
+// it to reset the entire source's order. `target` selects which order field
+// to clear — 'primary' (default) or 'emission'. For target='primary', pass
+// vesselImo to clear only that vessel's own order (falls back to Global);
+// omit it to clear the Global order.
+export async function resetColumnOrder(source, columns = null, target = 'primary', vesselImo = null) {
+  const params = { source, target }
+  if (columns && columns.length) params.columns = columns.join(',')
+  if (vesselImo) params.vessel_imo = vesselImo
+  const { data } = await api.delete('/expanded/columns/reorder', { params })
   return data
 }
 

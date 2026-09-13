@@ -290,8 +290,15 @@ async function exportEmissionLogExcel(rows, groupedCols, vesselName) {
 // Columns that are identity but should never appear in the table
 const HIDDEN_COLS = new Set(['raw_log_id', 'raw_report_id', 'source_id'])
 
-// Identity sticky columns — vessel_imo always first, then log metadata
-const STICKY_ORDER = ['vessel_imo', 'log_type', 'event_type', 'log_date', 'date', 'log_number', 'voyage_no']
+// Identity sticky columns — vessel_imo always first, then log metadata.
+// loading_condition is_identity too, but wasn't listed here — it fell through
+// into the generic non-sticky/category-grouped bucket under a stray one-column
+// "Identity" category (its own `category` field is literally "Identity") that
+// the Column Manager can't even reorder (buildOrder() excludes is_identity
+// columns from the draggable list entirely), so it always rendered wherever
+// its raw backend sort_order happened to land it — in practice, last — with no
+// way to move it. Pinning it here like the other identity columns fixes that.
+const STICKY_ORDER = ['vessel_imo', 'log_type', 'event_type', 'log_date', 'date', 'log_number', 'voyage_no', 'loading_condition']
 
 const COMPLIANCE_CLS = {
   'Non-compliant': 'compliance-red',
@@ -335,9 +342,8 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
   // Non-sticky columns
   const nonSticky = visible.filter(m => !stickySet.has(m.db_column))
 
-  // Group by category (Performance first, then Emission, then every other
-  // category in the order it first appears) REGARDLESS of whether any
-  // user_sort_order is set — mirrors ColumnPicker's buildOrder() exactly.
+  // Group by category so columns stay clustered with the rest of their
+  // category instead of scattering across the full ~500+ column list.
   // `nonSticky` already arrives sorted by the backend's
   // coalesce(user_sort_order, sort_order), so within each category group the
   // relative order still reflects any manual drag; a column is placed once,
@@ -445,6 +451,14 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
 
   const sorted = [...stickySlots, ...sortedNonSticky]
 
+  return buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceErrors, emissionExactOrder)
+}
+
+// Builds the actual TanStack column defs (Compliance/Errors + one per data
+// column) from an already-ordered list of column metadata. Shared by both
+// the normal (category-grouped) and Emission-focused paths above — only how
+// `sorted` gets its order differs between them.
+function buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceErrors, emissionExactOrder) {
   // Compliance status column (Phase 3a pilot — AM KIRTI/GCL FOS only; blank elsewhere).
   // Always first, ahead of the error count column.
   const complianceCol = {
@@ -474,8 +488,8 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
   }
 
   const dataCols = sorted.map(m => {
-    const headerText = (m.display_name && String(m.display_name).trim() !== '') 
-      ? String(m.display_name) 
+    const headerText = (m.display_name && String(m.display_name).trim() !== '')
+      ? String(m.display_name)
       : (m.db_column ? String(m.db_column) : 'NO_COL');
 
     return {
@@ -485,7 +499,7 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
       size:        m.is_identity ? 110 : 140,
       cell:        ({ row, getValue }) => {
         let val = getValue()
-        
+
         if (m.db_column === 'VoyageMeta_latitude_operational_LF' && val != null) {
           const deg = parseFloat(val)
           if (!isNaN(deg)) {
@@ -498,7 +512,7 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
             return <span className="cell-num">{`${Math.abs(deg)}°${Number(min).toFixed(1)}'${dir}`}</span>
           }
         }
-        
+
         if (m.db_column === 'VoyageMeta_longitude_operational_LF' && val != null) {
           const deg = parseFloat(val)
           if (!isNaN(deg)) {

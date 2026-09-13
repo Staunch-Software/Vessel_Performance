@@ -34,12 +34,14 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     const data = await loginUser(username, password)
-    // Persist token so the interceptor can pick it up immediately
+    // Build the profile straight from the login response — it already carries
+    // everything needed (role/username/user_id). Avoids a second /auth/me
+    // round-trip whose failure would otherwise be reported as bad credentials
+    // while leaving a valid token stuck in localStorage.
+    const profile = { id: data.user_id, username: data.username, role: data.role }
     localStorage.setItem(TOKEN_KEY, data.access_token)
-    setToken(data.access_token)
-    // Fetch full profile after login
-    const profile = await fetchCurrentUser()
     localStorage.setItem(USER_KEY, JSON.stringify(profile))
+    setToken(data.access_token)
     setUser(profile)
     return profile
   }, [])

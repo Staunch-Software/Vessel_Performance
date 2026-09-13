@@ -15,7 +15,7 @@ from typing import List, Optional
 from datetime import date
 
 from backend.database import SessionLocal
-from backend.models import ExpandedColumnMetadata
+from backend.models import ExpandedColumnMetadata, VesselColumnOrder
 
 router = APIRouter(prefix="/expanded")
 
@@ -33,23 +33,45 @@ def get_db():
 @router.get("/columns")
 def get_columns(
     source: str = Query(..., description="'wni' or 'mari_apps'"),
+    vessel_imo: Optional[str] = Query(None, description="If set and this vessel has its own saved order for some columns, those take precedence over the global order for those columns."),
     db: Session = Depends(get_db),
 ):
-    """Return all column metadata for a given source, ordered by the user-defined
-    order (user_sort_order) when set, falling back to the default sort_order."""
+    """Return all column metadata for a given source, ordered by (in precedence order):
+    1. This vessel's own saved order (vessel_column_order), for whichever columns it covers
+    2. The global user-defined order (expanded_column_metadata.user_sort_order)
+    3. The default sort_order
+    """
     if source == 'Wartsila FOS':
         source = 'wni'
-        
-    order_key = func.coalesce(
-        ExpandedColumnMetadata.user_sort_order,
-        ExpandedColumnMetadata.sort_order,
-    )
+
     rows = (
         db.query(ExpandedColumnMetadata)
         .filter(ExpandedColumnMetadata.source == source)
-        .order_by(order_key)
         .all()
     )
+
+    vessel_positions = {}
+    if vessel_imo:
+        vrows = (
+            db.query(VesselColumnOrder)
+            .filter(VesselColumnOrder.source == source, VesselColumnOrder.vessel_imo == vessel_imo)
+            .all()
+        )
+        vessel_positions = {r.db_column: r.position for r in vrows}
+
+    if vessel_positions:
+        # This vessel has its own order for SOME columns — use those positions,
+        # falling back to the global position (shifted after them) for every
+        # other column so the two don't collide.
+        fallback = len(vessel_positions)
+        def sort_key(r):
+            if r.db_column in vessel_positions:
+                return vessel_positions[r.db_column]
+            return fallback + (r.user_sort_order if r.user_sort_order is not None else r.sort_order)
+        rows.sort(key=sort_key)
+    else:
+        rows.sort(key=lambda r: r.user_sort_order if r.user_sort_order is not None else r.sort_order)
+
     return [
         {
             "id":           r.id,
@@ -63,7 +85,10 @@ def get_columns(
             "performance":  getattr(r, "performance", False) or False,
             "emission":     getattr(r, "emission", False) or False,
             "sort_order":   r.sort_order,
-            "user_sort_order": r.user_sort_order,
+            # Reflects whichever order actually governed this response (vessel-specific
+            # when present for this column, else global).
+            "user_sort_order": vessel_positions.get(r.db_column, r.user_sort_order),
+            "emission_sort_order": r.emission_sort_order,
         }
         for r in rows
     ]
@@ -72,23 +97,74 @@ def get_columns(
 @router.put("/columns/reorder")
 def reorder_columns(body: dict, db: Session = Depends(get_db)):
     """
-    Persist a user-defined column order for a source (shared by all users).
-    Body: { "source": "mari_apps" | "wni", "order": ["db_col_1", "db_col_2", ...] }
-    Writes user_sort_order = position for each listed column. Columns not listed
-    keep their existing user_sort_order (or fall back to sort_order).
+    Persist a user-defined column order for a source.
+    Body: { "source": "mari_apps" | "wni", "order": ["db_col_1", ...],
+            "target"?: "primary" | "emission", "vessel_imo"?: "1234567" }
+
+    target="emission" writes emission_sort_order (always global — the
+    Emission picker bucket's own arrangement; vessel_imo is ignored for this
+    target, since every column there is a duplicate listing the real table
+    never groups by "Emission" anyway).
+
+    target="primary" (default) is the normal category reorder:
+    - vessel_imo given ("This Vessel" scope): saves to vessel_column_order for
+      THAT VESSEL ONLY — every other vessel is unaffected.
+    - vessel_imo omitted ("Global" scope): saves to the shared
+      expanded_column_metadata.user_sort_order AND deletes any
+      vessel_column_order rows for these SAME columns across every vessel —
+      so a Global edit reaches into and overrides even a vessel that already
+      customized this exact category, while that vessel's customization for
+      every column NOT included in this save is left untouched.
     """
-    source = body.get("source")
-    order  = body.get("order")
+    source     = body.get("source")
+    order      = body.get("order")
+    target     = body.get("target", "primary")
+    vessel_imo = body.get("vessel_imo")
     if source not in ("mari_apps", "wni"):
         raise HTTPException(status_code=400, detail="source must be 'mari_apps' or 'wni'")
     if not isinstance(order, list) or not order:
         raise HTTPException(status_code=400, detail="order must be a non-empty list of db_column names")
+    if target not in ("primary", "emission"):
+        raise HTTPException(status_code=400, detail="target must be 'primary' or 'emission'")
 
-    rows = (
-        db.query(ExpandedColumnMetadata)
-        .filter(ExpandedColumnMetadata.source == source)
-        .all()
-    )
+    if target == "emission":
+        rows = db.query(ExpandedColumnMetadata).filter(ExpandedColumnMetadata.source == source).all()
+        by_col = {r.db_column: r for r in rows}
+        pos = 0
+        for db_col in order:
+            r = by_col.get(db_col)
+            if r is not None:
+                r.emission_sort_order = pos
+                pos += 1
+        db.commit()
+        return {"source": source, "target": "emission", "updated": pos}
+
+    if vessel_imo:
+        valid_cols = {
+            r.db_column for r in db.query(ExpandedColumnMetadata.db_column)
+            .filter(ExpandedColumnMetadata.source == source).all()
+        }
+        existing = {
+            r.db_column: r for r in db.query(VesselColumnOrder)
+            .filter(VesselColumnOrder.vessel_imo == vessel_imo, VesselColumnOrder.source == source)
+            .all()
+        }
+        pos = 0
+        for db_col in order:
+            if db_col not in valid_cols:
+                continue
+            if db_col in existing:
+                existing[db_col].position = pos
+            else:
+                db.add(VesselColumnOrder(vessel_imo=vessel_imo, source=source, db_column=db_col, position=pos))
+            pos += 1
+        db.commit()
+        return {"source": source, "target": "primary", "vessel_imo": vessel_imo, "updated": pos}
+
+    # Global: update the shared order AND clear any per-vessel override for
+    # these exact columns, across every vessel — a Global edit to a category
+    # reaches through even a vessel that already customized it.
+    rows = db.query(ExpandedColumnMetadata).filter(ExpandedColumnMetadata.source == source).all()
     by_col = {r.db_column: r for r in rows}
     pos = 0
     for db_col in order:
@@ -96,20 +172,56 @@ def reorder_columns(body: dict, db: Session = Depends(get_db)):
         if r is not None:
             r.user_sort_order = pos
             pos += 1
+    db.query(VesselColumnOrder).filter(
+        VesselColumnOrder.source == source,
+        VesselColumnOrder.db_column.in_(order),
+    ).delete(synchronize_session=False)
     db.commit()
-    return {"source": source, "updated": pos}
+    return {"source": source, "target": "primary", "updated": pos}
 
 
 @router.delete("/columns/reorder")
-def reset_column_order(source: str = Query(...), db: Session = Depends(get_db)):
-    """Clear the user-defined order for a source (revert to default sort_order)."""
+def reset_column_order(
+    source: str = Query(...),
+    columns: Optional[str] = Query(None, description="Comma-separated db_column names to reset order for (e.g. one category's columns). Omit to reset every column of this source."),
+    target: str = Query("primary", description="'primary' or 'emission' — which order field to clear"),
+    vessel_imo: Optional[str] = Query(None, description="With target=primary: clear only this vessel's own order (falls back to global). Omit to clear the global order."),
+    db: Session = Depends(get_db),
+):
+    """Clear the user-defined order for a source, or just a subset of its columns
+    (revert to default sort_order). Passing `columns` scopes the reset to only
+    those columns — e.g. one category block — leaving every other column's
+    saved order untouched."""
     if source not in ("mari_apps", "wni"):
         raise HTTPException(status_code=400, detail="source must be 'mari_apps' or 'wni'")
-    db.query(ExpandedColumnMetadata).filter(
-        ExpandedColumnMetadata.source == source
-    ).update({ExpandedColumnMetadata.user_sort_order: None}, synchronize_session=False)
+    if target not in ("primary", "emission"):
+        raise HTTPException(status_code=400, detail="target must be 'primary' or 'emission'")
+
+    if target == "primary" and vessel_imo:
+        q = db.query(VesselColumnOrder).filter(
+            VesselColumnOrder.vessel_imo == vessel_imo, VesselColumnOrder.source == source
+        )
+        if columns:
+            col_list = [c.strip() for c in columns.split(",") if c.strip()]
+            if not col_list:
+                raise HTTPException(status_code=400, detail="columns, if provided, must be a non-empty comma-separated list")
+            q = q.filter(VesselColumnOrder.db_column.in_(col_list))
+        q.delete(synchronize_session=False)
+        db.commit()
+        return {"source": source, "target": "primary", "vessel_imo": vessel_imo, "reset": True, "columns": columns}
+
+    field = ExpandedColumnMetadata.emission_sort_order if target == "emission" else ExpandedColumnMetadata.user_sort_order
+
+    q = db.query(ExpandedColumnMetadata).filter(ExpandedColumnMetadata.source == source)
+    if columns:
+        col_list = [c.strip() for c in columns.split(",") if c.strip()]
+        if not col_list:
+            raise HTTPException(status_code=400, detail="columns, if provided, must be a non-empty comma-separated list")
+        q = q.filter(ExpandedColumnMetadata.db_column.in_(col_list))
+
+    q.update({field: None}, synchronize_session=False)
     db.commit()
-    return {"source": source, "reset": True}
+    return {"source": source, "target": target, "reset": True, "columns": columns}
 
 
 @router.patch("/columns/{col_id}")
