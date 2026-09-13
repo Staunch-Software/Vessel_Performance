@@ -6,21 +6,18 @@ import './AnalysisTable.css'
 
 // Exact "Emission Log" workbook sheet structure — group sections + column
 // order within each, both derived from this single source of truth (not from
-// the backend's sort_order, and NOT from emission_sort_order/drag-to-reorder
-// either — see the `emissionFocus` branch in buildColumns below) because the
-// client confirmed this exact 41-column structure/order against their own
-// workbook twice this session; several of these columns are ALSO
+// the backend's sort_order) because several of these columns are ALSO
 // `performance=True` for their normal Performance-tab home (e.g. Speed Over
-// Ground, ME/AE/Boiler fuel totals) — sort_order/emission_sort_order is one
-// shared field per column, so it can't simultaneously encode both the
-// Performance tab's order AND this sheet's fixed order/grouping. Columns not
-// listed anywhere here keep their incoming (backend-sorted) relative order,
-// appended after everything listed. Groups with zero matching columns present
-// (OPS — OPS kWh not built yet) are simply skipped when rendering, not shown
-// empty. Country/EU Port?/BDN Ref/Voyage No. are MariApps-only (see
-// expander.py's _EMISSION_LOG_NAV_META_MARIAPPS_ONLY for why WNI can't
-// support them) — they just won't resolve to a real column for WNI and get
-// skipped per-row, same as any other column a source doesn't have.
+// Ground, ME/AE/Boiler fuel totals) — sort_order is one shared field per
+// column, so it can't simultaneously encode both the Performance tab's order
+// AND this sheet's order/grouping. Columns not listed anywhere here keep
+// their incoming (backend-sorted) relative order, appended after everything
+// listed. Groups with zero matching columns present (OPS — OPS kWh not built
+// yet) are simply skipped when rendering, not shown empty. Country/EU Port?/
+// BDN Ref/Voyage No. are MariApps-only (see expander.py's
+// _EMISSION_LOG_NAV_META_MARIAPPS_ONLY for why WNI can't support them) — they
+// just won't resolve to a real column for WNI and get skipped per-row, same
+// as any other column a source doesn't have.
 const EMISSION_LOG_GROUPS = [
   { label: 'Event Info', cols: ['vessel_imo', 'log_type', 'event_type', 'log_date', 'date', 'log_number', 'voyage_no', 'emissionx_voyage_no'] },
   { label: 'Navigation', cols: [
@@ -209,6 +206,86 @@ async function exportAnalysisExcel(rows, dataCols, vesselName) {
   saveAs(blob, `${safeName}_Noon_Records_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
+// Same export, but for the Emission capsule: reproduces the workbook's
+// "Emission Log" sheet 2-row header — a merged group-section row (Event
+// Info / Navigation / Vessel / Cargo / ME Fuel Consumption / ...) above the
+// individual column-name row — instead of the single flat header row
+// exportAnalysisExcel writes. `groupedCols` is the TanStack Table column
+// tree (group nodes with `.columns`, mixed with any ungrouped leaves) that
+// groupEmissionLogColumns() produces; this walks it once to flatten leaves
+// for data placement while remembering each leaf's column span per group.
+async function exportEmissionLogExcel(rows, groupedCols, vesselName) {
+  const ExcelJS = (await import('exceljs')).default
+  const { saveAs } = (await import('file-saver')).default
+
+  // Flatten to leaves, recording {leaf, groupHeader, groupSpan, isFirstInGroup}
+  const leaves = []
+  for (const node of groupedCols) {
+    if (Array.isArray(node.columns)) {
+      node.columns.forEach((leaf, i) => {
+        leaves.push({ leaf, groupHeader: node.header, isFirstInGroup: i === 0, groupSpan: node.columns.length })
+      })
+    } else {
+      leaves.push({ leaf: node, groupHeader: null, isFirstInGroup: false, groupSpan: 1 })
+    }
+  }
+
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Emission Log', {
+    views: [{ state: 'frozen', ySplit: 2 }],
+  })
+
+  // Row 1: group section headers, merged across their column span. A leaf
+  // with no group (shouldn't normally happen here) gets a blank cell,
+  // matching how the sheet has no group label above ungrouped columns.
+  const groupRow = sheet.getRow(1)
+  leaves.forEach((entry, i) => {
+    const col = i + 1
+    if (entry.groupHeader && entry.isFirstInGroup) {
+      sheet.mergeCells(1, col, 1, col + entry.groupSpan - 1)
+    }
+    if (entry.groupHeader && (entry.isFirstInGroup || entry.groupSpan === 1)) {
+      groupRow.getCell(col).value = entry.groupHeader
+    }
+  })
+  groupRow.height = 20
+  groupRow.eachCell({ includeEmpty: true }, cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF15294A' } }
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    cell.border = { left: { style: 'thin', color: { argb: 'FF2D4A6A' } }, right: { style: 'thin', color: { argb: 'FF2D4A6A' } } }
+  })
+
+  // Row 2: individual column headers (same style as the flat export). No
+  // `header` in the columns def — ExcelJS's `sheet.columns` setter would
+  // otherwise auto-write it into row 1, clobbering the group-header row above.
+  sheet.columns = leaves.map(({ leaf }) => ({ key: leaf.id, width: 18 }))
+  const headerRow = sheet.getRow(2)
+  headerRow.values = leaves.map(({ leaf }) => leaf.header)
+  headerRow.height = 22
+  headerRow.eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+
+  rows.forEach((row, idx) => {
+    const rowData = {}
+    leaves.forEach(({ leaf }) => { rowData[leaf.id] = exportCellValue(leaf.id, row) })
+    const excelRow = sheet.addRow(rowData)
+    if (idx % 2 === 1) {
+      excelRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBF0FA' } }
+      })
+    }
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const safeName = (vesselName || 'Vessel').replace(/[^a-z0-9]+/gi, '_')
+  saveAs(blob, `${safeName}_Emission_Log_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
 // ── Column builder ────────────────────────────────────────────────────────────
 // Columns that are identity but should never appear in the table
 const HIDDEN_COLS = new Set(['raw_log_id', 'raw_report_id', 'source_id'])
@@ -251,7 +328,7 @@ function isSeaPassageReport(row) {
   return !_NON_SEA_PASSAGE_LOG_TYPES.has(logType)
 }
 
-function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors, emissionFocus) {
+function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors, emissionExactOrder, categoryOrder, fieldOrder) {
   // Which columns to show: identity (except hidden ones) + user-toggled (pink)
   const visible = columnsMeta.filter(m => {
     if (HIDDEN_COLS.has(m.db_column)) return false
@@ -265,24 +342,6 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
   // Non-sticky columns
   const nonSticky = visible.filter(m => !stickySet.has(m.db_column))
 
-  // Emission-focused view (the "Emission" category chip is active): every
-  // visible column here is a member of the Emission bucket, so there's no
-  // category clustering to do — just lay them out in EMISSION_LOG_COLUMN_RANK
-  // order (the client's own workbook sequence — confirmed twice this session,
-  // see the module docstring above), not a free-drag emission_sort_order and
-  // not their primary-category order. Anything not in that list (shouldn't
-  // normally happen) keeps its incoming relative order, appended at the end.
-  if (emissionFocus) {
-    const sortedNonSticky = [...nonSticky].sort((a, b) => {
-      const ra = EMISSION_LOG_COLUMN_RANK.has(a.db_column) ? EMISSION_LOG_COLUMN_RANK.get(a.db_column) : Infinity
-      const rb = EMISSION_LOG_COLUMN_RANK.has(b.db_column) ? EMISSION_LOG_COLUMN_RANK.get(b.db_column) : Infinity
-      return ra - rb
-    })
-    return groupEmissionLogColumns(
-      buildDataColumns([...stickySlots, ...sortedNonSticky], scanResults, complianceByDate, hideComplianceErrors)
-    )
-  }
-
   // Group by category so columns stay clustered with the rest of their
   // category instead of scattering across the full ~500+ column list.
   // `nonSticky` already arrives sorted by the backend's
@@ -291,53 +350,115 @@ function buildColumns(columnsMeta, visibleExtras, scanResults, complianceByDate,
   // under its primary category (the `performance` flag wins over `category`,
   // matching the picker).
   //
-  // Category ORDER itself (which category block comes before which) follows
-  // the same coalesced order — i.e. it respects a category-level drag done in
-  // the Column Manager — with one exception: until a source has ever had a
-  // manual reorder at all (no column carries a user_sort_order), we pin
-  // Performance first / Emission second as the sensible out-of-the-box
-  // default. Once ANY drag has happened, `persist()` in the picker stamps
-  // user_sort_order on every column for that source in one go, so this flag
-  // flips for the whole source at once and the forced default gets out of
-  // the way permanently — otherwise a category-level drag (e.g. moving "AE
-  // Cylinder Data" above Performance) would save correctly to the backend
-  // but keep getting silently reverted to Performance-first on every re-render.
-  const catOf = m => (m.performance ? 'Performance' : (m.category || 'Other'))
-  const hasCustomOrder = columnsMeta.some(m => m.user_sort_order != null)
+  // A prior version bypassed this grouping entirely the moment ANY column
+  // anywhere had a non-null user_sort_order, rendering the raw flat backend
+  // order with no category segregation at all. That's fragile: `persist()`
+  // in the picker only assigns fresh user_sort_order to whatever column set
+  // was loaded in that particular picker session (e.g. an admin-filtered
+  // subset), so a drag done while viewing a partial column set leaves the
+  // untouched columns with stale/older order values — a Performance column
+  // could then end up ranked anywhere in the full ~500+ column list instead
+  // of staying grouped with the rest of Performance. Grouping unconditionally
+  // here means a manual drag can still reorder columns WITHIN a category
+  // (or reorder categories among themselves), but can never scatter one
+  // category's columns into another's territory.
+  let sortedNonSticky
+  if (fieldOrder && fieldOrder.length > 0) {
+    // A specific calc category (Performance/custom — Emission keeps its own
+    // exact-match branch below since its order is tied to the Excel sheet's
+    // colSpan grouping, not a free-form list) is selected — its field order
+    // comes straight from the Configure Columns page (calculation_category_
+    // columns.sort_order), not from category-grouping or the backend's
+    // shared sort_order at all. This is what makes an admin's drag-reorder
+    // on that page actually show up here.
+    const rank = new Map(fieldOrder.map((c, i) => [c, i]))
+    sortedNonSticky = [...nonSticky].sort((a, b) => {
+      const ra = rank.has(a.db_column) ? rank.get(a.db_column) : Infinity
+      const rb = rank.has(b.db_column) ? rank.get(b.db_column) : Infinity
+      return ra - rb
+    })
+  } else if (emissionExactOrder) {
+    // The Emission capsule is scoped to exactly the workbook's "Emission Log"
+    // sheet columns, in its exact sequence (EMISSION_LOG_COLUMN_ORDER above)
+    // — including some columns (e.g. Speed Over Ground, ME/AE/Boiler fuel
+    // totals) that are ALSO tagged `performance=True` for their normal home
+    // in the Performance tab, with their OWN (different) required order
+    // there. Both the category-grouping below AND the backend's shared
+    // sort_order field would put those into Performance-tab order instead of
+    // this sheet's order, so this branch sorts explicitly by
+    // EMISSION_LOG_COLUMN_RANK instead of trusting either. Anything not in
+    // that list (nothing currently, until Country/EU Port/OPS/BDN/Remarks
+    // exist) keeps its incoming relative order, appended at the end.
+    sortedNonSticky = [...nonSticky].sort((a, b) => {
+      const ra = EMISSION_LOG_COLUMN_RANK.has(a.db_column) ? EMISSION_LOG_COLUMN_RANK.get(a.db_column) : Infinity
+      const rb = EMISSION_LOG_COLUMN_RANK.has(b.db_column) ? EMISSION_LOG_COLUMN_RANK.get(b.db_column) : Infinity
+      return ra - rb
+    })
+  } else {
+    // Group by each field's real (native) category — "All" mode shows every
+    // field where it actually lives, never hijacked into a "Performance"/
+    // "Emission" bucket just because it's ALSO part of that calc category.
+    // Calc-category membership (performance/emission flags, or the newer
+    // calculation_category_columns table) is purely ADDITIVE: a field keeps
+    // its native category here AND separately shows up in its calc
+    // category's own dedicated pill/view (the `fieldOrder` branch above).
+    // A prior version treated `performance=true` as EXCLUSIVE (overriding
+    // category, same as this codebase's `emission` flag never did) — that
+    // meant e.g. "ME Speed (Avg.)" (native category "ME General Data", also
+    // used by Performance) vanished from "ME General Data" entirely in All
+    // mode, reappearing only under a "Performance" heading instead. Fixed:
+    // grouping now always uses the real category, full stop.
+    //
+    // `nonSticky` already arrives sorted by the backend's
+    // coalesce(user_sort_order, sort_order), so within each category group the
+    // relative order still reflects any manual drag (see the Configure
+    // Columns page's per-category field reorder, which writes user_sort_order
+    // via PUT /expanded/columns/reorder).
+    const catOf = m => (m.category || 'Other')
 
-  const catOrder = []
-  for (const m of nonSticky) {
-    const cat = catOf(m)
-    if (!catOrder.includes(cat)) catOrder.push(cat)
-  }
+    let finalCatOrder
+    if (categoryOrder && categoryOrder.length > 0) {
+      // Admin-configured order from the Configure Columns page ("All" mode,
+      // category_order table) — any category present in the data but missing
+      // from that saved order (e.g. brand new, not yet swept in) is appended
+      // at the end rather than silently dropped.
+      const present = new Set(nonSticky.map(catOf))
+      const fromConfig = categoryOrder.filter(c => present.has(c))
+      const missing = [...present].filter(c => !fromConfig.includes(c))
+      finalCatOrder = [...fromConfig, ...missing]
+    } else {
+      // Fallback (categoryOrder not loaded yet, or unavailable for this
+      // source): Performance first, then Emission, then first-appearance order.
+      const catOrder = []
+      for (const m of nonSticky) {
+        const cat = catOf(m)
+        if (!catOrder.includes(cat)) catOrder.push(cat)
+      }
+      if (!catOrder.includes('Performance')) catOrder.unshift('Performance')
+      const rest = catOrder.filter(c => c !== 'Performance' && c !== 'Emission')
+      finalCatOrder = [
+        'Performance',
+        ...(catOrder.includes('Emission') ? ['Emission'] : []),
+        ...rest,
+      ]
+    }
 
-  const finalCatOrder = hasCustomOrder
-    ? catOrder
-    : (() => {
-        const withPerf = catOrder.includes('Performance') ? catOrder : ['Performance', ...catOrder]
-        const rest = withPerf.filter(c => c !== 'Performance' && c !== 'Emission')
-        return [
-          'Performance',
-          ...(withPerf.includes('Emission') ? ['Emission'] : []),
-          ...rest,
-        ]
-      })()
-
-  const sortedNonSticky = []
-  for (const cat of finalCatOrder) {
-    sortedNonSticky.push(...nonSticky.filter(m => catOf(m) === cat))
+    sortedNonSticky = []
+    for (const cat of finalCatOrder) {
+      sortedNonSticky.push(...nonSticky.filter(m => catOf(m) === cat))
+    }
   }
 
   const sorted = [...stickySlots, ...sortedNonSticky]
 
-  return buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceErrors)
+  return buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceErrors, emissionExactOrder)
 }
 
 // Builds the actual TanStack column defs (Compliance/Errors + one per data
 // column) from an already-ordered list of column metadata. Shared by both
 // the normal (category-grouped) and Emission-focused paths above — only how
 // `sorted` gets its order differs between them.
-function buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceErrors) {
+function buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceErrors, emissionExactOrder) {
   // Compliance status column (Phase 3a pilot — AM KIRTI/GCL FOS only; blank elsewhere).
   // Always first, ahead of the error count column.
   const complianceCol = {
@@ -414,7 +535,8 @@ function buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceE
   // emissions — hidden while the Emission focus filter is active so the table
   // reads as a clean emissions view, same as how Performance-focused columns
   // aren't cluttered by unrelated fields.
-  return hideComplianceErrors ? dataCols : [complianceCol, errCol, ...dataCols]
+  const finalCols = hideComplianceErrors ? dataCols : [complianceCol, errCol, ...dataCols]
+  return emissionExactOrder ? groupEmissionLogColumns(finalCols) : finalCols
 }
 
 
@@ -446,7 +568,7 @@ const TableRow = memo(({ row, idx, isSelected, sr, onClick, columns, complianceS
 })
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filtersApplied, complianceByDate, vesselName, hideComplianceErrors, emissionFocus }) {
+export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filtersApplied, complianceByDate, vesselName, hideComplianceErrors, emissionExactOrder, categoryOrder, fieldOrder }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [exporting, setExporting] = useState(false)
   const lastSelectedIdx = useRef(null)
@@ -486,8 +608,8 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
   }, [sortedRows])
 
   const columns = useMemo(
-    () => buildColumns(columnsMeta || [], visibleExtras, scanResults, complianceByDate, hideComplianceErrors, emissionFocus),
-    [columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors, emissionFocus]
+    () => buildColumns(columnsMeta || [], visibleExtras, scanResults, complianceByDate, hideComplianceErrors, emissionExactOrder, categoryOrder, fieldOrder),
+    [columnsMeta, visibleExtras, scanResults, complianceByDate, hideComplianceErrors, emissionExactOrder, categoryOrder, fieldOrder]
   )
 
   const table = useReactTable({ data: sortedRows, columns, getCoreRowModel: getCoreRowModel() })
@@ -501,13 +623,20 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
       // complianceByDate) rather than plain row properties, so a raw row[id] read
       // would just come back blank for them.
       const dataCols = columns.filter(c => c.id !== '__errors__' && c.id !== '__compliance__')
-      await exportAnalysisExcel(sortedRows, dataCols, vesselName)
+      if (emissionExactOrder) {
+        // `columns` here is already the grouped tree groupEmissionLogColumns()
+        // produced (group nodes + any ungrouped leaves) — export the same
+        // 2-row grouped header the table renders, not the flat one.
+        await exportEmissionLogExcel(sortedRows, dataCols, vesselName)
+      } else {
+        await exportAnalysisExcel(sortedRows, dataCols, vesselName)
+      }
     } catch (e) {
       console.error('Excel export failed', e)
     } finally {
       setExporting(false)
     }
-  }, [exporting, columns, sortedRows, vesselName])
+  }, [exporting, columns, sortedRows, vesselName, emissionExactOrder])
 
   const handleRowClick = useCallback((e, row, idx) => {
     const isCtrl = e.ctrlKey || e.metaKey
@@ -575,12 +704,18 @@ export default function AnalysisTable({ rows, columnsMeta, visibleExtras, filter
         </button>
       </div>
     <div className="table-container">
-      <table className="analysis-table">
+      <table className={`analysis-table${hideComplianceErrors ? ' analysis-table--compact-sticky' : ''}`}>
         <thead>
-          {table.getHeaderGroups().map(hg => (
-            <tr key={hg.id}>
+          {table.getHeaderGroups().map((hg, hgIdx) => (
+            <tr key={hg.id} className={hgIdx === 0 && table.getHeaderGroups().length > 1 ? 'tr-group-header' : undefined}>
               {hg.headers.map(h => (
-                <th key={h.id} style={{ minWidth: h.column.columnDef.size ?? 140 }}>
+                <th
+                  key={h.id}
+                  colSpan={h.colSpan}
+                  rowSpan={h.rowSpan > 1 ? h.rowSpan : undefined}
+                  className={h.column.columnDef.columns ? 'th-group' : undefined}
+                  style={{ minWidth: h.column.columnDef.size ?? 140 }}
+                >
                   {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
                 </th>
               ))}
