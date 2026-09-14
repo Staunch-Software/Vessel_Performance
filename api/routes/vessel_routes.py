@@ -516,6 +516,21 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
         utc_time = ad.Time_UTC or "00:00"
         combined_date = f"{local_date_str}T{utc_time}:00Z" if local_date_str else None
 
+        # Per-consumer, per-grade fuel fields (VARCHAR on both NoonReportData
+        # and MariAppsReportData — same schema on both sources, see
+        # emission_routes.py's _CONSUMERS convention). Used by the Voyage
+        # Audit Report's Good Weather Analysis table to compute TRUE FO
+        # (HFO+LFO) vs GO (MDO) totals across all 4 consumers (ME/AE/Aux
+        # Boiler "bl"/Composite Boiler "combl") — replacing the previous
+        # approximation that treated all ME consumption as FO and all AE+
+        # Boiler consumption as GO.
+        def _gnum(attr):
+            v = getattr(source_model, attr, None) if source_model else None
+            try:
+                return float(v) if v not in (None, "") else None
+            except (TypeError, ValueError):
+                return None
+
         extras = extras_by_id.get(ad.raw_mariapps_id) if ad.raw_mariapps_id else None
         cp_instruction = None
         if extras and extras.get("cpx_remarks"):
@@ -572,6 +587,10 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
             "cp_instruction": cp_instruction,
             "ME_Fuel_Grade": extras.get("me_grade") if extras else None,
             "AE_Fuel_Grade": extras.get("ae_grade") if extras else None,
+            "me_hfo": _gnum("me_hfo"), "me_lfo": _gnum("me_lfo"), "me_mdo": _gnum("me_mdo"),
+            "ae_hfo": _gnum("ae_hfo"), "ae_lfo": _gnum("ae_lfo"), "ae_mdo": _gnum("ae_mdo"),
+            "bl_hfo": _gnum("bl_hfo"), "bl_lfo": _gnum("bl_lfo"), "bl_mdo": _gnum("bl_mdo"),
+            "combl_hfo": _gnum("combl_hfo"), "combl_lfo": _gnum("combl_lfo"), "combl_mdo": _gnum("combl_mdo"),
         })
         
     return out

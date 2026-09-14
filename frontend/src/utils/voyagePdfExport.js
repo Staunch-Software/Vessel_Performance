@@ -194,6 +194,64 @@ function computeVaryingCpInstruction(seriesRows) {
   return blocks.length > 1 ? blocks : null
 }
 
+// Filters a voyage's seriesRows down to the "event-wise CP calculation"
+// scope (client request 2026-09): excludes the COSP/BOSP boundary report
+// itself, keeping every event from the next report (e.g. "Noon at Sea")
+// through EOSP inclusive. /voyage/series already trims the series to the
+// BOSP..EOSP window (see vessel_routes.py's dep_record/arr_record), so this
+// just needs to drop the leading COSP/BOSP row.
+function eventWiseCpRows(seriesRows) {
+  return (seriesRows || []).filter(r => !/COSP|BOSP/i.test(r.event_type || ''))
+}
+
+// Resolves the CP speed/FO/GO that actually applied on ONE event/day:
+// that day's parsed CP remarks instruction (cp_instruction) if one exists,
+// otherwise the vessel's standing CP warranty. GO always falls back to the
+// standing warranty — the master's remarks only ever specify one combined
+// IFO figure (split M/E vs A/E), never a separate GO/DO figure (see
+// computeVaryingCpInstruction above), so there's no per-day GO override to
+// use even on a day with its own speed/FO override.
+function eventCpFigures(row, cpW) {
+  const instr = row.cp_instruction
+  return {
+    speed: instr?.speed_kn ?? +(cpW.speed_kn || 0),
+    fo:    instr?.total_mt_day ?? +(cpW.fo_mtpd || 0),
+    go:    +(cpW.dogo_mtpd || 0),
+  }
+}
+
+// Cumulative event-wise Time-at-Warranted-Speed figures (formulas b/c) and
+// Max/Min Warranted Consumption figures (formulas e/f) — client request
+// 2026-09: previously ONE division using a single fixed CP warranty figure
+// for the whole voyage; now summed per-event using whichever CP instruction
+// actually applied that day.
+//
+// DOUBT — flagged for the client to confirm, not yet answered: should the
+// ±tolerance in (b)/(e)/(f) apply per-event (that day's own applicable
+// speed/consumption ± tolerance, as implemented here per explicit
+// instruction 2026-09), or should tolerance only ever apply around the
+// single standing warranty regardless of a day having its own override?
+function computeEventWiseCp(seriesRows, cpW, tolKn, tolPct) {
+  const rows = eventWiseCpRows(seriesRows)
+  let bHours = 0, cHours = 0, eTot = 0, fTot = 0, eventCount = 0
+  rows.forEach(r => {
+    const dist = +(r.Distance_nm) || 0
+    const { speed, fo, go } = eventCpFigures(r, cpW)
+    if (dist <= 0 || !speed) return
+    eventCount += 1
+    const effSpeed  = speed - tolKn
+    const totalMax  = (fo + go) * (1 + tolPct / 100)
+    const totalMin  = (fo + go) * (1 - tolPct / 100)
+    cHours += dist / speed
+    fTot   += (dist / speed) * (totalMin / 24)
+    if (effSpeed > 0) {
+      bHours += dist / effSpeed
+      eTot   += (dist / effSpeed) * (totalMax / 24)
+    }
+  })
+  return { bHours, cHours, eTot, fTot, eventCount }
+}
+
 // ── Page builders ──────────────────────────────────────────────────────────
 
 /** Page 1 — Cover / Voyage Header */
@@ -462,21 +520,38 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
 
   const totalDist  = cp.entire?.distance_nm ?? seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const totalDur   = cp.entire?.time_h ?? seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const totalFO    = cp.entire?.fo_mt ?? seriesRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const totalGO    = cp.entire?.dogo_mt ?? seriesRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
 
   const goodDist   = cp.good_wx?.distance_nm ?? 0
   const goodDur    = cp.good_wx?.time_h ?? 0
-  const goodFO     = cp.good_wx?.fo_mt ?? 0
-  const goodGO     = cp.good_wx?.dogo_mt ?? 0
 
   const totalSpeed = cp.entire?.avg_speed_kn ?? (totalDur > 0 ? totalDist / totalDur : 0)
   const goodSpeed  = cp.good_wx?.avg_speed_kn ?? (goodDur > 0 ? goodDist / goodDur : 0)
 
-  const goodDailyFO  = cp.good_wx?.daily_fo ?? (goodDur > 0 ? goodFO / (goodDur / 24) : 0)
+  // TRUE FO (HFO+LFO) vs GO (MDO) totals, summed per-row across all 4
+  // consumers (ME, AE, Aux Boiler "bl", Composite Boiler "combl") — client
+  // request 2026-09: replaces the previous approximation that treated all
+  // ME consumption as FO and all AE+Boiler consumption as GO. Fields come
+  // straight from /voyage/series (me_hfo/me_lfo/me_mdo etc.), not from the
+  // cp.entire/cp.good_wx aggregates (those don't carry a grade split).
+  const numOr0 = (v) => { const n = +v; return isNaN(n) ? 0 : n }
+  function sumFoGo(rows) {
+    let fo = 0, go = 0
+    rows.forEach(r => {
+      fo += numOr0(r.me_hfo) + numOr0(r.me_lfo) + numOr0(r.ae_hfo) + numOr0(r.ae_lfo)
+          + numOr0(r.bl_hfo) + numOr0(r.bl_lfo) + numOr0(r.combl_hfo) + numOr0(r.combl_lfo)
+      go += numOr0(r.me_mdo) + numOr0(r.ae_mdo) + numOr0(r.bl_mdo) + numOr0(r.combl_mdo)
+    })
+    return { fo, go }
+  }
+  const goodGrades  = sumFoGo(goodRows)
+  const totalGrades = sumFoGo(seriesRows)
+  const goodFO  = goodGrades.fo,  goodGO  = goodGrades.go
+  const totalFO = totalGrades.fo, totalGO = totalGrades.go
+
+  const goodDailyFO  = goodDur > 0 ? goodFO / (goodDur / 24) : 0
   const totalDailyFO = totalDur > 0 ? totalFO / (totalDur / 24) : 0
 
-  const goodDailyGO  = cp.good_wx?.daily_dogo ?? (goodDur > 0 ? goodGO / (goodDur / 24) : 0)
+  const goodDailyGO  = goodDur > 0 ? goodGO / (goodDur / 24) : 0
   const totalDailyGO = totalDur > 0 ? totalGO / (totalDur / 24) : 0
 
   autoTable(doc, {
@@ -489,8 +564,8 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
       ['Distance Sailed [Miles]',       fmt(goodDist, 0), '-',  fmt(totalDist, 0), '-'],
       ['Time on Route [Hours]',         fmt(goodDur, 2), '-',   fmt(totalDur, 2), '-'],
       ['Average Speed [Knots]',         fmt(goodSpeed, 2), '-', fmt(totalSpeed, 2), '-'],
-      ['FO Consumption [MT]',           fmt(goodFO, 2), '-',    fmt(totalFO, 2), '-'],
-      ['GO Consumption [MT]',           fmt(goodGO, 2), '-',    fmt(totalGO, 2), '-'],
+      ['Total FO Consumption [MT]',     fmt(goodFO, 2), '-',    fmt(totalFO, 2), '-'],
+      ['Total GO Consumption [MT]',     fmt(goodGO, 2), '-',    fmt(totalGO, 2), '-'],
       ['Total Fuel Consumption [MT]',   fmt(goodFO + goodGO, 2), '-', fmt(totalFO + totalGO, 2), '-'],
       ['Averaged Daily Total Consumption', fmt(goodDailyFO + goodDailyGO, 2), '-', fmt(totalDailyFO + totalDailyGO, 2), '-'],
     ],
@@ -518,9 +593,6 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.setFont('helvetica', 'bold')
   doc.text('Good Weather Average Speed:', 50, y)
   doc.text(`${fmt(goodSpeed, 2)} Knots`, 110, y)
-  y += 4
-  doc.text('Good Weather Current Factor:', 50, y)
-  doc.text('Negated', 110, y)
   y += 4
   
   // Under/Over performance rect
@@ -551,19 +623,30 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   // Only one of these can be positive at a time (or neither, inside the tolerance band) —
   // whichever is positive is the conclusion.
   const tolKn    = cp.allowance?.speed_kn != null ? +cp.allowance.speed_kn : 0.5
+  const tolPct   = cp.allowance?.cons_pct != null ? +cp.allowance.cons_pct : 5.0
   const gwSpeedB = cp.good_wx?.avg_speed_kn || 0
   const distE    = cp.entire?.distance_nm || totalDist
-  const effSpd   = wSpeed - tolKn
 
-  const p1 = "Time loss or gained is calculated by comparing (a) Total Time at Good Weather Performance Speed to (b) and (c) listed below. Time loss calculation (b) applies minus " + fmt(tolKn, 2) + " knot allowance for 'about', an effective warranted speed of " + fmt(effSpd, 2) + " knots has been used, while no allowance in (c) time gained calculation."
+  // (b)/(c) — cumulative EVENT-WISE Time at Warranted Speed (client request
+  // 2026-09): a voyage with more than one CP instruction (varying speed/
+  // consumption across days, see the Varying CP instruction table on page
+  // 1) no longer gets ONE division against a single fixed warranted speed
+  // for the whole voyage — each event from just after COSP through EOSP
+  // uses whichever CP instruction actually applied that day, and the
+  // resulting hours are summed. (a) is unchanged — it's the vessel's own
+  // ACTUAL good-weather speed, not a CP instruction, so it's out of scope
+  // for this change and still uses the full voyage distance (distE).
+  const evCp = computeEventWiseCp(seriesRows, cpW, tolKn, tolPct)
+
+  const p1 = "Time loss or gained is calculated by comparing (a) Total Time at Good Weather Performance Speed to (b) and (c) listed below. Both (b) and (c) are now computed cumulatively, event by event (excluding the COSP report), using whichever CP instruction actually applied on each day of the voyage — see the Varying CP instruction table on page 1 for voyages with more than one. Time loss calculation (b) applies a minus " + fmt(tolKn, 2) + " knot allowance for 'about' on each event's applicable speed, while no allowance is applied in (c)."
   const splitText = doc.splitTextToSize(p1, W - 28)
   doc.text(splitText, 14, y)
   y += splitText.length * 4 + 4
 
   // Math logic for time calculation
   const a = gwSpeedB > 0 ? distE / gwSpeedB : 0
-  const b = effSpd > 0 ? distE / effSpd : 0
-  const c = wSpeed > 0 ? distE / wSpeed : 0
+  const b = evCp.bHours
+  const c = evCp.cHours
   const timeLost   = a - b
   const timeGained = c - a
 
@@ -580,20 +663,20 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text(`= ${fmt(distE, 0)} / ${fmt(gwSpeedB, 2)} = ${fmt(a, 2)} Hours (a)`, 138, fy + 3)
   fy += 10
 
-  doc.text(`Total Time at Warranted Speed - ${fmt(tolKn, 2)} knots`, 18, fy + 3)
+  doc.text(`Cumulative Time at Warranted Speed - ${fmt(tolKn, 2)} knots`, 18, fy + 3)
   doc.text('=', 85, fy + 3)
-  doc.text('Total Distance', 115, fy, { align: 'center' })
+  doc.text('Σ (Event Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
-  doc.text(`Warranted Speed - ${fmt(tolKn, 2)} knots`, 115, fy + 4, { align: 'center' })
-  doc.text(`= ${fmt(distE, 0)} / ${fmt(effSpd, 2)} = ${fmt(b, 2)} Hours (b)`, 138, fy + 3)
+  doc.text(`Event Applicable Speed - ${fmt(tolKn, 2)} kn)`, 115, fy + 4, { align: 'center' })
+  doc.text(`= ${fmt(b, 2)} Hours (b)  [${evCp.eventCount} events]`, 138, fy + 3)
   fy += 10
 
-  doc.text('Total Time at Warranted Speed', 18, fy + 3)
+  doc.text('Cumulative Time at Warranted Speed', 18, fy + 3)
   doc.text('=', 85, fy + 3)
-  doc.text('Total Distance', 115, fy, { align: 'center' })
+  doc.text('Σ (Event Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
-  doc.text('Warranted Speed', 115, fy + 4, { align: 'center' })
-  doc.text(`= ${fmt(distE, 0)} / ${fmt(wSpeed, 2)} = ${fmt(c, 2)} Hours (c)`, 138, fy + 3)
+  doc.text('Event Applicable Speed)', 115, fy + 4, { align: 'center' })
+  doc.text(`= ${fmt(c, 2)} Hours (c)  [${evCp.eventCount} events]`, 138, fy + 3)
 
   y += 36
 
@@ -675,6 +758,13 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   const effSpd   = wSpeed - tolKn
   const goodDailyFOB = cp.good_wx?.daily_fo ?? 0
   const goodDailyGOB = cp.good_wx?.daily_dogo ?? 0
+
+  // Cumulative EVENT-WISE Max/Min Warranted Consumption (formulas e'/f') —
+  // client request 2026-09: same event-by-event methodology as Section B's
+  // (b)/(c), using whichever CP instruction actually applied each day
+  // (excluding COSP). (d') is unchanged — it's the vessel's own ACTUAL
+  // good-weather consumption rate, not a CP instruction, so out of scope.
+  const evCp = computeEventWiseCp(seriesRows, cpW, tolKn, tolPct)
 
   const foMax = foW * (1 + tolPct / 100)
   const foMin = foW * (1 - tolPct / 100)
@@ -771,8 +861,8 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      const totalMax   = totalW * (1 + tolPct / 100)
      const totalMin   = totalW * (1 - tolPct / 100)
      const d_tot = (distE / gwSpeedB) * (goodDailyTotalB / 24)
-     const e_tot = (distE / effSpd) * (totalMax / 24)
-     const f_tot = (distE / wSpeed) * (totalMin / 24)
+     const e_tot = evCp.eTot
+     const f_tot = evCp.fTot
 
      // D
      let blockY = y
@@ -790,37 +880,33 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.text("(d')", 175, blockY + 4)
 
      blockY += 10
-     // E
+     // E — cumulative event-wise sum, see computeEventWiseCp; the old
+     // "Total Distance / Warranted Speed x Consumption / 24" single-division
+     // layout no longer applies once each event can carry its own CP
+     // instruction, so this shows the cumulative result directly instead of
+     // a formula whose arithmetic wouldn't match e_tot any more.
      doc.text('Maximum Warranted Consumption', 22, blockY + 2)
-     doc.text('for over-consumption', 22, blockY + 5)
-     doc.text('=', 72, blockY + 4)
-     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
-     doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(effSpd, 2), 92, blockY + 5.5, { align: 'center' })
-     doc.text('x', 112, blockY + 4)
-     doc.text(fmt(totalMax, 2), 128, blockY + 1.5, { align: 'center' })
-     doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(e_tot, 2)} MT`, 145, blockY + 4)
-     doc.text("(e')", 175, blockY + 4)
+     doc.text('for over-consumption (cumulative, event-wise)', 22, blockY + 5)
+     doc.text('=', 145, blockY + 4)
+     doc.text(`Σ (Event Dist / (Event Speed - ${fmt(tolKn, 2)}kn)) x (Event FO+GO + ${fmt(tolPct, 1)}% / 24)`, 22, blockY + 8)
+     doc.text(`=  ${fmt(e_tot, 2)} MT  [${evCp.eventCount} events]`, 145, blockY + 4)
+     doc.text("(e')", 185, blockY + 4)
 
-     blockY += 10
-     // F
+     blockY += 12
+     // F — same cumulative treatment as E, minus tolerance instead of plus.
      doc.text('Minimum Warranted Consumption', 22, blockY + 2)
-     doc.text('for fuel saving', 22, blockY + 5)
-     doc.text('=', 72, blockY + 4)
-     doc.text(fmt(distE, 0), 92, blockY + 1.5, { align: 'center' })
-     doc.line(78, blockY + 2.5, 106, blockY + 2.5)
-     doc.text(fmt(wSpeed, 2), 92, blockY + 5.5, { align: 'center' })
-     doc.text('x', 112, blockY + 4)
-     doc.text(fmt(totalMin, 2), 128, blockY + 1.5, { align: 'center' })
-     doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
-     doc.text(`=  ${fmt(f_tot, 2)} MT`, 145, blockY + 4)
-     doc.text("(f')", 175, blockY + 4)
+     doc.text('for fuel saving (cumulative, event-wise)', 22, blockY + 5)
+     doc.text('=', 145, blockY + 4)
+     doc.text(`Σ (Event Dist / Event Speed) x (Event FO+GO - ${fmt(tolPct, 1)}% / 24)`, 22, blockY + 8)
+     doc.text(`=  ${fmt(f_tot, 2)} MT  [${evCp.eventCount} events]`, 145, blockY + 4)
+     doc.text("(f')", 185, blockY + 4)
 
      blockY += 10
-     const totalLoss = (cp.loss?.fo_mt || 0) + (cp.loss?.dogo_mt || 0)
+     // Computed from THIS page's own (d')/(e')/(f') numbers — not the
+     // backend's single-warranty cp.loss figure any more, since that would
+     // make the "(d') - (e') = totalLoss" line below literally false once
+     // (e')/(f') are event-wise sums instead of one blanket calculation.
+     const totalLoss = d_tot > e_tot ? d_tot - e_tot : (d_tot < f_tot ? -(f_tot - d_tot) : 0)
      if (totalLoss > 0) {
         doc.text(`Over-consumption = (d') - (e')  =  ${fmt(d_tot, 2)}  -  ${fmt(e_tot, 2)}  =  ${fmt(totalLoss, 2)} MT`, 40, blockY + 2)
      } else if (totalLoss < 0) {
