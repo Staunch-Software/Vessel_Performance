@@ -450,6 +450,18 @@ MARIAPPS_TO_NEWCOL = {
     'cons_section0_aux_boiler_mass_consumption_mt': 'AuxBoiler_mFOCBL_dCnt_operational_LF',
     'cons_section0_aux_boiler_temperature_at_inlet_flowmeter_c': 'AuxBoiler_TFOFMinBL_avg_operational_LF',
     'cons_section0_aux_boiler_volume_consumption_m3': 'AuxBoiler_VFOCBL_dCnt_operational_LF',
+    # Same missing-`cons_`-prefix gap as the Aux Boiler fix directly above,
+    # for vessels whose boiler consumer is named "Composite Boiler" instead
+    # of "Aux Boiler" (e.g. AM KIRTI) — confirmed: CompositeBoiler_
+    # mFOCComBL_dCnt_operational_LF was NULL fleet-wide despite
+    # Section0::Composite Boiler::Mass Consumption (MT) being present and
+    # correctly scraped into raw_json for these vessels' logs.
+    'cons_section0_composite_boiler_calculated_mass_consumption_mt': 'CompositeBoiler_mFOCComBL_dCnt_operational_LF',
+    'cons_section0_composite_boiler_gas_pressure_at_engine_inlet_avg_bar': 'CompositeBoiler_RHComBL_dCnt_operational_LF',
+    'cons_section0_composite_boiler_grade': 'CompositeBoiler_RHComBL_dCnt_operational_LF',
+    'cons_section0_composite_boiler_mass_consumption_mt': 'CompositeBoiler_mFOCComBL_dCnt_operational_LF',
+    'cons_section0_composite_boiler_temperature_at_inlet_flowmeter_c': 'CompositeBoiler_RHComBL_dCnt_operational_LF',
+    'cons_section0_composite_boiler_volume_consumption_m3': 'CompositeBoiler_RHComBL_dCnt_operational_LF',
     'section0_aux_engine_calculated_mass_consumption_mt': 'AE_section0_aux_engine_calculated_mass_consumption_mt_operational_LF',
     'section0_aux_engine_gas_pressure_at_engine_inlet_avg_bar': 'AE_section0_aux_engine_gas_pressure_at_engine_inlet_avg_bar_operational_LF',
     'section0_aux_engine_grade': 'AE_section0_aux_engine_grade_operational_LF',
