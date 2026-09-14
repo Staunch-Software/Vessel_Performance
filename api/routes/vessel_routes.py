@@ -16,6 +16,7 @@ from backend.models import (
     Vessel, VesselParticulars, AnalysisData, VesselParticularsResponse,
     NoonReportData, MariAppsReportData, DataQualityLog, RawMariAppsLog, RawNoonReport
 )
+from backend.cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
 
 # --- Dependency to get DB session ---
 def get_db():
@@ -469,7 +470,7 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
     
     dep_dt = f"{dep_record.Date}T{dep_record.Time_UTC or '00:00'}" if dep_record else ""
     arr_dt = f"{arr_record.Date}T{arr_record.Time_UTC or '00:00'}" if arr_record else ""
-    
+
     for row in results:
         ad = row[0]
         if dep_record and arr_record:
@@ -478,6 +479,24 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
                 valid_results.append(row)
         else:
             valid_results = results
+
+    # ── Per-day CP remarks (Varying CP Instruction) + real fuel grade labels ──
+    # expanded_mariapps_data.raw_log_id == AnalysisData.raw_mariapps_id ==
+    # raw_mariapps_logs.id. Not an ORM model (created dynamically by
+    # expander.py), so this is a plain SQL lookup. MariApps-only — WNI rows
+    # simply won't have a raw_mariapps_id and get nothing from this dict.
+    from sqlalchemy import text
+    mariapps_ids = {row[0].raw_mariapps_id for row in valid_results if row[0].raw_mariapps_id}
+    extras_by_id = {}
+    if mariapps_ids:
+        rows = db.execute(text(
+            "SELECT raw_log_id, cpx_remarks, "
+            "\"mariappsx_main_engine_iso_grade\", \"mariappsx_aux_engine_iso_grade\" "
+            "FROM expanded_mariapps_data WHERE raw_log_id = ANY(:ids)"
+        ), {"ids": list(mariapps_ids)}).fetchall()
+        extras_by_id = {
+            r[0]: {"cpx_remarks": r[1], "me_grade": r[2], "ae_grade": r[3]} for r in rows
+        }
 
     out = []
     for row in valid_results:
@@ -496,6 +515,19 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
             
         utc_time = ad.Time_UTC or "00:00"
         combined_date = f"{local_date_str}T{utc_time}:00Z" if local_date_str else None
+
+        extras = extras_by_id.get(ad.raw_mariapps_id) if ad.raw_mariapps_id else None
+        cp_instruction = None
+        if extras and extras.get("cpx_remarks"):
+            parsed = parse_cp_remarks(extras["cpx_remarks"])
+            instr = pick_instruction_for_condition(parsed, ad.Loading_Cond)
+            if instr:
+                cp_instruction = {
+                    "speed_kn":      instr["speed_kn"],
+                    "total_mt_day":  instr["total_mt_day"],
+                    "me_mt_day":     instr["me_mt_day"],
+                    "ae_mt_day":     instr["ae_mt_day"],
+                }
 
         out.append({
             "Date": combined_date,
@@ -537,6 +569,9 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
             "lon_degree": getattr(source_model, 'lon_degree', None) if source_model else None,
             "lon_minutes": getattr(source_model, 'lon_minutes', None) if source_model else None,
             "lon_direction": getattr(source_model, 'lon_direction', None) if source_model else None,
+            "cp_instruction": cp_instruction,
+            "ME_Fuel_Grade": extras.get("me_grade") if extras else None,
+            "AE_Fuel_Grade": extras.get("ae_grade") if extras else None,
         })
         
     return out

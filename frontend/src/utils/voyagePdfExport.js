@@ -6,14 +6,19 @@
  * Page Structure:
  *   Page 1   — Cover / Voyage Header
  *   Page 2   — CP Performance Charts: (A) Good-Weather Speed & Fuel/Day vs CP
- *              Warranty + allowance bands, trended across this vessel's full
- *              history for this voyage's loading condition, and (B) Time &
- *              Fuel Loss/Saving per voyage, all conditions combined (see
+ *              Warranty + allowance bands, trended across this vessel's last
+ *              10 voyages in this voyage's loading condition, and (B) Time &
+ *              Fuel Loss/Saving, last 10 voyages of that SAME condition (see
  *              CPChartsRenderer.jsx)
- *   Page 3   — Speed & Consumption Summary (Good Wx / All Wx)
- *   Page 4   — Consumption Calculation Methodology
- *   Page 5   — Speed & Weather Analysis Summary Table
- *   Pages 6+ — Positions & Weather Detail (8 rows / page)
+ *   Page 3   — Ship Speed / FO Consumption+RPM / DO-GO Consumption+RPM /
+ *              Wind Speed / Wave Height+Current charts (see
+ *              PdfHiddenRenderer.jsx) — moved here from its previous spot
+ *              right after Fuel Consumption Analysis, per client request
+ *              2026-09 to read alongside the CP Performance Charts
+ *   Page 4   — Speed & Consumption Summary (Good Wx / All Wx)
+ *   Page 5   — Consumption Calculation Methodology
+ *   Page 6   — Speed & Weather Analysis Summary Table
+ *   Pages 7+ — Positions & Weather Detail (8 rows / page)
  *   Next     — Fuel Consumption Analysis
  *   Next     — Message Traffic (one section per report record)
  *   Last 2   — CP Compliance Audit Methodology (static)
@@ -162,10 +167,37 @@ function keyValue(doc, y, pairs, colW = 90) {
   return y + rows * 7 + 4
 }
 
+// Groups a voyage's per-day parsed CP remarks (r.cp_instruction, from
+// /voyage/series — see cp_remarks_parser.py) into consecutive same-
+// instruction blocks. Returns null when there's 0 or 1 block (nothing to
+// show beyond the existing CP Warranty box), or an array of
+// { instr, days, startDate, endDate } when the voyage genuinely had more
+// than one distinct instruction in force.
+function computeVaryingCpInstruction(seriesRows) {
+  const withInstr = (seriesRows || [])
+    .filter(r => r.cp_instruction)
+    .map(r => ({ date: r.Date, instr: r.cp_instruction }))
+  if (withInstr.length === 0) return null
+
+  const sameKey = (a, b) => a.speed_kn === b.speed_kn && a.total_mt_day === b.total_mt_day
+
+  const blocks = []
+  for (const { date, instr } of withInstr) {
+    const last = blocks[blocks.length - 1]
+    if (last && sameKey(last.instr, instr)) {
+      last.days += 1
+      last.endDate = date
+    } else {
+      blocks.push({ instr, days: 1, startDate: date, endDate: date })
+    }
+  }
+  return blocks.length > 1 ? blocks : null
+}
+
 // ── Page builders ──────────────────────────────────────────────────────────
 
 /** Page 1 — Cover / Voyage Header */
-function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate) {
+function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate, series) {
   const W = doc.internal.pageSize.getWidth()
   let y = addHeader(doc, voyageNo, routeId, reportDate, '')
 
@@ -211,8 +243,8 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   
   doc.text('Vessel Name:', lblX, dy); doc.setFont('helvetica', 'normal'); doc.text(vesselName, valX, dy); dy += 5;
   doc.setFont('helvetica', 'bold'); doc.text('Prepared for:', lblX, dy); doc.setFont('helvetica', 'normal'); doc.text('Ozellar', valX, dy); dy += 5;
-  doc.setFont('helvetica', 'bold'); doc.text('Departure:', lblX, dy); doc.setFont('helvetica', 'normal'); doc.text(sum.From_Port || '—', valX, dy); doc.text(fmtDateTime(sum.Departure_Time) || '', dtX, dy); dy += 5;
-  doc.setFont('helvetica', 'bold'); doc.text('Arrival:', lblX, dy); doc.setFont('helvetica', 'normal'); doc.text(sum.To_Port || '—', valX, dy); doc.text(fmtDateTime(sum.Arrival_Time) || '', dtX, dy); dy += 5;
+  doc.setFont('helvetica', 'bold'); doc.text('Departure - COSP :', lblX, dy); doc.setFont('helvetica', 'normal'); doc.text(sum.From_Port || '—', valX, dy); doc.text(fmtDateTime(sum.Departure_Time) || '', dtX, dy); dy += 5;
+  doc.setFont('helvetica', 'bold'); doc.text('Arrival - EOSP :', lblX, dy); doc.setFont('helvetica', 'normal'); doc.text(sum.To_Port || '—', valX, dy); doc.text(fmtDateTime(sum.Arrival_Time) || '', dtX, dy); dy += 5;
   doc.setFont('helvetica', 'bold'); doc.text('Voyage No:', lblX, dy); doc.setFont('helvetica', 'normal'); doc.text(String(voyageNo), valX, dy); dy += 5;
   doc.setFont('helvetica', 'bold'); doc.text('Ship Type:', lblX, dy); doc.setFont('helvetica', 'normal'); doc.text('BULK CARRIER', valX, dy); dy += 5;
   doc.setFont('helvetica', 'bold'); doc.text('Loading Condition:', lblX, dy); doc.setFont('helvetica', 'normal'); doc.text(sum.Loading_Cond || '—', valX, dy); dy += 12;
@@ -340,6 +372,48 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     doc.text(`about ${fmt(cpW.speed_kn)} Knots`, 90, y + 38, { align: 'center' })
     doc.text(`about ${fmt(cpW.fo_mtpd)} MT/day`, 130, y + 38, { align: 'center' })
     doc.text(`about ${fmt(cpW.dogo_mtpd)} MT/day`, 170, y + 38, { align: 'center' })
+
+    // ── Varying CP Instruction (client request 2026-09) ────────────────────
+    // The CP Warranty box above is always ONE fixed figure — but the
+    // master's day-to-day remarks (cpx_remarks, parsed via
+    // cp_remarks_parser.py) can carry a DIFFERENT instruction for some days
+    // of this same voyage (Eco vs Full speed, an ETA-driven order, a
+    // mid-voyage revision). When that happened, show the per-day breakdown
+    // here IN ADDITION TO the box above (never replacing it) so a reader
+    // sees exactly how many days each instruction was actually in force.
+    //
+    // NOTE: the master's remarks only ever specify ONE combined IFO figure
+    // (split M/E vs A/E), never a separate GO/DO figure — so "GO" below is
+    // always "—". That reflects what the source data actually contains,
+    // not a rendering gap.
+    const cpBlocks = computeVaryingCpInstruction(series)
+    if (cpBlocks) {
+      let vy = y + 48
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.text('Varying CP instruction', 14, vy)
+      vy += 6
+
+      const colX = { days: 20, speed: 70, fo: 120, go: 170 }
+      doc.setFontSize(8)
+      doc.text('No. of Days', colX.days, vy)
+      doc.text('Speed', colX.speed, vy, { align: 'center' })
+      doc.text('FO', colX.fo, vy, { align: 'center' })
+      doc.text('GO', colX.go, vy, { align: 'center' })
+      vy += 2
+      doc.setDrawColor(...MGRAY)
+      doc.line(14, vy, W - 14, vy)
+      vy += 5
+
+      doc.setFont('helvetica', 'normal')
+      cpBlocks.forEach((b, i) => {
+        doc.text(`D${i + 1} (${b.days} day${b.days > 1 ? 's' : ''})`, colX.days, vy)
+        doc.text(`${fmt(b.instr.speed_kn)} kn`, colX.speed, vy, { align: 'center' })
+        doc.text(`${fmt(b.instr.total_mt_day)} MT/day`, colX.fo, vy, { align: 'center' })
+        doc.text('—', colX.go, vy, { align: 'center' })
+        vy += 5
+      })
+    }
 }
 
 /** Page 2 — Speed & Consumption Calculation */
@@ -1200,7 +1274,7 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
 }
 
 /** Message Traffic pages */
-function buildMessageTrafficPages(doc, seriesRows, routeId, reportDate, voyageNo) {
+function buildMessageTrafficPages(doc, seriesRows, routeId, reportDate, voyageNo, vesselName) {
   if (!seriesRows || seriesRows.length === 0) return;
   const W = doc.internal.pageSize.getWidth();
   const colWidth = (W - 28) / 2 - 4;
@@ -1217,7 +1291,7 @@ function buildMessageTrafficPages(doc, seriesRows, routeId, reportDate, voyageNo
 
     const msgLines = [
       `[== Start of Message]`,
-      `[Vessel Name : ${r.From_Port ? 'AM UMANG' : '—'}]`,
+      `[Vessel Name : ${vesselName || '—'}]`,
       `[Voyage number : ${r.Voyage_No || voyageNo}]`,
       `[Displayed REPORT TYPE : ${r.event_type || 'NOON REPORT'}]`,
       `[Load Condition : ${r.Loading_Cond || '—'}]`,
@@ -1226,8 +1300,8 @@ function buildMessageTrafficPages(doc, seriesRows, routeId, reportDate, voyageNo
       `[Average speed : ${fmt(r.STW_kn)}kts]   [Average RPM : ${fmt(r.Shaft_RPM)}rpm]`,
       `[Average M/E power : ${fmt(r.Shaft_Power_kW, 0)}kW]`,
       `[Distance SLR : ${fmt(r.Distance_nm,1)}nm]   [Report duration : ${fmt(r.Duration_h,1)}hrs]`,
-      `[ME FOC : VLSFO/${fmt(r.ME_FOC_MT)}/////(MT)]`,
-      `[AE FOC : VLSFO/${fmt(r.AE_FOC_MT)}/////(MT)]`,
+      `[ME FOC : ${r.ME_Fuel_Grade || '—'}/${fmt(r.ME_FOC_MT)}/////(MT)]`,
+      `[AE FOC : ${r.AE_Fuel_Grade || '—'}/${fmt(r.AE_FOC_MT)}/////(MT)]`,
       `[Wind : ${fmt(r.True_Wind_Spd_ms,0)}knots, ${bfScale(r.True_Wind_Spd_ms)} Beaufort Number, ${windDir(r.True_Wind_Dir_deg)}]`,
       `[Wave Height : ${fmt(r.Sig_Wave_Ht_m)}m]   [Swell Height : ${fmt(r.Swell_Ht_m)}m]`,
       `[Current speed : ${fmt(r.Current_Spd_kn)}kts]`,
@@ -1443,8 +1517,9 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   // ── 4. Build all pages ────────────────────────────────────────────────────
-  buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate)
+  buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate, series)
   buildCPChartsPage(doc, cpCharts)
+  if (pdfAssets?.chartsDataUrl) buildChartsPage(doc, pdfAssets.chartsDataUrl)
   buildSpeedConsPage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
   buildMethodologyPage1(doc, sum, series, cpData, routeId, reportDate, voyageNo)
   buildSummaryTablePage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
@@ -1452,8 +1527,7 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   if (series.length > 0) {
     buildPositionPages(doc, sum, series, cpData, vesselName, routeId, reportDate, voyageNo)
     buildFuelPage(doc, sum, series, cpData, routeId, reportDate, voyageNo, vesselName)
-    if (pdfAssets?.chartsDataUrl) buildChartsPage(doc, pdfAssets.chartsDataUrl)
-    buildMessageTrafficPages(doc, series, routeId, reportDate, voyageNo)
+    buildMessageTrafficPages(doc, series, routeId, reportDate, voyageNo, vesselName)
   }
 
   buildCPMethodologyPages(doc, routeId, reportDate, voyageNo)

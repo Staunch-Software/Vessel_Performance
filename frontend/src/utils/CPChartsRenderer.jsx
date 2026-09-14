@@ -23,8 +23,11 @@ const ORANGE_HEX = '#e07b00'
  *      trended across this vessel's LAST 10 voyages in this condition, not
  *      just the ones selected for this particular report, so a single-voyage
  *      download still shows a meaningful multi-point trend.
- *   B) A diverging Time/Fuel Loss(-)/Saving(+) bar chart across this vessel's
- *      LAST 10 voyages, both conditions combined (never split by condition).
+ *   B) A diverging Time/Fuel Loss(-)/Saving(+) bar chart, for the SAME
+ *      loading condition as (A), across this vessel's last 10 voyages in
+ *      that condition (client request 2026-09 — previously combined both
+ *      conditions together; now matches (A)'s own condition filtering so
+ *      the two charts read as a consistent pair).
  *
  * `allCpData` should come from an UNFILTERED fetchCPPerformance call (no
  * voyages param) so both charts have full vessel history to slice the last
@@ -164,11 +167,12 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
   const speedDomain = zoneDomain(speedVals, 'top')
   const fuelDomain  = zoneDomain(fuelVals, 'bottom')
 
-  // Part B — combined Time/Fuel Loss(-)/Saving(+), last 10 voyages, both
-  // conditions together (never split by condition — see cp_calculator).
-  const lossData = rows
-    .slice().sort((a, b) => String(a.atd || '').localeCompare(String(b.atd || '')))
-    .slice(-10)
+  // Part B — Time/Fuel Loss(-)/Saving(+), last 10 voyages of THIS voyage's
+  // own loading condition (client request 2026-09: reversed from the
+  // earlier both-conditions-combined design — now matches Part A's own
+  // condition filtering above, for the same reason: reading the two charts
+  // side by side should compare like with like).
+  const lossData = condRows
     .map(r => ({
       label: shortLabel(r.voyage_no, r.atd),
       timeSave: -(r.loss?.time_h ?? 0),
@@ -223,10 +227,15 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
           <ComposedChart data={condData} margin={{ top: 24, right: 65, left: 60, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="label" tick={{ fontSize: 13, fill: '#000' }} angle={-20} textAnchor="end" height={50} />
+            {/* Axis label colour matches the CP Warranty reference line on that
+                axis (navy for Speed / dark red for Fuel), not the tick text —
+                so a reader can tell which axis a line belongs to at a glance,
+                even though each axis actually carries 3 series (client request
+                2026-09: Option B — key the axis colour to the warranty line). */}
             <YAxis yAxisId="speed" domain={speedDomain} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
-              label={{ value: 'Speed (kts)', angle: -90, position: 'insideLeft', fill: '#000', fontSize: 13 }} />
+              label={{ value: 'Speed (kts)', angle: -90, position: 'insideLeft', fill: NAVY_HEX, fontSize: 13 }} />
             <YAxis yAxisId="fuel" orientation="right" domain={fuelDomain} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
-              label={{ value: 'Fuel (mt/day)', angle: 90, position: 'insideRight', fill: '#000', fontSize: 13 }} />
+              label={{ value: 'Fuel (mt/day)', angle: 90, position: 'insideRight', fill: DRED_HEX, fontSize: 13 }} />
             <Tooltip />
             {/* No <Legend> here — Recharts v3 doesn't reliably preserve series
                 declaration order in its auto-generated legend (renders items in a
@@ -271,7 +280,7 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
 
       {/* Chart B */}
       <h4 style={{ textAlign: 'center', fontFamily: 'sans-serif', margin: '24px 0 2px', color: '#000', fontWeight: 'bold', fontSize: '15px' }}>
-        Time & Fuel Loss/Saving — Last 10 Voyages (all conditions)
+        {primaryCond === 'Ballast' ? 'Ballast' : 'Laden'} — Time & Fuel Loss/Saving (Last 10 Voyages)
       </h4>
       <p style={{ textAlign: 'center', fontFamily: 'sans-serif', margin: '0 0 6px', color: '#444', fontSize: '12px' }}>
         Green = Saving, Red = Loss &nbsp;|&nbsp; Left bar (solid) Time (h), Right bar (shaded) Fuel FO+DO/GO (mt)
