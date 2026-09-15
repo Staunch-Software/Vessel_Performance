@@ -285,14 +285,20 @@ function _numOrNull(v) {
   return isNaN(n) ? null : n
 }
 
-// Determines which FO/GO grade columns actually have ANY non-null value
+// Determines which FO/GO grade columns actually have any NON-ZERO value
 // anywhere across the WHOLE voyage — computed once from the full
 // seriesRows (never per-subset), so a column's presence is consistent
 // across every row of a table built from different row subsets (e.g. the
 // Entire/Good/Adverse/Excluded rows of the same Periods table).
+//
+// Client correction 2026-09: a column that's always exactly 0 (not null,
+// just zero — e.g. "Others" consumers with no real activity this voyage)
+// conveys nothing useful and must be hidden the same as a genuinely null
+// column — treating 0 as "has a value" was the actual bug that left
+// all-zero Others/BIO columns cluttering the report.
 function activeGradesForVoyage(seriesRows) {
   const hasAny = (grade) => _EQUIPMENT_GROUPS.some(g =>
-    g.prefixes.some(p => seriesRows.some(r => _numOrNull(r[`${p}_${grade}`]) != null))
+    g.prefixes.some(p => seriesRows.some(r => (_numOrNull(r[`${p}_${grade}`]) || 0) !== 0))
   )
   return {
     fo: _FO_GRADES.filter(hasAny),
@@ -350,27 +356,33 @@ function buildEquipmentFuelHead(leadCols, activeFoGrades, activeGoGrades, trailC
   const foSubCols = []
   equipLabels.forEach(label => {
     activeFoGrades.forEach(gr => { foSubCols.push({ content: _GRADE_LABEL[gr] }); flatCols.push({ equip: label, grade: gr }) })
-    foSubCols.push({ content: 'Total' }); flatCols.push({ equip: label, grade: 'foTotal' })
+    // Client correction 2026-09: no per-equipment Total sub-column for
+    // ME/AE/BLR/Others (redundant with the raw grade values) — only the
+    // aggregate "Total" equipment-group keeps one, which doubles as the
+    // single overall "FO Total" figure requested separately.
+    if (label === 'Total') { foSubCols.push({ content: 'Total' }); flatCols.push({ equip: label, grade: 'foTotal' }) }
   })
   const goSubCols = []
   equipLabels.forEach(label => {
     activeGoGrades.forEach(gr => { goSubCols.push({ content: _GRADE_LABEL[gr] }); flatCols.push({ equip: label, grade: gr }) })
-    goSubCols.push({ content: 'Total' }); flatCols.push({ equip: label, grade: 'goTotal' })
+    if (label === 'Total') { goSubCols.push({ content: 'Total' }); flatCols.push({ equip: label, grade: 'goTotal' }) }
   })
   flatCols.push({ equip: 'Grand', grade: 'total' })
 
   const equipHeaderRowFo = equipLabels.map(label => ({
-    content: label, colSpan: activeFoGrades.length + 1, styles: { halign: 'center' },
+    content: label, colSpan: activeFoGrades.length + (label === 'Total' ? 1 : 0), styles: { halign: 'center' },
   }))
   const equipHeaderRowGo = equipLabels.map(label => ({
-    content: label, colSpan: activeGoGrades.length + 1, styles: { halign: 'center' },
+    content: label, colSpan: activeGoGrades.length + (label === 'Total' ? 1 : 0), styles: { halign: 'center' },
   }))
 
+  const foGroupSpan = activeFoGrades.length * equipLabels.length + 1 // +1 for Total's own extra sub-column
+  const goGroupSpan = activeGoGrades.length * equipLabels.length + 1
   const head = [
     [
       ...leadCols,
-      { content: 'FO (mt)', colSpan: (activeFoGrades.length + 1) * equipLabels.length, styles: { halign: 'center' } },
-      { content: 'DO/GO (mt)', colSpan: (activeGoGrades.length + 1) * equipLabels.length, styles: { halign: 'center' } },
+      { content: 'FO (mt)', colSpan: foGroupSpan, styles: { halign: 'center' } },
+      { content: 'DO/GO (mt)', colSpan: goGroupSpan, styles: { halign: 'center' } },
       { content: 'Total (mt)', rowSpan: 3, styles: { valign: 'middle' } },
       ...trailCols,
     ],
@@ -390,12 +402,12 @@ function equipmentFuelRowCells(rows, activeFoGrades, activeGoGrades, decimals = 
   ;['ME', 'AE', 'BLR', 'Others', 'Total'].forEach(label => {
     const b = byLabel[label]
     activeFoGrades.forEach(gr => cells.push(fmt(b.cells[gr], decimals)))
-    cells.push(fmt(b.foTotal, decimals))
+    if (label === 'Total') cells.push(fmt(b.foTotal, decimals))
   })
   ;['ME', 'AE', 'BLR', 'Others', 'Total'].forEach(label => {
     const b = byLabel[label]
     activeGoGrades.forEach(gr => cells.push(fmt(b.cells[gr], decimals)))
-    cells.push(fmt(b.goTotal, decimals))
+    if (label === 'Total') cells.push(fmt(b.goTotal, decimals))
   })
   cells.push(fmt(byLabel.Total.total, decimals))
   return cells
@@ -814,7 +826,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
 
   doc.text(`Cumulative Time at Warranted Speed - ${fmt(tolKn, 2)} knots`, 18, fy + 3)
   doc.text('=', 85, fy + 3)
-  doc.text('Σ (Event Distance', 115, fy, { align: 'center' })
+  doc.text('Total (Event Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
   doc.text(`Event Applicable Speed - ${fmt(tolKn, 2)} kn)`, 115, fy + 4, { align: 'center' })
   doc.text(`= ${fmt(b, 2)} Hours (b)  [${evCp.eventCount} events]`, 138, fy + 3)
@@ -822,7 +834,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
 
   doc.text('Cumulative Time at Warranted Speed', 18, fy + 3)
   doc.text('=', 85, fy + 3)
-  doc.text('Σ (Event Distance', 115, fy, { align: 'center' })
+  doc.text('Total (Event Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
   doc.text('Event Applicable Speed)', 115, fy + 4, { align: 'center' })
   doc.text(`= ${fmt(c, 2)} Hours (c)  [${evCp.eventCount} events]`, 138, fy + 3)
@@ -1037,7 +1049,7 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.text('Maximum Warranted Consumption', 22, blockY + 2)
      doc.text('for over-consumption (cumulative, event-wise)', 22, blockY + 5)
      doc.text('=', 145, blockY + 4)
-     doc.text(`Σ (Event Dist / (Event Speed - ${fmt(tolKn, 2)}kn)) x (Event FO+GO + ${fmt(tolPct, 1)}% / 24)`, 22, blockY + 8)
+     doc.text(`Total (Event Dist / (Event Speed - ${fmt(tolKn, 2)}kn)) x (Event FO+GO + ${fmt(tolPct, 1)}% / 24)`, 22, blockY + 8)
      doc.text(`=  ${fmt(e_tot, 2)} MT  [${evCp.eventCount} events]`, 145, blockY + 4)
      doc.text("(e')", 185, blockY + 4)
 
@@ -1046,7 +1058,7 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.text('Minimum Warranted Consumption', 22, blockY + 2)
      doc.text('for fuel saving (cumulative, event-wise)', 22, blockY + 5)
      doc.text('=', 145, blockY + 4)
-     doc.text(`Σ (Event Dist / Event Speed) x (Event FO+GO - ${fmt(tolPct, 1)}% / 24)`, 22, blockY + 8)
+     doc.text(`Total (Event Dist / Event Speed) x (Event FO+GO - ${fmt(tolPct, 1)}% / 24)`, 22, blockY + 8)
      doc.text(`=  ${fmt(f_tot, 2)} MT  [${evCp.eventCount} events]`, 145, blockY + 4)
      doc.text("(f')", 185, blockY + 4)
 

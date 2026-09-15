@@ -134,7 +134,7 @@ function PdfAssetsRenderer({ sum, seriesRows, cpData, onComplete }) {
               <YAxis yAxisId="right" orientation="right" tick={{fontSize: 12, fill: '#000'}} />
               <Tooltip />
               <Legend wrapperStyle={{ fontSize: '12px', color: '#000' }} />
-              <ReferenceLine yAxisId="left" y={foW} stroke="red" label={{ value: 'CP FO', fontSize: 12, fill: '#000', position: 'right' }} />
+              <ReferenceLine yAxisId="left" y={foW} stroke="red" label={{ value: 'CP FO', fontSize: 12, fill: '#000', position: 'insideTopRight' }} />
               <Bar yAxisId="left" dataKey="fo" name="Ship Reported Daily FO" fill="#ffcc66" isAnimationActive={false} />
               <Line yAxisId="right" type="monotone" dataKey="rpm" name="RPM" stroke="blue" dot={false} isAnimationActive={false} />
             </ComposedChart>
@@ -169,7 +169,7 @@ function PdfAssetsRenderer({ sum, seriesRows, cpData, onComplete }) {
               <YAxis tick={{fontSize: 12, fill: '#000'}} />
               <Tooltip />
               <Legend wrapperStyle={{ fontSize: '12px', color: '#000' }} />
-              <ReferenceLine y={4.0} stroke="red" label={{ value: 'Good Weather Max', fontSize: 12, fill: '#000', position: 'right' }} />
+              <ReferenceLine y={4.0} stroke="red" label={{ value: 'Good Weather Max', fontSize: 11, fill: '#000', position: 'insideTopRight' }} />
               <Line type="monotone" dataKey="wind" name="Wind Beaufort Force (BF)" stroke="green" dot={{fill:'green'}} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
@@ -186,7 +186,7 @@ function PdfAssetsRenderer({ sum, seriesRows, cpData, onComplete }) {
               <YAxis yAxisId="right" orientation="right" tick={{fontSize: 12, fill: '#000'}} />
               <Tooltip />
               <Legend wrapperStyle={{ fontSize: '12px', color: '#000' }} />
-              <ReferenceLine yAxisId="left" y={1.25} stroke="red" label={{ value: 'CP Wave', fontSize: 12, fill: '#000', position: 'right' }} />
+              <ReferenceLine yAxisId="left" y={1.25} stroke="red" label={{ value: 'CP Wave', fontSize: 12, fill: '#000', position: 'insideTopRight' }} />
               <ReferenceLine yAxisId="right" y={0} stroke="red" />
               <Line yAxisId="left" type="monotone" dataKey="wave" name="Wave Height (m)" stroke="green" dot={{fill:'blue', shape:'square'}} isAnimationActive={false} />
               <Line yAxisId="right" type="monotone" dataKey="current" name="Current Factor" stroke="blue" dot={false} isAnimationActive={false} />
