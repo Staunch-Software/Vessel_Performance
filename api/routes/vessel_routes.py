@@ -587,10 +587,22 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
             "cp_instruction": cp_instruction,
             "ME_Fuel_Grade": extras.get("me_grade") if extras else None,
             "AE_Fuel_Grade": extras.get("ae_grade") if extras else None,
-            "me_hfo": _gnum("me_hfo"), "me_lfo": _gnum("me_lfo"), "me_mdo": _gnum("me_mdo"),
-            "ae_hfo": _gnum("ae_hfo"), "ae_lfo": _gnum("ae_lfo"), "ae_mdo": _gnum("ae_mdo"),
-            "bl_hfo": _gnum("bl_hfo"), "bl_lfo": _gnum("bl_lfo"), "bl_mdo": _gnum("bl_mdo"),
-            "combl_hfo": _gnum("combl_hfo"), "combl_lfo": _gnum("combl_lfo"), "combl_mdo": _gnum("combl_mdo"),
+            # Per-consumer, per-grade fuel fields — all 8 consumers (ME/AE/
+            # Aux Boiler "bl"/Composite Boiler "combl"/Incinerator "inc"/
+            # Emergency Generator "eg"/"aeb"/"blfo") x 4 grades actually
+            # tracked here (HFO/LFO/MDO/BIO — the other 6 exotic grades in
+            # the full 10-grade schema, LPG/LNG/methanol/ethanol/ammonia,
+            # are not relevant for this fleet). Used by the Voyage Audit
+            # Report's equipment x fuel-type breakdown tables (client
+            # request 2026-09).
+            "me_hfo": _gnum("me_hfo"), "me_lfo": _gnum("me_lfo"), "me_mdo": _gnum("me_mdo"), "me_bio_fuel": _gnum("me_bio_fuel"),
+            "ae_hfo": _gnum("ae_hfo"), "ae_lfo": _gnum("ae_lfo"), "ae_mdo": _gnum("ae_mdo"), "ae_bio_fuel": _gnum("ae_bio_fuel"),
+            "bl_hfo": _gnum("bl_hfo"), "bl_lfo": _gnum("bl_lfo"), "bl_mdo": _gnum("bl_mdo"), "bl_bio_fuel": _gnum("bl_bio_fuel"),
+            "combl_hfo": _gnum("combl_hfo"), "combl_lfo": _gnum("combl_lfo"), "combl_mdo": _gnum("combl_mdo"), "combl_bio_fuel": _gnum("combl_bio_fuel"),
+            "inc_hfo": _gnum("inc_hfo"), "inc_lfo": _gnum("inc_lfo"), "inc_mdo": _gnum("inc_mdo"), "inc_bio_fuel": _gnum("inc_bio_fuel"),
+            "eg_hfo": _gnum("eg_hfo"), "eg_lfo": _gnum("eg_lfo"), "eg_mdo": _gnum("eg_mdo"), "eg_bio_fuel": _gnum("eg_bio_fuel"),
+            "aeb_hfo": _gnum("aeb_hfo"), "aeb_lfo": _gnum("aeb_lfo"), "aeb_mdo": _gnum("aeb_mdo"), "aeb_bio_fuel": _gnum("aeb_bio_fuel"),
+            "blfo_hfo": _gnum("blfo_hfo"), "blfo_lfo": _gnum("blfo_lfo"), "blfo_mdo": _gnum("blfo_mdo"), "blfo_bio_fuel": _gnum("blfo_bio_fuel"),
         })
         
     return out

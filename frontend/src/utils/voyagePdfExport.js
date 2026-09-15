@@ -252,6 +252,155 @@ function computeEventWiseCp(seriesRows, cpW, tolKn, tolPct) {
   return { bHours, cHours, eTot, fTot, eventCount }
 }
 
+// ── Equipment x fuel-type consumption breakdown (client request 2026-09) ──
+// Replaces the old flat "FO (mt)" / "DO/GO (mt)" columns wherever they
+// appear (the compact Periods table — duplicated 3x across the report — and
+// the daily Fuel Consumption Analysis table) with a real per-consumer,
+// per-grade breakdown. "BLR" combines Aux Boiler ("bl") + Composite Boiler
+// ("combl") for this summary-level view (kept separate on the Logbook+
+// column list per a separate, later manager decision — this report table
+// is a different, simpler context). "Others" catches every other tracked
+// consumer (Incinerator "inc", Emergency Generator "eg", and the 2
+// remaining schema consumers "aeb"/"blfo").
+//
+// FO category = HFO + LFO + BIO per consumer; DO/GO category = MDO per
+// consumer — matches the established FO/GO convention used elsewhere in
+// this codebase (cp_routes.py, emission_routes.py). Confirmed against real
+// data: MDO consumption can occur on ANY consumer (ME/AE/Boiler), not just
+// as a separate bunker type, so "GO" here means "MDO burned by any
+// equipment", not "fuel from a separate GO tank".
+const _EQUIPMENT_GROUPS = [
+  { label: 'ME',     prefixes: ['me'] },
+  { label: 'AE',     prefixes: ['ae'] },
+  { label: 'BLR',    prefixes: ['bl', 'combl'] },
+  { label: 'Others', prefixes: ['inc', 'eg', 'aeb', 'blfo'] },
+]
+const _FO_GRADES = ['hfo', 'lfo', 'bio_fuel']
+const _GO_GRADES = ['mdo']
+const _GRADE_LABEL = { hfo: 'HFO', lfo: 'LFO', bio_fuel: 'BIO', mdo: 'MDO' }
+
+function _numOrNull(v) {
+  if (v == null || v === '') return null
+  const n = +v
+  return isNaN(n) ? null : n
+}
+
+// Determines which FO/GO grade columns actually have ANY non-null value
+// anywhere across the WHOLE voyage — computed once from the full
+// seriesRows (never per-subset), so a column's presence is consistent
+// across every row of a table built from different row subsets (e.g. the
+// Entire/Good/Adverse/Excluded rows of the same Periods table).
+function activeGradesForVoyage(seriesRows) {
+  const hasAny = (grade) => _EQUIPMENT_GROUPS.some(g =>
+    g.prefixes.some(p => seriesRows.some(r => _numOrNull(r[`${p}_${grade}`]) != null))
+  )
+  return {
+    fo: _FO_GRADES.filter(hasAny),
+    go: _GO_GRADES.filter(hasAny),
+  }
+}
+
+// Sums one equipment group's one grade across a set of rows. Returns 0 if
+// nothing summed (used for the actual displayed total) — the decision of
+// whether a grade column should exist AT ALL is activeGradesForVoyage's job
+// (voyage-wide), not this function's.
+function _sumGroupGrade(rows, prefixes, grade) {
+  let sum = 0
+  rows.forEach(r => {
+    prefixes.forEach(p => { sum += _numOrNull(r[`${p}_${grade}`]) || 0 })
+  })
+  return sum
+}
+
+// Builds the full equipment x fuel-type breakdown for one set of rows (e.g.
+// one period, or one day). Returns an array of 5 entries — ME/AE/BLR/
+// Others/Total — each { label, cells: {grade: value}, foTotal, goTotal,
+// total }. activeFoGrades/activeGoGrades come from activeGradesForVoyage()
+// so hidden columns stay hidden consistently across every row.
+function computeEquipmentFuelBreakdown(rows, activeFoGrades, activeGoGrades) {
+  const allGrades = [...activeFoGrades, ...activeGoGrades]
+  const perEquip = _EQUIPMENT_GROUPS.map(g => {
+    const cells = {}
+    allGrades.forEach(gr => { cells[gr] = _sumGroupGrade(rows, g.prefixes, gr) })
+    const foTotal = activeFoGrades.reduce((s, gr) => s + cells[gr], 0)
+    const goTotal = activeGoGrades.reduce((s, gr) => s + cells[gr], 0)
+    return { label: g.label, cells, foTotal, goTotal, total: foTotal + goTotal }
+  })
+  const totalRow = {
+    label: 'Total',
+    cells: Object.fromEntries(allGrades.map(gr => [gr, perEquip.reduce((s, e) => s + e.cells[gr], 0)])),
+    foTotal: perEquip.reduce((s, e) => s + e.foTotal, 0),
+    goTotal: perEquip.reduce((s, e) => s + e.goTotal, 0),
+    total: perEquip.reduce((s, e) => s + e.total, 0),
+  }
+  return [...perEquip, totalRow]
+}
+
+// Builds the nested autoTable head rows for the equipment x fuel-type
+// breakdown, given the columns that come BEFORE it (e.g. Periods/Distance/
+// Time/Speed) as `leadCols` (each a {content, rowSpan} head cell spanning
+// all header rows) and how many header rows this table has above the
+// fuel-breakdown block (`headRows`, so rowSpan lines up). Returns
+// {head: [...rows], flatCols} where flatCols is the ordered list of
+// {equip, grade|'foTotal'|'goTotal'} used to build body rows in the same
+// column order.
+function buildEquipmentFuelHead(leadCols, activeFoGrades, activeGoGrades, trailCols = []) {
+  const equipLabels = ['ME', 'AE', 'BLR', 'Others', 'Total']
+  const flatCols = []
+  const foSubCols = []
+  equipLabels.forEach(label => {
+    activeFoGrades.forEach(gr => { foSubCols.push({ content: _GRADE_LABEL[gr] }); flatCols.push({ equip: label, grade: gr }) })
+    foSubCols.push({ content: 'Total' }); flatCols.push({ equip: label, grade: 'foTotal' })
+  })
+  const goSubCols = []
+  equipLabels.forEach(label => {
+    activeGoGrades.forEach(gr => { goSubCols.push({ content: _GRADE_LABEL[gr] }); flatCols.push({ equip: label, grade: gr }) })
+    goSubCols.push({ content: 'Total' }); flatCols.push({ equip: label, grade: 'goTotal' })
+  })
+  flatCols.push({ equip: 'Grand', grade: 'total' })
+
+  const equipHeaderRowFo = equipLabels.map(label => ({
+    content: label, colSpan: activeFoGrades.length + 1, styles: { halign: 'center' },
+  }))
+  const equipHeaderRowGo = equipLabels.map(label => ({
+    content: label, colSpan: activeGoGrades.length + 1, styles: { halign: 'center' },
+  }))
+
+  const head = [
+    [
+      ...leadCols,
+      { content: 'FO (mt)', colSpan: (activeFoGrades.length + 1) * equipLabels.length, styles: { halign: 'center' } },
+      { content: 'DO/GO (mt)', colSpan: (activeGoGrades.length + 1) * equipLabels.length, styles: { halign: 'center' } },
+      { content: 'Total (mt)', rowSpan: 3, styles: { valign: 'middle' } },
+      ...trailCols,
+    ],
+    [...equipHeaderRowFo, ...equipHeaderRowGo],
+    [...foSubCols, ...goSubCols],
+  ]
+  return { head, flatCols }
+}
+
+// Renders one breakdown row (e.g. one Period, or one day) as a flat array
+// of formatted cell strings, in the same order as buildEquipmentFuelHead's
+// flatCols.
+function equipmentFuelRowCells(rows, activeFoGrades, activeGoGrades, decimals = 2) {
+  const breakdown = computeEquipmentFuelBreakdown(rows, activeFoGrades, activeGoGrades)
+  const byLabel = Object.fromEntries(breakdown.map(b => [b.label, b]))
+  const cells = []
+  ;['ME', 'AE', 'BLR', 'Others', 'Total'].forEach(label => {
+    const b = byLabel[label]
+    activeFoGrades.forEach(gr => cells.push(fmt(b.cells[gr], decimals)))
+    cells.push(fmt(b.foTotal, decimals))
+  })
+  ;['ME', 'AE', 'BLR', 'Others', 'Total'].forEach(label => {
+    const b = byLabel[label]
+    activeGoGrades.forEach(gr => cells.push(fmt(b.cells[gr], decimals)))
+    cells.push(fmt(b.goTotal, decimals))
+  })
+  cells.push(fmt(byLabel.Total.total, decimals))
+  return cells
+}
+
 // ── Page builders ──────────────────────────────────────────────────────────
 
 /** Page 1 — Cover / Voyage Header */
@@ -955,41 +1104,42 @@ function buildSummaryTablePage(doc, sum, seriesRows, cpData, routeId, reportDate
 
   const totalDist  = seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const totalDur   = seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const totalFO    = seriesRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
   const goodRows   = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) <= 4.0 && (+(r.Sig_Wave_Ht_m) || 0) <= 3.0)
   const adverseRows = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) > 4.0 || (+(r.Sig_Wave_Ht_m) || 0) > 3.0)
   const goodDist   = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const goodDur    = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const goodFO     = goodRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
   const advDist    = adverseRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const advDur     = adverseRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const advFO      = adverseRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  
-  const totalGO    = seriesRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
-  const goodGO     = goodRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
-  const advGO      = adverseRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
+
+  // Equipment x fuel-type FO/DO-GO breakdown (client request 2026-09) —
+  // active grade columns determined ONCE across the whole voyage so the
+  // Entire/Good/Adverse/Excluded rows below share the same column set.
+  const activeGrades = activeGradesForVoyage(seriesRows)
+  const { head: fuelHead, flatCols } = buildEquipmentFuelHead(
+    [
+      { content: 'Periods', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'Distance (nm)', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'Time (hrs)', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'Avg Speed (kts)', rowSpan: 3, styles: { valign: 'middle' } },
+    ],
+    activeGrades.fo, activeGrades.go,
+  )
+  const excludedCells = flatCols.map(() => '0.00')
 
   autoTable(doc, {
     startY: y,
-    head: [['Periods', 'Distance (nm)', 'Time (hrs)', 'Avg Speed (kts)', 'FO (mt)', 'DO/GO (mt)']],
+    head: fuelHead,
     body: [
-      ['Entire period',       fmt(totalDist,0), fmt(totalDur,2), fmt(totalDur>0?totalDist/totalDur:0), fmt(totalFO), fmt(totalGO)],
-      ['Good weather period', fmt(goodDist,0),  fmt(goodDur,2),  fmt(goodDur>0?goodDist/goodDur:0),    fmt(goodFO),  fmt(goodGO)],
-      ['Adverse weather period', fmt(advDist,0), fmt(advDur,2), fmt(advDur>0?advDist/advDur:0),        fmt(advFO),   fmt(advGO)],
-      ['Excluded period',     '0', '0.00', '0.00', '0.00', '0.00'],
+      ['Entire period',       fmt(totalDist,0), fmt(totalDur,2), fmt(totalDur>0?totalDist/totalDur:0), ...equipmentFuelRowCells(seriesRows, activeGrades.fo, activeGrades.go)],
+      ['Good weather period', fmt(goodDist,0),  fmt(goodDur,2),  fmt(goodDur>0?goodDist/goodDur:0),    ...equipmentFuelRowCells(goodRows, activeGrades.fo, activeGrades.go)],
+      ['Adverse weather period', fmt(advDist,0), fmt(advDur,2), fmt(advDur>0?advDist/advDur:0),        ...equipmentFuelRowCells(adverseRows, activeGrades.fo, activeGrades.go)],
+      ['Excluded period',     '0', '0.00', '0.00', ...excludedCells],
     ],
     theme: 'grid',
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontSize: 7.5, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 7.5, cellPadding: 2 },
+    headStyles: { fillColor: NAVY, textColor: WHITE, fontSize: 6, fontStyle: 'bold', halign: 'center' },
+    bodyStyles: { fontSize: 6, cellPadding: 1.2, halign: 'center' },
     alternateRowStyles: { fillColor: LGRAY },
-    columnStyles: {
-      0: { cellWidth: 55 },
-      1: { halign: 'center' },
-      2: { halign: 'center' },
-      3: { halign: 'center' },
-      4: { halign: 'center' },
-      5: { halign: 'center' },
-    },
+    columnStyles: { 0: { cellWidth: 32, halign: 'left', fontSize: 6.5 } },
     margin: { left: 14, right: 14 },
   })
 }
@@ -1011,16 +1161,19 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
     const dist = rows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
     const dur = rows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
     const speed = dur > 0 ? dist / dur : 0
-    const fo = rows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-    const do_go = rows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
-    return { dist, dur, speed, fo, do_go }
+    return { dist, dur, speed }
   }
 
   const total = calcSum(allRows)
   const good = calcSum(goodRows)
   const adverse = calcSum(adverseRows)
 
-  const cpSpeed = cpData?.results?.[0]?.warranty?.speed_kn || 0
+  // Equipment x fuel-type FO/DO-GO breakdown (client request 2026-09) —
+  // same helper/columns as buildSummaryTablePage, applied here too for
+  // consistency (this table is a near-duplicate of that one).
+  const activeGrades = activeGradesForVoyage(seriesRows)
+
+  const cpW = cpData?.results?.[0]?.warranty || {}
   const formatCoord = (deg, min, dir) => deg != null ? `${deg}°${fmt(min, 1)}'${dir || ''}` : '—'
 
   for (let i = 0; i < seriesRows.length; i += ROWS_PER_PAGE) {
@@ -1036,45 +1189,46 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
       const startStr = allRows.length ? fmtDate(allRows[0].Date) : '—'
       const endStr = allRows.length ? fmtDate(allRows[allRows.length - 1].Date) : '—'
 
+      const { head: fuelHead, flatCols } = buildEquipmentFuelHead(
+        [
+          { content: 'Seg', rowSpan: 3 },
+          { content: 'Periods', rowSpan: 3 },
+          { content: 'Distance\n(nm)', rowSpan: 3 },
+          { content: 'Time\n(hrs)', rowSpan: 3 },
+          { content: 'Average Speed\n(kts)', rowSpan: 3 },
+        ],
+        activeGrades.fo, activeGrades.go,
+      )
+      const excludedCells = flatCols.map(() => '0.00')
+
       autoTable(doc, {
         startY: y,
         theme: 'grid',
-        styles: { fontSize: 7, textColor: 0, cellPadding: 1, halign: 'center', valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.1 },
+        styles: { fontSize: 6, textColor: 0, cellPadding: 1, halign: 'center', valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.1 },
         headStyles: { fillColor: [255, 255, 255], textColor: 0, fontStyle: 'bold' },
         bodyStyles: { fillColor: [255, 255, 255], textColor: 0 },
         head: [
           [
             { content: `${vesselName || '—'}`, colSpan: 3, styles: { halign: 'left', fontStyle: 'bold' } },
-            { content: '', colSpan: 4, styles: { halign: 'left' } }
+            { content: '', colSpan: flatCols.length + 2, styles: { halign: 'left' } }
           ],
           [
             { content: 'Departure', styles: { halign: 'left', fontStyle: 'normal' } },
             { content: sum.From_Port || '—', colSpan: 2, styles: { halign: 'left', fontStyle: 'normal' } },
-            { content: startStr, colSpan: 4, styles: { halign: 'left', fontStyle: 'normal' } }
+            { content: startStr, colSpan: flatCols.length + 2, styles: { halign: 'left', fontStyle: 'normal' } }
           ],
           [
             { content: 'Arrival', styles: { halign: 'left', fontStyle: 'normal' } },
             { content: sum.To_Port || '—', colSpan: 2, styles: { halign: 'left', fontStyle: 'normal' } },
-            { content: endStr, colSpan: 4, styles: { halign: 'left', fontStyle: 'normal' } }
+            { content: endStr, colSpan: flatCols.length + 2, styles: { halign: 'left', fontStyle: 'normal' } }
           ],
-          [
-            { content: 'Seg', rowSpan: 2 },
-            { content: 'Periods', rowSpan: 2 },
-            { content: 'Distance\n(nm)', rowSpan: 2 },
-            { content: 'Time\n(hrs)', rowSpan: 2 },
-            { content: 'Average Speed\n(kts)', rowSpan: 2 },
-            { content: 'Total Consumption (mt)', colSpan: 2 }
-          ],
-          [
-            { content: 'FO' },
-            { content: 'DO/GO' }
-          ]
+          ...fuelHead,
         ],
         body: [
-          ['1', 'Entire period', fmt(total.dist, 0), fmt(total.dur, 2), fmt(total.speed, 2), fmt(total.fo, 2), fmt(total.do_go, 2)],
-          ['1', 'Good weather period', fmt(good.dist, 0), fmt(good.dur, 2), fmt(good.speed, 2), fmt(good.fo, 2), fmt(good.do_go, 2)],
-          ['1', 'Adverse weather period', fmt(adverse.dist, 0), fmt(adverse.dur, 2), fmt(adverse.speed, 2), fmt(adverse.fo, 2), fmt(adverse.do_go, 2)],
-          ['', 'Excluded period', '0', '0.00', '0.00', '0.00', '0.00']
+          ['1', 'Entire period', fmt(total.dist, 0), fmt(total.dur, 2), fmt(total.speed, 2), ...equipmentFuelRowCells(allRows, activeGrades.fo, activeGrades.go)],
+          ['1', 'Good weather period', fmt(good.dist, 0), fmt(good.dur, 2), fmt(good.speed, 2), ...equipmentFuelRowCells(goodRows, activeGrades.fo, activeGrades.go)],
+          ['1', 'Adverse weather period', fmt(adverse.dist, 0), fmt(adverse.dur, 2), fmt(adverse.speed, 2), ...equipmentFuelRowCells(adverseRows, activeGrades.fo, activeGrades.go)],
+          ['', 'Excluded period', '0', '0.00', '0.00', ...excludedCells]
         ],
         margin: { left: 14, right: 14 }
       })
@@ -1133,7 +1287,10 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
         r.Date && typeof r.Date === 'string' && r.Date.length >= 16 ? r.Date.substring(11, 16) : '—',
         formatCoord(r.lat_degree, r.lat_minutes, r.lat_direction),
         formatCoord(r.lon_degree, r.lon_minutes, r.lon_direction),
-        fmt(cpSpeed, 2),
+        // Per-day CP speed (client request 2026-09): that day's own CP
+        // remarks instruction if one exists, otherwise the standing CP
+        // warranty — same resolution rule used by eventCpFigures() above.
+        fmt(r.cp_instruction?.speed_kn ?? +(cpW.speed_kn || 0), 2),
         fmt(r.SOG_kn),
         fmt(r.Distance_nm, 1),
         windDir(r.True_Wind_Dir_deg),
@@ -1173,7 +1330,6 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
 
   const cpW = cpData?.results?.[0]?.warranty || {}
   const foW = +(cpW.fo_mtpd || 0)
-  const goW = +(cpW.dogo_mtpd || 0)
 
   // ── 1. Top Header Box ──
   doc.setDrawColor(0)
@@ -1198,12 +1354,13 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
   
   y += 16
 
-  // ── 2. Summary Table (Nested Headers) ──
+  // ── 2. Summary Table (equipment x fuel-type breakdown, client request
+  // 2026-09 — same helper/columns as buildSummaryTablePage/
+  // buildPositionPages, applied here too since this is a 3rd near-
+  // duplicate of the same table) ──
   const totalDist   = seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const totalDur    = seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const totalFO     = seriesRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const totalGO     = seriesRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
-  
+
   const goodRows    = seriesRows.filter(r => {
     const bf = +bfScale(r.True_Wind_Spd_ms) || 0
     const wh = +(r.Sig_Wave_Ht_m) || 0
@@ -1214,45 +1371,38 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
     const wh = +(r.Sig_Wave_Ht_m) || 0
     return bf > 4.0 || wh > 3.0
   })
-  
+
   const goodDist    = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const goodDur     = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const goodFO      = goodRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const goodGO      = goodRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
-  
+
   const advDist     = advRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const advDur      = advRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const advFO       = advRows.reduce((s, r) => s + (+(r.ME_FOC_MT) || 0), 0)
-  const advGO       = advRows.reduce((s, r) => s + (+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 0)
+
+  const activeGrades = activeGradesForVoyage(seriesRows)
+  const { head: fuelHead, flatCols } = buildEquipmentFuelHead(
+    [
+      { content: 'Seg', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'Periods', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'Distance\n(nm)', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'Time\n(hrs)', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'Average Speed\n(kts)', rowSpan: 3, styles: { valign: 'middle' } },
+    ],
+    activeGrades.fo, activeGrades.go,
+  )
+  const excludedCells = flatCols.map(() => '0.00')
 
   autoTable(doc, {
     startY: y,
-    head: [
-      [
-        { content: 'Seg', rowSpan: 3, styles: { valign: 'middle' } },
-        { content: 'Periods', rowSpan: 3, styles: { valign: 'middle' } },
-        { content: 'Distance\n(nm)', rowSpan: 3, styles: { valign: 'middle' } },
-        { content: 'Time\n(hrs)', rowSpan: 3, styles: { valign: 'middle' } },
-        { content: 'Average Speed\n(kts)', rowSpan: 3, styles: { valign: 'middle' } },
-        { content: 'Total Consumption (mt)', colSpan: 3 }
-      ],
-      [
-        { content: 'FO', colSpan: 2 },
-        { content: 'DO/GO', rowSpan: 2, styles: { valign: 'middle' } }
-      ],
-      [
-        'over 1.0%', 'max 1.0%'
-      ]
-    ],
+    head: fuelHead,
     body: [
-      ['1', 'Entire period',       fmt(totalDist,0), fmt(totalDur,2), fmt(totalDur>0?totalDist/totalDur:0), '0.00', fmt(totalFO,2), fmt(totalGO,2)],
-      ['1', 'Good weather period', fmt(goodDist,0),  fmt(goodDur,2),  fmt(goodDur>0?goodDist/goodDur:0),    '0.00', fmt(goodFO,2),  fmt(goodGO,2)],
-      ['1', 'Adverse weather period', fmt(advDist,0), fmt(advDur,2), fmt(advDur>0?advDist/advDur:0),        '0.00', fmt(advFO,2),   fmt(advGO,2)],
-      ['1', 'Excluded period',     '0', '0.00', '0.00', '0.00', '0.00', '0.00'],
+      ['1', 'Entire period',       fmt(totalDist,0), fmt(totalDur,2), fmt(totalDur>0?totalDist/totalDur:0), ...equipmentFuelRowCells(seriesRows, activeGrades.fo, activeGrades.go)],
+      ['1', 'Good weather period', fmt(goodDist,0),  fmt(goodDur,2),  fmt(goodDur>0?goodDist/goodDur:0),    ...equipmentFuelRowCells(goodRows, activeGrades.fo, activeGrades.go)],
+      ['1', 'Adverse weather period', fmt(advDist,0), fmt(advDur,2), fmt(advDur>0?advDist/advDur:0),        ...equipmentFuelRowCells(advRows, activeGrades.fo, activeGrades.go)],
+      ['1', 'Excluded period',     '0', '0.00', '0.00', ...excludedCells],
     ],
     theme: 'grid',
-    headStyles: { fillColor: [255,255,255], textColor: 0, lineColor: 0, lineWidth: 0.1, fontSize: 6.5, fontStyle: 'normal', halign: 'center' },
-    bodyStyles: { fontSize: 6.5, cellPadding: 1.5, halign: 'right', lineColor: 0, lineWidth: 0.1 },
+    headStyles: { fillColor: [255,255,255], textColor: 0, lineColor: 0, lineWidth: 0.1, fontSize: 5.5, fontStyle: 'normal', halign: 'center' },
+    bodyStyles: { fontSize: 5.5, cellPadding: 1.2, halign: 'center', lineColor: 0, lineWidth: 0.1 },
     columnStyles: {
       0: { halign: 'center', cellWidth: 10 },
       1: { halign: 'left' }
@@ -1284,46 +1434,49 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
 
   y += 6
 
-  // ── 4. Detailed Position Table ──
+  // ── 4. Detailed Position Table (client request 2026-09) ──
+  // - POSITIONS (LAT/LON) removed entirely.
+  // - "Seg" replaced with the real Event type per row.
+  // - ROB (was always static placeholder dashes) removed entirely.
+  // - CP FO/DO-GO now per-day: that day's CP remarks instruction if present,
+  //   else a fallback — FO falls back to the standing FO warranty (foW,
+  //   same rule as everywhere else in this report); DO/GO falls back to a
+  //   literal 0.05 (client-specified constant, NOT the standing GO
+  //   warranty — deliberately different from Sections B/C's fallback rule).
+  // - Daily Consumption restructured to the same equipment x fuel-type
+  //   breakdown as the Summary Table above, computed per single day.
+  const { head: dailyFuelHead, flatCols: dailyFlatCols } = buildEquipmentFuelHead(
+    [
+      { content: 'Event type', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'DATE', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'TIME\n(UTC)', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'CP', colSpan: 2, rowSpan: 2, styles: { valign: 'middle' } },
+    ],
+    activeGrades.fo, activeGrades.go,
+    [
+      { content: 'RPM', rowSpan: 3, styles: { valign: 'middle' } },
+      { content: 'Inside\nECA', rowSpan: 3, styles: { valign: 'middle' } },
+    ],
+  )
+  // The 'CP' leadCol has rowSpan:2 (spans header rows 1-2), so its own
+  // FO/DO-GO sub-labels belong in row 3 ONLY — matching the original
+  // table's POSITIONS/CP pattern (a rowSpan:2 group cell's own sub-columns
+  // are defined in the row directly below where the span ends, not the row
+  // in between). Row 2 needs no entry for CP at all.
+  dailyFuelHead[2] = ['FO\n(mt)', 'DO/GO\n(mt)', ...dailyFuelHead[2]]
+
   autoTable(doc, {
     startY: y,
-    head: [
-      [
-        { content: 'Seg', rowSpan: 3, styles: { valign: 'middle' } },
-        { content: 'DATE', rowSpan: 3, styles: { valign: 'middle' } },
-        { content: 'TIME\n(UTC)', rowSpan: 3, styles: { valign: 'middle' } },
-        { content: 'POSITIONS', colSpan: 2, rowSpan: 2, styles: { valign: 'middle' } },
-        { content: 'CP', colSpan: 2, rowSpan: 2, styles: { valign: 'middle' } },
-        { content: 'ROB', colSpan: 3 },
-        { content: 'Daily Consumption', colSpan: 3 },
-        { content: 'RPM', rowSpan: 3, styles: { valign: 'middle' } },
-        { content: 'Inside\nECA', rowSpan: 3, styles: { valign: 'middle' } }
-      ],
-      [
-        { content: 'FO', colSpan: 2 },
-        { content: 'DO/GO', rowSpan: 2, styles: { valign: 'middle' } },
-        { content: 'FO', colSpan: 2 },
-        { content: 'DO/GO', rowSpan: 2, styles: { valign: 'middle' } }
-      ],
-      [
-        'LAT', 'LON',
-        'FO\n(mt)', 'DO/GO\n(mt)',
-        'over 1.0%', 'max 1.0%',
-        'over 1.0%', 'max 1.0%'
-      ]
-    ],
+    head: dailyFuelHead,
     body: seriesRows.map((r, idx) => {
-      const isEca = false // Placeholder for ECA flag
-      const formatCoord = (deg, min, dir) => deg != null ? `${deg}°${fmt(min, 1)}'${dir || ''}` : '—'
+      const cpFo = r.cp_instruction?.total_mt_day ?? foW
+      const cpGo = 0.05 // client-specified literal fallback — remarks never carry a GO figure
       return [
-        '1', // Seg (default to 1 per layout)
+        r.event_type || '—',
         r.Date && typeof r.Date === 'string' && r.Date.length >= 10 ? `${r.Date.substring(8, 10)}/${r.Date.substring(5, 7)}` : '—',
         r.Date && typeof r.Date === 'string' && r.Date.length >= 16 ? r.Date.substring(11, 16) : '—',
-        formatCoord(r.lat_degree, r.lat_minutes, r.lat_direction),
-        formatCoord(r.lon_degree, r.lon_minutes, r.lon_direction), // LAT, LON
-        fmt(foW, 2), fmt(goW, 2), // CP
-        '—', '—', '—', // ROB
-        '0.00', fmt(r.ME_FOC_MT, 2), fmt((+(r.AE_FOC_MT) || 0) + (+(r.Boiler_FOC_MT) || 0), 2), // Daily Cons
+        fmt(cpFo, 2), fmt(cpGo, 2), // CP
+        ...equipmentFuelRowCells([r], activeGrades.fo, activeGrades.go), // Daily Cons
         fmt(r.Shaft_RPM), '—' // RPM, ECA
       ]
     }),
@@ -1334,8 +1487,6 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
       0: { halign: 'center' },
       1: { halign: 'center' },
       2: { halign: 'center' },
-      3: { halign: 'center' },
-      4: { halign: 'center' },
     },
     didParseCell: function (data) {
       if (data.section === 'body') {
