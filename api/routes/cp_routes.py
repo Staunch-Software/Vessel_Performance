@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import SessionLocal
 from backend.models import Vessel, VesselCPConfig, CPVesselDescription, CPSeaWarranty
-from backend.cp.cp_calculator import compute_cp_voyage_table
+from backend.cp.cp_calculator import compute_cp_voyage_table, not_computable_result
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/cp", tags=["cp"])
@@ -152,7 +152,13 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
     # COSP and ports will be finalised only from EOSP event report"). Any
     # trailing rows after the last EOSP (an unfinished next leg) are dropped
     # too, for the same reason.
+    #
+    # no_eosp_voyages tracks which voyages got excluded this way, so the
+    # caller can surface an explicit "not computable — no EOSP yet" result
+    # instead of the voyage just silently vanishing from the table (client
+    # request 2026-09 — this used to look like a bug).
     valid_rows = []
+    no_eosp_voyages = set()
 
     # Group by Voyage_No to apply bounds per voyage
     by_voyage = {}
@@ -164,6 +170,7 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
         eosps = [r for r in v_rows if r["event_type"] and "EOSP" in r["event_type"].upper()]
 
         if not eosps:
+            no_eosp_voyages.add(v_no)
             continue  # ongoing voyage — no EOSP yet, nothing to report on it
 
         eosp_record = eosps[-1]
@@ -185,7 +192,7 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
             if dep_dt <= r_dt <= arr_dt:
                 valid_rows.append(r)
 
-    return valid_rows
+    return valid_rows, no_eosp_voyages
 
 
 # Same FO/DO-GO grade classification convention as import_cp_description.py / cp_compliance_v2.
@@ -252,13 +259,31 @@ def cp_performance(
     sources = [source] if source in _SOURCE_SQL else list(_SOURCE_SQL.keys())
 
     rows = []
+    no_eosp_voyages = set()
     try:
         for s in sources:
-            rows.extend(_rows_for_source(db, imo, s, vlist, loading_cond))
+            src_rows, src_no_eosp = _rows_for_source(db, imo, s, vlist, loading_cond)
+            rows.extend(src_rows)
+            no_eosp_voyages |= src_no_eosp
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"CP query failed: {e}")
 
     results = compute_cp_voyage_table(rows, cp_by_cond)
+
+    # Client request 2026-09: a specifically-requested voyage that produced
+    # zero segments because it has no EOSP yet used to just silently vanish
+    # from the table (looked like a bug). Surface it explicitly instead —
+    # only for voyages the caller actually asked for (vlist), never
+    # injected into an unfiltered "all voyages" request.
+    if vlist:
+        seen = {r["voyage_no"] for r in results}
+        for v_no in vlist:
+            if v_no in seen:
+                continue
+            if v_no in no_eosp_voyages:
+                results.append(not_computable_result(
+                    v_no, "Voyage not yet complete — no EOSP report found.", source=source,
+                ))
     return {
         "vessel_imo":    imo,
         "source":        source,

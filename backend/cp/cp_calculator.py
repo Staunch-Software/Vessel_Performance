@@ -481,3 +481,42 @@ def compute_cp_voyage_table(rows, cp_by_cond):
         except (TypeError, ValueError): return (1, str(res["voyage_no"]), res["segment_no"])
     out.sort(key=_k)
     return out
+
+
+def not_computable_result(voyage_no, reason, source=None):
+    """A placeholder result for a requested voyage that produced ZERO
+    segments in compute_cp_voyage_table() — e.g. no EOSP yet (still an
+    ongoing voyage in the source system). Client request 2026-09: a voyage
+    like this used to just silently vanish from the CP Performance table
+    with no explanation (looked like a bug); this makes the reason explicit
+    instead, in the same result shape the frontend already renders, so no
+    UI-side special-casing is needed beyond checking not_computable/reason.
+
+    Every numeric/nested field is None-shaped rather than 0-shaped — the
+    frontend's existing fmt()-style helpers already render None as '—',
+    same as any other not-yet-available figure."""
+    empty_agg = {
+        "time_h": None, "distance_nm": None, "avg_speed_kn": None,
+        "current_factor_kn": None, "fo_mt": None, "dogo_mt": None,
+        "daily_fo": None, "daily_dogo": None, "days": None,
+    }
+    return {
+        "voyage_no":      voyage_no,
+        "segment_no":     1,
+        "loading_cond":   None,
+        "source":         source,
+        "departure_port": "—",
+        "arrival_port":   "—",
+        "atd":            "",
+        "ata":            "",
+        "loss": {"time_h": None, "fo_mt": None, "dogo_mt": None, "ratio_pct": None},
+        "good_wx":  empty_agg,
+        "entire":   empty_agg,
+        "warranty": {"speed_kn": None, "fo_mtpd": None, "dogo_mtpd": None},
+        "allowance": {"speed_kn": None, "cons_pct": None},
+        "good_wx_def": {"wind": GW_WIND, "sea_state": GW_SEA, "current": GW_CURRENT, "ratio_pct": GW_RATIO},
+        "sample_sufficient": False,
+        "configured": False,
+        "not_computable": True,
+        "reason": reason,
+    }

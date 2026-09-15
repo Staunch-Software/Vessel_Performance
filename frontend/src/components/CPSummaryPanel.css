@@ -154,3 +154,14 @@
   color: #38bdf8;
   cursor: default;
 }
+
+/* Requested voyage with no EOSP yet — same amber "not computable"
+   convention as CPComplianceSection.css, one full-width row instead of
+   squeezing "—" into every normal column. */
+.cp-not-computable td {
+  background: rgba(212, 160, 42, 0.08);
+  color: #d4a02a;
+  text-align: left;
+  padding: 8px 12px;
+  font-style: italic;
+}

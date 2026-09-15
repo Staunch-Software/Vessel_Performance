@@ -321,9 +321,28 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
             </thead>
             <tbody>
               {rows.map((r, i) => {
+                const rowKey = `${r.voyage_no}-${r.segment_no}-${i}`
+
+                // Client request 2026-09: a requested voyage with no EOSP
+                // yet (still ongoing in the source system) used to just
+                // silently vanish from this table with no explanation —
+                // the backend now sends an explicit not_computable result
+                // instead, rendered here as one amber, full-width row
+                // (same "not computable" convention used on the CP
+                // Description page's compliance section) rather than
+                // trying to squeeze "—" into 29 normal columns.
+                if (r.not_computable) {
+                  return (
+                    <tr key={rowKey} className="cp-not-computable">
+                      <td colSpan={29}>
+                        <strong>Voyage {r.voyage_no}:</strong> {r.reason || 'Not computable.'}
+                      </td>
+                    </tr>
+                  )
+                }
+
                 const g = r.good_wx || {}, e = r.entire || {}, l = r.loss || {}
                 const w = r.warranty || {}, al = r.allowance || {}, gd = r.good_wx_def || {}
-                const rowKey = `${r.voyage_no}-${r.segment_no}-${i}`
                 return (
                   <tr 
                     key={rowKey}
