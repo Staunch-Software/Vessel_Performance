@@ -153,12 +153,14 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
     # trailing rows after the last EOSP (an unfinished next leg) are dropped
     # too, for the same reason.
     #
-    # no_eosp_voyages tracks which voyages got excluded this way, so the
-    # caller can surface an explicit "not computable — no EOSP yet" result
-    # instead of the voyage just silently vanishing from the table (client
-    # request 2026-09 — this used to look like a bug).
+    # excluded_voyages tracks which voyages produced ZERO usable rows and
+    # why, so the caller can surface an explicit "not computable" result
+    # instead of the voyage just silently vanishing with no explanation
+    # (client request 2026-09 — this used to look like a bug, twice: once
+    # for "no EOSP", and separately for the inverted-range case below,
+    # found testing this exact fix on GCL FOS voyage 001/01).
     valid_rows = []
-    no_eosp_voyages = set()
+    excluded_voyages = {}
 
     # Group by Voyage_No to apply bounds per voyage
     by_voyage = {}
@@ -170,7 +172,7 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
         eosps = [r for r in v_rows if r["event_type"] and "EOSP" in r["event_type"].upper()]
 
         if not eosps:
-            no_eosp_voyages.add(v_no)
+            excluded_voyages[v_no] = "Voyage not yet complete — no EOSP report found."
             continue  # ongoing voyage — no EOSP yet, nothing to report on it
 
         eosp_record = eosps[-1]
@@ -187,12 +189,30 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
 
         dep_dt = f"{dep_record['Date']}T{dep_record['Time_UTC'] or '00:00'}"
         arr_dt = f"{arr_record['Date']}T{arr_record['Time_UTC'] or '00:00'}"
-        for r in v_rows:
-            r_dt = f"{r['Date']}T{r['Time_UTC'] or '00:00'}"
-            if dep_dt <= r_dt <= arr_dt:
-                valid_rows.append(r)
 
-    return valid_rows, no_eosp_voyages
+        # dep_dt can land AT OR AFTER arr_dt when there's no BOSP before
+        # this voyage's own EOSP (bosp_record stays None, falling back to
+        # the voyage's first logged row — which, since rows are date-sorted,
+        # can BE the EOSP row itself when it's chronologically first, as
+        # confirmed on a real voyage: dep_record and arr_record end up the
+        # SAME row). Either way the range collapses to nothing useful, same
+        # silent-empty-result problem as the no-EOSP case — surface it the
+        # same way instead of guessing.
+        if dep_dt >= arr_dt:
+            excluded_voyages[v_no] = (
+                "No valid departure-to-arrival window found for this voyage "
+                "(its EOSP predates any usable departure record — likely a "
+                "port-call gap rather than a real passage)."
+            )
+            continue
+
+        voyage_rows = [r for r in v_rows if dep_dt <= f"{r['Date']}T{r['Time_UTC'] or '00:00'}" <= arr_dt]
+        if not voyage_rows:
+            excluded_voyages[v_no] = "No steaming records found within this voyage's departure-to-arrival window."
+            continue
+        valid_rows.extend(voyage_rows)
+
+    return valid_rows, excluded_voyages
 
 
 # Same FO/DO-GO grade classification convention as import_cp_description.py / cp_compliance_v2.
@@ -259,31 +279,30 @@ def cp_performance(
     sources = [source] if source in _SOURCE_SQL else list(_SOURCE_SQL.keys())
 
     rows = []
-    no_eosp_voyages = set()
+    excluded_voyages = {}
     try:
         for s in sources:
-            src_rows, src_no_eosp = _rows_for_source(db, imo, s, vlist, loading_cond)
+            src_rows, src_excluded = _rows_for_source(db, imo, s, vlist, loading_cond)
             rows.extend(src_rows)
-            no_eosp_voyages |= src_no_eosp
+            excluded_voyages.update(src_excluded)  # later source's reason wins on overlap; rare, both descriptive
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"CP query failed: {e}")
 
     results = compute_cp_voyage_table(rows, cp_by_cond)
 
     # Client request 2026-09: a specifically-requested voyage that produced
-    # zero segments because it has no EOSP yet used to just silently vanish
-    # from the table (looked like a bug). Surface it explicitly instead —
-    # only for voyages the caller actually asked for (vlist), never
-    # injected into an unfiltered "all voyages" request.
+    # zero segments (no EOSP yet, or an inverted departure/arrival window —
+    # see _rows_for_source) used to just silently vanish from the table
+    # (looked like a bug). Surface it explicitly instead — only for voyages
+    # the caller actually asked for (vlist), never injected into an
+    # unfiltered "all voyages" request.
     if vlist:
         seen = {r["voyage_no"] for r in results}
         for v_no in vlist:
             if v_no in seen:
                 continue
-            if v_no in no_eosp_voyages:
-                results.append(not_computable_result(
-                    v_no, "Voyage not yet complete — no EOSP report found.", source=source,
-                ))
+            reason = excluded_voyages.get(v_no, "Not computable for this voyage.")
+            results.append(not_computable_result(v_no, reason, source=source))
     return {
         "vessel_imo":    imo,
         "source":        source,
