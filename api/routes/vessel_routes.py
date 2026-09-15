@@ -542,6 +542,10 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
                     "total_mt_day":  instr["total_mt_day"],
                     "me_mt_day":     instr["me_mt_day"],
                     "ae_mt_day":     instr["ae_mt_day"],
+                    # Real GO figure — only present for remarks in Format C
+                    # (see cp_remarks_parser.py); None for every other
+                    # format, which never states a GO number at all.
+                    "go_mt_day":     instr["go_mt_day"],
                 }
 
         out.append({
