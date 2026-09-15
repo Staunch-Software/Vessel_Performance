@@ -278,16 +278,21 @@ export async function fetchSpeedPowerISO(imo, loadingCondition = 'all') {
 }
 
 // ── Voyage Summary & Series (used for PDF export) ────────────────────────────
-export async function fetchVoyageSummary(voyageNo, vesselImo) {
+// `source`: pass the vessel's actually-selected single source ('wni' |
+// 'mari_apps') whenever known — WNI and MariApps can share the exact same
+// Voyage_No string for one vessel (confirmed: AM UMANG's "82 B"), and
+// without this filter every day gets counted twice. Omit only when you
+// genuinely want both sources blended together.
+export async function fetchVoyageSummary(voyageNo, vesselImo, source) {
   const { data } = await api.get('/voyage/summary', {
-    params: { voyage_no: voyageNo, vessel_imo: vesselImo },
+    params: { voyage_no: voyageNo, vessel_imo: vesselImo, ...(source ? { source } : {}) },
   })
   return data
 }
 
-export async function fetchVoyageSeries(voyageNo, vesselImo) {
+export async function fetchVoyageSeries(voyageNo, vesselImo, source) {
   const { data } = await api.get('/voyage/series', {
-    params: { voyage_no: voyageNo, vessel_imo: vesselImo },
+    params: { voyage_no: voyageNo, vessel_imo: vesselImo, ...(source ? { source } : {}) },
   })
   return Array.isArray(data) ? data : []
 }

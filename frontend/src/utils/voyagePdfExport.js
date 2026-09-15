@@ -1551,7 +1551,13 @@ function buildMessageTrafficPages(doc, seriesRows, routeId, reportDate, voyageNo
       `[Distance SLR : ${fmt(r.Distance_nm,1)}nm]   [Report duration : ${fmt(r.Duration_h,1)}hrs]`,
       `[ME FOC : ${r.ME_Fuel_Grade || '—'}/${fmt(r.ME_FOC_MT)}/////(MT)]`,
       `[AE FOC : ${r.AE_Fuel_Grade || '—'}/${fmt(r.AE_FOC_MT)}/////(MT)]`,
-      `[Wind : ${fmt(r.True_Wind_Spd_ms,0)}knots, ${bfScale(r.True_Wind_Spd_ms)} Beaufort Number, ${windDir(r.True_Wind_Dir_deg)}]`,
+      // Label fix (client report 2026-09, GCL YAMUNA): this value is
+      // True_Wind_Spd_ms — meters/second, matching what bfScale()'s
+      // thresholds (0.3/1.6/3.4/5.5.../28.5) actually expect, the standard
+      // Beaufort scale defined in m/s. The Beaufort NUMBER was always
+      // computed correctly; only the text label next to it wrongly said
+      // "knots", making a manual cross-check against the knots value fail.
+      `[Wind : ${fmt(r.True_Wind_Spd_ms,0)}m/s, ${bfScale(r.True_Wind_Spd_ms)} Beaufort Number, ${windDir(r.True_Wind_Dir_deg)}]`,
       `[Wave Height : ${fmt(r.Sig_Wave_Ht_m)}m]   [Swell Height : ${fmt(r.Swell_Ht_m)}m]`,
       `[Current speed : ${fmt(r.Current_Spd_kn)}kts]`,
       `[SFOC : ${fmt(r.SFOC_gkWh)}g/kWh]`,
@@ -1722,9 +1728,17 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   // cpDataAll is UNFILTERED by voyageNos/loadingCond — it's the vessel+source's
   // full CP history, used only to give the CP charts a real multi-voyage trend
   // to plot even when this report itself was downloaded for a single voyage.
+  // Bug found 2026-09 (client report, AM UMANG voy 82B — distance/time ~2x
+  // actual): WNI and MariApps can share the exact literal Voyage_No string
+  // for one vessel, and /voyage/summary + /voyage/series used to blend
+  // both sources together unfiltered whenever that happened, double-
+  // counting every day. Always pass the actually-selected single source
+  // now — same 'all' -> undefined mapping already used for CP performance
+  // just below, so an explicit "All" selection still blends deliberately.
+  const seriesSource = source === 'all' ? undefined : source
   const [sum, series, cpData, cpDataAll] = await Promise.all([
-    fetchVoyageSummary(voyageNo, vesselImo).catch(() => ({})),
-    fetchVoyageSeries(voyageNo, vesselImo).catch(() => []),
+    fetchVoyageSummary(voyageNo, vesselImo, seriesSource).catch(() => ({})),
+    fetchVoyageSeries(voyageNo, vesselImo, seriesSource).catch(() => []),
     fetchCPPerformance(vesselImo, voyageNos, source === 'all' ? undefined : source, loadingCond === 'all' ? undefined : loadingCond).catch(() => null),
     fetchCPPerformance(vesselImo, undefined, source === 'all' ? undefined : source, undefined).catch(() => null),
   ])

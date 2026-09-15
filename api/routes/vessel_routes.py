@@ -422,8 +422,16 @@ async def query_analysis_data(filters: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to load analysis: {e}")
     
 @router.get("/voyage/series")
-def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get_db)):
-    results = db.query(
+def get_voyage_series(voyage_no: str, vessel_imo: str, source: str = None, db: Session = Depends(get_db)):
+    # BUG FOUND 2026-09 (client report, AM UMANG voy 82B — distance/time
+    # reported ~2x actual): WNI and MariApps can share the exact literal
+    # Voyage_No string for the same vessel (confirmed: AM UMANG's "82 B" is
+    # used by BOTH sources) — without a source filter, every day gets
+    # counted twice when this coincidence happens. `source` is optional
+    # (None/omitted still blends both, for callers that genuinely want
+    # combined data), but the PDF export now always passes the vessel's
+    # actually-selected single source.
+    q = db.query(
         AnalysisData,
         NoonReportData,
         MariAppsReportData
@@ -434,7 +442,10 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
     ).filter(
         AnalysisData.Voyage_No == str(voyage_no),
         AnalysisData.vessel_imo == str(vessel_imo)
-    ).order_by(AnalysisData.Date.asc(), AnalysisData.Time_UTC.asc()).all()
+    )
+    if source:
+        q = q.filter(AnalysisData.source_id == source)
+    results = q.order_by(AnalysisData.Date.asc(), AnalysisData.Time_UTC.asc()).all()
     bosps = []
     eosps = []
     for row in results:
@@ -616,12 +627,15 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, db: Session = Depends(get
 from sqlalchemy import func
 
 @router.get("/voyage/summary")
-def get_voyage_summary(voyage_no: str, vessel_imo: str, db: Session = Depends(get_db)):
+def get_voyage_summary(voyage_no: str, vessel_imo: str, source: str = None, db: Session = Depends(get_db)):
     """
     Returns aggregated voyage-level summary for the detail page.
     Computes departure/arrival times, totals, and averages from all records.
     """
-    query_results = db.query(
+    # Same source-blending bug as /voyage/series (see its comment) — WNI and
+    # MariApps can share the exact literal Voyage_No string for one vessel,
+    # doubling every total when both get pulled in unfiltered.
+    q = db.query(
         AnalysisData,
         NoonReportData.log_type.label("wni_type"),
         RawMariAppsLog.log_type.label("mari_type"),
@@ -634,7 +648,10 @@ def get_voyage_summary(voyage_no: str, vessel_imo: str, db: Session = Depends(ge
     ).filter(
         AnalysisData.Voyage_No == str(voyage_no),
         AnalysisData.vessel_imo == str(vessel_imo)
-    ).order_by(AnalysisData.Date.asc(), AnalysisData.Time_UTC.asc()).all()
+    )
+    if source:
+        q = q.filter(AnalysisData.source_id == source)
+    query_results = q.order_by(AnalysisData.Date.asc(), AnalysisData.Time_UTC.asc()).all()
 
     if not query_results:
         raise HTTPException(status_code=404, detail="No voyage records found")
