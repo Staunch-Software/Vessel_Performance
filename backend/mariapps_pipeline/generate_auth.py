@@ -112,13 +112,33 @@ def run_automated_login():
         try:
             # We wait for EITHER page instead of failing if it doesn't hit LogApproval
             page.wait_for_load_state("networkidle", timeout=30000)
-            
-            # Save the session regardless of which page we landed on
-            context.storage_state(path=str(config.MARIAPPS_AUTH_JSON))
-            log.info(f"SSO Session successfully created and saved to {config.MARIAPPS_AUTH_JSON}")
         except Exception as e:
             log.error(f"Redirection timed out: {e}")
             raise e
+
+        # --- STEP 6: REAL verification before trusting/saving this session ---
+        # Bug found 2026-09: this function used to save storage_state right
+        # after networkidle, with no check that login actually succeeded —
+        # if the SSO flow silently landed somewhere unexpected (a changed
+        # Microsoft screen, a transient hiccup, anything), it would still
+        # write that broken session to auth.json as if it were valid,
+        # clobbering a previously-good session the daily pipeline depends
+        # on. Verify the SAME way navigator.py's navigate_to_log_validation()
+        # does — actually reach LogApproval, not redirected to a login page,
+        # with the vessel search box present — before saving anything.
+        target_url = "https://smartpal.ozellar.com/PerformancePALApp/Performance/LogApproval"
+        log.info(f"Verifying session by navigating to: {target_url}")
+        page.goto(target_url, wait_until="load", timeout=60000)
+        if "Account/Index" in page.url or "Login" in page.url:
+            raise RuntimeError(
+                f"Automated login did NOT actually succeed — landed on {page.url} "
+                "instead of LogApproval. Not saving this session (would overwrite "
+                "a previously-good auth.json with a broken one)."
+            )
+        page.wait_for_selector("input[aria-owns='vesselSearchBox_listbox']", timeout=30000)
+
+        context.storage_state(path=str(config.MARIAPPS_AUTH_JSON))
+        log.info(f"SSO Session verified and saved to {config.MARIAPPS_AUTH_JSON}")
 
 if __name__ == "__main__":
     run_automated_login()
