@@ -122,7 +122,14 @@ def run(vessel_names=None):
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
-        context = browser.new_context(storage_state=auth_file)
+        # ignore_https_errors: DeploymentVM01's CA trust store is missing the
+        # root that signed smartpal.ozellar.com's cert chain (see
+        # generate_auth.py's own note on this same issue) — mariapps_pipeline.py
+        # already sets this on its equivalent context; this one was missing it,
+        # which meant every page.goto() here failed on a TLS handshake error,
+        # not an actually-invalid session — surfacing as the same generic
+        # "Session invalid" warning and masking the real cause.
+        context = browser.new_context(storage_state=auth_file, ignore_https_errors=True)
         main_page = context.new_page()
 
         navigator = MariAppsNavigator(main_page)
