@@ -24,6 +24,25 @@ function bfScale(windSpeedMs) {
   return 12;
 }
 
+// Matches backend cp_calculator.py's _is_fair_weather() and
+// voyagePdfExport.js's isFairWeatherRow() exactly — reads BF_Wind directly
+// (not recomputed from True_Wind_Spd_ms) with the real 3.0m wave threshold.
+// This file had its own separate, stale copy of the old broken pattern
+// (bfScale-recompute + a hardcoded 1.25m instead of 3.0m) that drove both
+// the Ship Speed chart's good/adverse shading and the Wave Height chart's
+// "CP Wave" reference line — found 2026-09 via a manager-reviewed report
+// showing the reference line and shading disagreeing with the report's own
+// stated "Sig.Wave 3.0m" Good Weather Definition.
+const FAIR_BF_MAX = 4.0
+const FAIR_WAVE_MAX_M = 3.0
+function isFairWeatherRow(r) {
+  const bf = r.BF_Wind != null && r.BF_Wind !== '' ? +r.BF_Wind : null
+  const hs = r.Sig_Wave_Ht_m != null && r.Sig_Wave_Ht_m !== '' ? +r.Sig_Wave_Ht_m : null
+  if (bf == null && hs == null) return true
+  if (bf == null || hs == null) return false
+  return bf <= FAIR_BF_MAX && hs <= FAIR_WAVE_MAX_M
+}
+
 export function capturePdfAssets(sum, seriesRows, cpData) {
   return new Promise((resolve) => {
     const div = document.createElement('div');
@@ -76,10 +95,9 @@ function PdfAssetsRenderer({ sum, seriesRows, cpData, onComplete }) {
   }, [onComplete]);
 
   const data = seriesRows.map((r, idx) => {
-    const bf = +bfScale(r.True_Wind_Spd_ms) || 0;
     const wh = +(r.Sig_Wave_Ht_m) || 0;
-    const isGood = bf <= 4 && wh <= 1.25;
-    
+    const isGood = isFairWeatherRow(r);
+
     return {
       index: idx,
       name: r.Date && typeof r.Date === 'string' && r.Date.length >= 10 ? `${r.Date.substring(8, 10)}/${r.Date.substring(5, 7)}` : '',
@@ -188,7 +206,7 @@ function PdfAssetsRenderer({ sum, seriesRows, cpData, onComplete }) {
               <YAxis yAxisId="right" orientation="right" tick={{fontSize: 12, fill: '#000'}} />
               <Tooltip />
               <Legend wrapperStyle={{ fontSize: '12px', color: '#000' }} />
-              <ReferenceLine yAxisId="left" y={1.25} stroke="red" label={{ value: 'CP Wave', fontSize: 12, fill: '#000', position: 'insideTopRight' }} />
+              <ReferenceLine yAxisId="left" y={FAIR_WAVE_MAX_M} stroke="red" label={{ value: 'CP Wave', fontSize: 12, fill: '#000', position: 'insideTopRight' }} />
               <ReferenceLine yAxisId="right" y={0} stroke="red" />
               <Line yAxisId="left" type="monotone" dataKey="wave" name="Wave Height (m)" stroke="green" dot={{fill:'blue', shape:'square'}} isAnimationActive={false} />
               <Line yAxisId="right" type="monotone" dataKey="current" name="Current Factor" stroke="blue" dot={false} isAnimationActive={false} />
