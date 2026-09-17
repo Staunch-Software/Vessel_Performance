@@ -94,6 +94,23 @@ const bfScale = (ms) => {
   return '12'
 }
 
+// Matches backend cp_calculator.py's _is_fair_weather() EXACTLY: reads
+// BF_Wind directly (not recomputed from True_Wind_Spd_ms via bfScale — that
+// used a different, narrower day-set than the backend's own good_wx/entire
+// aggregates, causing this table's distance/duration figures to disagree
+// with its own FO/GO figures — manager feedback 2026-09). Missing just one
+// of BF/Hs → not fair (can't verify); missing BOTH → treat as good weather
+// (client-approved 2026-08) rather than penalise a logging gap.
+const FAIR_BF_MAX = 4.0
+const FAIR_WAVE_MAX_M = 3.0
+function isFairWeatherRow(r) {
+  const bf = r.BF_Wind != null && r.BF_Wind !== '' ? +r.BF_Wind : null
+  const hs = r.Sig_Wave_Ht_m != null && r.Sig_Wave_Ht_m !== '' ? +r.Sig_Wave_Ht_m : null
+  if (bf == null && hs == null) return true
+  if (bf == null || hs == null) return false
+  return bf <= FAIR_BF_MAX && hs <= FAIR_WAVE_MAX_M
+}
+
 // ── PDF helper functions ───────────────────────────────────────────────────
 
 function addHeader(doc, voyageNo, routeId, reportDate, pageTitle) {
@@ -206,17 +223,19 @@ function eventWiseCpRows(seriesRows) {
 
 // Resolves the CP speed/FO/GO that actually applied on ONE event/day:
 // that day's parsed CP remarks instruction (cp_instruction) if one exists,
-// otherwise the vessel's standing CP warranty. GO always falls back to the
-// standing warranty — the master's remarks only ever specify one combined
-// IFO figure (split M/E vs A/E), never a separate GO/DO figure (see
-// computeVaryingCpInstruction above), so there's no per-day GO override to
-// use even on a day with its own speed/FO override.
+// otherwise the vessel's standing CP warranty. GO falls back to the standing
+// warranty EXCEPT when the remarks parser found a real LSMGO figure
+// (Format C — "INSTRUCTED CP SPEED ... / VLSFO CONSUMPTION ... / LSMGO
+// CONSUMPTION: Z MT" — the only remarks format with its own GO figure); most
+// remarks formats only ever specify one combined IFO figure and have no
+// go_mt_day to use (manager feedback 2026-09: LSMGO for CP wasn't being
+// captured even when the remarks explicitly stated it).
 function eventCpFigures(row, cpW) {
   const instr = row.cp_instruction
   return {
     speed: instr?.speed_kn ?? +(cpW.speed_kn || 0),
     fo:    instr?.total_mt_day ?? +(cpW.fo_mtpd || 0),
-    go:    +(cpW.dogo_mtpd || 0),
+    go:    instr?.go_mt_day ?? +(cpW.dogo_mtpd || 0),
   }
 }
 
@@ -601,10 +620,11 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     // here IN ADDITION TO the box above (never replacing it) so a reader
     // sees exactly how many days each instruction was actually in force.
     //
-    // NOTE: the master's remarks only ever specify ONE combined IFO figure
-    // (split M/E vs A/E), never a separate GO/DO figure — so "GO" below is
-    // always "—". That reflects what the source data actually contains,
-    // not a rendering gap.
+    // NOTE: most remarks formats only ever specify ONE combined IFO figure
+    // (split M/E vs A/E), never a separate GO/DO figure — "GO" below shows
+    // that day's parsed go_mt_day when the remarks format did carry one
+    // (Format C — LSMGO consumption; manager feedback 2026-09), otherwise
+    // "—" reflecting that the source remarks genuinely didn't state one.
     const cpBlocks = computeVaryingCpInstruction(series)
     if (cpBlocks) {
       let vy = y + 48
@@ -629,7 +649,7 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
         doc.text(`D${i + 1} (${b.days} day${b.days > 1 ? 's' : ''})`, colX.days, vy)
         doc.text(`${fmt(b.instr.speed_kn)} kn`, colX.speed, vy, { align: 'center' })
         doc.text(`${fmt(b.instr.total_mt_day)} MT/day`, colX.fo, vy, { align: 'center' })
-        doc.text('—', colX.go, vy, { align: 'center' })
+        doc.text(b.instr.go_mt_day != null ? `${fmt(b.instr.go_mt_day)} MT/day` : '—', colX.go, vy, { align: 'center' })
         vy += 5
       })
     }
@@ -661,14 +681,13 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   // NaN, so it silently fell back to a hardcoded 1.25m wave cutoff instead of
   // the real 3.0m fair-weather threshold (backend FAIR_WAVE_MAX_M) — pulling
   // in a much smaller/wrong subset of "good weather" days and producing
-  // numbers that didn't match the rest of the report. Only the displayed date
-  // range below still needs a day-level filter (the API doesn't return one),
-  // so that one filter is kept but with the correct 3.0/4.0 thresholds.
-  const goodRows = seriesRows.filter(r => {
-    const bf = +bfScale(r.True_Wind_Spd_ms) || 0
-    const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= 4.0 && wh <= 3.0
-  })
+  // numbers that didn't match the rest of the report. The displayed date
+  // range and the FO/GO breakdown below both use isFairWeatherRow(), the
+  // same definition as the backend's cp.good_wx aggregate, so every figure
+  // in this section describes the same set of days (manager feedback
+  // 2026-09: a locally-recomputed filter here previously disagreed with
+  // cp.good_wx's day count, e.g. "1 day" shown next to "115.00 hours").
+  const goodRows = seriesRows.filter(isFairWeatherRow)
 
   let dateRangeStr = '—'
   if (goodRows.length > 0) {
@@ -1116,8 +1135,8 @@ function buildSummaryTablePage(doc, sum, seriesRows, cpData, routeId, reportDate
 
   const totalDist  = seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const totalDur   = seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
-  const goodRows   = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) <= 4.0 && (+(r.Sig_Wave_Ht_m) || 0) <= 3.0)
-  const adverseRows = seriesRows.filter(r => (+bfScale(r.True_Wind_Spd_ms) || 0) > 4.0 || (+(r.Sig_Wave_Ht_m) || 0) > 3.0)
+  const goodRows   = seriesRows.filter(isFairWeatherRow)
+  const adverseRows = seriesRows.filter(r => !isFairWeatherRow(r))
   const goodDist   = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const goodDur    = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
   const advDist    = adverseRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
@@ -1162,12 +1181,8 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
   const W = doc.internal.pageSize.getWidth()
 
   const allRows = seriesRows
-  const goodRows = seriesRows.filter(r => {
-    const bf = +bfScale(r.True_Wind_Spd_ms) || 0
-    const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= 4.0 && wh <= 3.0
-  })
-  const adverseRows = seriesRows.filter(r => !goodRows.includes(r))
+  const goodRows = seriesRows.filter(isFairWeatherRow)
+  const adverseRows = seriesRows.filter(r => !isFairWeatherRow(r))
 
   const calcSum = (rows) => {
     const dist = rows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
@@ -1320,9 +1335,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
       didParseCell: function (data) {
         if (data.section === 'body') {
           const rowData = pageRows[data.row.index]
-          const bf = +bfScale(rowData.True_Wind_Spd_ms) || 0
-          const wh = +(rowData.Sig_Wave_Ht_m) || 0
-          if (bf <= 4.0 && wh <= 3.0) {
+          if (isFairWeatherRow(rowData)) {
             data.cell.styles.fillColor = [255, 242, 204]
           }
         }
@@ -1342,6 +1355,7 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
 
   const cpW = cpData?.results?.[0]?.warranty || {}
   const foW = +(cpW.fo_mtpd || 0)
+  const goW = +(cpW.dogo_mtpd || 0)
 
   // ── 1. Top Header Box ──
   doc.setDrawColor(0)
@@ -1373,16 +1387,8 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
   const totalDist   = seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const totalDur    = seriesRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
 
-  const goodRows    = seriesRows.filter(r => {
-    const bf = +bfScale(r.True_Wind_Spd_ms) || 0
-    const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf <= 4.0 && wh <= 3.0
-  })
-  const advRows     = seriesRows.filter(r => {
-    const bf = +bfScale(r.True_Wind_Spd_ms) || 0
-    const wh = +(r.Sig_Wave_Ht_m) || 0
-    return bf > 4.0 || wh > 3.0
-  })
+  const goodRows    = seriesRows.filter(isFairWeatherRow)
+  const advRows     = seriesRows.filter(r => !isFairWeatherRow(r))
 
   const goodDist    = goodRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const goodDur     = goodRows.reduce((s, r) => s + (+(r.Duration_h) || 0), 0)
@@ -1452,9 +1458,10 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
   // - ROB (was always static placeholder dashes) removed entirely.
   // - CP FO/DO-GO now per-day: that day's CP remarks instruction if present,
   //   else a fallback — FO falls back to the standing FO warranty (foW,
-  //   same rule as everywhere else in this report); DO/GO falls back to a
-  //   literal 0.05 (client-specified constant, NOT the standing GO
-  //   warranty — deliberately different from Sections B/C's fallback rule).
+  //   same rule as everywhere else in this report); DO/GO uses that day's
+  //   parsed go_mt_day when the remarks carried one (Format C — LSMGO,
+  //   manager feedback 2026-09), otherwise falls back to the standing GO
+  //   warranty (goW) — same rule as FO, no longer a hardcoded 0.05.
   // - Daily Consumption restructured to the same equipment x fuel-type
   //   breakdown as the Summary Table above, computed per single day.
   const { head: dailyFuelHead, flatCols: dailyFlatCols } = buildEquipmentFuelHead(
@@ -1482,7 +1489,7 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
     head: dailyFuelHead,
     body: seriesRows.map((r, idx) => {
       const cpFo = r.cp_instruction?.total_mt_day ?? foW
-      const cpGo = 0.05 // client-specified literal fallback — remarks never carry a GO figure
+      const cpGo = r.cp_instruction?.go_mt_day ?? goW
       return [
         r.event_type || '—',
         r.Date && typeof r.Date === 'string' && r.Date.length >= 10 ? `${r.Date.substring(8, 10)}/${r.Date.substring(5, 7)}` : '—',
@@ -1503,9 +1510,7 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
     didParseCell: function (data) {
       if (data.section === 'body') {
         const rowData = seriesRows[data.row.index]
-        const bf = rowData.BF_Wind != null ? +rowData.BF_Wind : (+bfScale(rowData.True_Wind_Spd_ms) || 0)
-        const wh = +(rowData.Sig_Wave_Ht_m) || 0
-        if (bf <= 4.0 && wh <= 3.0) {
+        if (isFairWeatherRow(rowData)) {
           data.cell.styles.fillColor = [255, 242, 204]
         } else {
           data.cell.styles.fillColor = [255, 255, 255]

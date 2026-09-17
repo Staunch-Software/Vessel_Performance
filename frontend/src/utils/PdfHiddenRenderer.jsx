@@ -86,7 +86,7 @@ function PdfAssetsRenderer({ sum, seriesRows, cpData, onComplete }) {
       sog: +(r.SOG_kn || 0),
       fo: +(r.ME_FOC_MT || 0),
       dogo: +(r.AE_FOC_MT || 0) + +(r.Boiler_FOC_MT || 0),
-      rpm: +(r.ME_Rev_rpm || 0),
+      rpm: +(r.Shaft_RPM || 0),
       wind: r.BF_Wind != null ? +r.BF_Wind : (+bfScale(r.True_Wind_Spd_ms) || 0),
       wave: wh,
       current: +(r.Current_Spd_kn || 0),
@@ -105,20 +105,22 @@ function PdfAssetsRenderer({ sum, seriesRows, cpData, onComplete }) {
         <h2 style={{ textAlign: 'center', fontFamily: 'sans-serif', marginBottom: '20px', color: '#000', fontWeight: 'bold' }}>Speed and Consumption with Weather / Current Analysis</h2>
         
         {/* SHIP SPEED */}
-        <h4 style={{ fontFamily: 'sans-serif', margin: '5px 0', color: '#000', fontWeight: 'bold' }}>[ Ship Speed ]</h4>
+        <h4 style={{ fontFamily: 'sans-serif', margin: '5px 0', color: '#000', fontWeight: 'bold' }}>[ Ship Speed and RPM ]</h4>
         <div style={{ height: '220px', width: '100%' }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
             <ComposedChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" tick={{fontSize: 12, fill: '#000'}} />
-              <YAxis domain={['auto', 'auto']} tick={{fontSize: 12, fill: '#000'}} />
+              <YAxis yAxisId="left" domain={['auto', 'auto']} tick={{fontSize: 12, fill: '#000'}} />
+              <YAxis yAxisId="right" orientation="right" tick={{fontSize: 12, fill: '#000'}} />
               <Tooltip />
               <Legend wrapperStyle={{ fontSize: '12px', color: '#000' }} />
               {data.map((entry, index) => (
-                <ReferenceArea key={index} x1={data[index]?.name} x2={data[index+1]?.name || data[index]?.name} fill={entry.isGood ? '#fff2cc' : '#f0f0f0'} fillOpacity={1} />
+                <ReferenceArea key={index} yAxisId="left" x1={data[index]?.name} x2={data[index+1]?.name || data[index]?.name} fill={entry.isGood ? '#fff2cc' : '#f0f0f0'} fillOpacity={1} />
               ))}
-              <ReferenceLine y={speedW} stroke="red" label={{ value: 'CP Speed', fontSize: 12, fill: '#000', position: 'right' }} />
-              <Line type="monotone" dataKey="sog" name="Daily Average Speed" stroke="blue" dot={{fill:'blue'}} isAnimationActive={false} />
+              <ReferenceLine yAxisId="left" y={speedW} stroke="red" label={{ value: 'CP Speed', fontSize: 12, fill: '#000', position: 'right' }} />
+              <Line yAxisId="left" type="monotone" dataKey="sog" name="Daily Average Speed" stroke="blue" dot={{fill:'blue'}} isAnimationActive={false} />
+              <Line yAxisId="right" type="monotone" dataKey="rpm" name="RPM" stroke="#009933" dot={false} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

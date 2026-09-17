@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import html2canvas from 'html2canvas';
 import {
-  ComposedChart, BarChart, Line, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, BarChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine
 } from 'recharts';
 
@@ -105,10 +105,25 @@ function symmetricNiceDomain(maxAbs) {
   return bound
 }
 
+// Explicit, shared Y-axis width for both charts — see the comment at Chart
+// A's <YAxis yAxisId="speed"> below for why this must be identical on all
+// 4 axes across both charts, not left to Recharts' own auto-sizing.
+const AXIS_W = 60
+
 const axisTickFmt = (v) => {
   const n = +v
   if (!isFinite(n)) return ''
   return Math.abs(n - Math.round(n)) < 0.001 ? String(Math.round(n)) : n.toFixed(1)
+}
+
+// Same formatting as axisTickFmt, used for the on-chart value labels added
+// next to each dot/bar (client request 2026-09: show the actual number so a
+// reader can see at a glance that the top dot and bottom bar for the same
+// voyage are reading off the same figure, instead of having to eyeball
+// vertical alignment between two separately-scaled charts).
+const valLabelFmt = (v) => {
+  if (v == null || !isFinite(+v)) return ''
+  return axisTickFmt(v)
 }
 
 // Plain HTML legend, laid out in explicit rows — guarantees the item order the
@@ -141,7 +156,14 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
   // 2026-08: full history was too cluttered to read).
   const primaryRow = rows.find(r => String(r.voyage_no) === String(voyageNo)) || rows[0]
   const primaryCond = primaryRow?.loading_cond || null
+  // "Last 10" means the 10 voyages up to and including THIS report's own
+  // voyage, not the 10 most recent in the vessel's full history up to today
+  // (manager feedback 2026-09: a report for an earlier voyage was showing
+  // later voyages that hadn't happened yet at the time of that voyage) — so
+  // exclude anything chronologically AFTER the report's own voyage first.
+  const primaryAtd = primaryRow?.atd || ''
   const condRows = (primaryCond ? rows.filter(r => r.loading_cond === primaryCond) : rows)
+    .filter(r => String(r.atd || '') <= primaryAtd || String(r.voyage_no) === String(voyageNo))
     .slice().sort((a, b) => String(a.atd || '').localeCompare(String(b.atd || '')))
     .slice(-10)
 
@@ -232,9 +254,17 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
                 so a reader can tell which axis a line belongs to at a glance,
                 even though each axis actually carries 3 series (client request
                 2026-09: Option B — key the axis colour to the warranty line). */}
-            <YAxis yAxisId="speed" domain={speedDomain} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
+            {/* Fixed axis `width` on both charts (Chart A here, Chart B below) —
+                without it, Recharts auto-sizes each YAxis from its own tick
+                label text, and Chart A's Speed/Fuel numbers vs Chart B's
+                Time/Fuel numbers render at different widths, shifting the two
+                charts' plot areas out of sync even though the underlying data
+                rows/order are identical — the top dots and bottom bars for
+                the SAME voyage ended up in different X positions (manager
+                feedback 2026-09). AXIS_W is shared by all 4 axes below. */}
+            <YAxis yAxisId="speed" width={AXIS_W} domain={speedDomain} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
               label={{ value: 'Speed (kts)', angle: -90, position: 'insideLeft', fill: NAVY_HEX, fontSize: 13 }} />
-            <YAxis yAxisId="fuel" orientation="right" domain={fuelDomain} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
+            <YAxis yAxisId="fuel" width={AXIS_W} orientation="right" domain={fuelDomain} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
               label={{ value: 'Fuel (mt/day)', angle: 90, position: 'insideRight', fill: DRED_HEX, fontSize: 13 }} />
             <Tooltip />
             {/* No <Legend> here — Recharts v3 doesn't reliably preserve series
@@ -249,7 +279,12 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
                 const { cx, cy, payload, index } = props
                 const ok = payload.speedOk
                 const fill = ok == null ? '#888' : (ok ? GREEN_HEX : RED_HEX)
-                return <circle key={`sp-${index}`} cx={cx} cy={cy} r={6} fill={fill} stroke="#000" strokeWidth={0.5} />
+                return (
+                  <g key={`sp-${index}`}>
+                    <circle cx={cx} cy={cy} r={6} fill={fill} stroke="#000" strokeWidth={0.5} />
+                    <text x={cx} y={cy - 11} textAnchor="middle" fontSize={11} fontWeight="bold" fill={NAVY_HEX}>{valLabelFmt(payload.gwSpeed)}</text>
+                  </g>
+                )
               }}
               isAnimationActive={false} />
             <Line yAxisId="fuel" type="monotone" dataKey="cpFo" name="CP Warr FO/d" stroke={DRED_HEX} strokeWidth={2.5} dot={false} isAnimationActive={false} />
@@ -259,7 +294,12 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
                 const { cx, cy, payload, index } = props
                 const ok = payload.fuelOk
                 const fill = ok == null ? '#888' : (ok ? GREEN_HEX : RED_HEX)
-                return <rect key={`fo-${index}`} x={cx - 5} y={cy - 5} width={10} height={10} fill={fill} stroke="#000" strokeWidth={0.5} />
+                return (
+                  <g key={`fo-${index}`}>
+                    <rect x={cx - 5} y={cy - 5} width={10} height={10} fill={fill} stroke="#000" strokeWidth={0.5} />
+                    <text x={cx} y={cy + 18} textAnchor="middle" fontSize={11} fontWeight="bold" fill={DRED_HEX}>{valLabelFmt(payload.gwFo)}</text>
+                  </g>
+                )
               }}
               isAnimationActive={false} />
           </ComposedChart>
@@ -303,9 +343,9 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
             </defs>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#000' }} angle={-20} textAnchor="end" height={50} tickLine={false} />
-            <YAxis yAxisId="time" domain={[-maxAbsTime, maxAbsTime]} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
+            <YAxis yAxisId="time" width={AXIS_W} domain={[-maxAbsTime, maxAbsTime]} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
               label={{ value: 'Time (h)', angle: -90, position: 'insideLeft', fill: '#000', fontSize: 13 }} />
-            <YAxis yAxisId="fuel" orientation="right" domain={[-maxAbsFuel, maxAbsFuel]} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
+            <YAxis yAxisId="fuel" width={AXIS_W} orientation="right" domain={[-maxAbsFuel, maxAbsFuel]} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
               label={{ value: 'Fuel (mt)', angle: 90, position: 'insideRight', fill: '#000', fontSize: 13 }} />
             <ReferenceLine yAxisId="time" y={0} stroke="#666" />
             <Tooltip />
@@ -315,12 +355,40 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
                 since colour here encodes sign, not which bar is which. The caption
                 above the chart already states the Green/Red + Left/Right convention;
                 a plain HTML swatch legend below reinforces it without that bug. */}
-            <Bar yAxisId="time" dataKey="timeSave" name="Time Saving(+)/Loss(-) h" isAnimationActive={false}>
-              {lossData.map((d, i) => <Cell key={i} fill={d.timeSave >= 0 ? GREEN_HEX : RED_HEX} />)}
-            </Bar>
-            <Bar yAxisId="fuel" dataKey="fuelSave" name="Fuel Saving(+)/Loss(-) mt" isAnimationActive={false}>
-              {lossData.map((d, i) => <Cell key={i} fill={d.fuelSave >= 0 ? 'url(#fuelHatchGreen)' : 'url(#fuelHatchRed)'} stroke={d.fuelSave >= 0 ? GREEN_HEX : RED_HEX} strokeWidth={1} />)}
-            </Bar>
+            {/* Custom `shape` (not <Cell> + <LabelList>/label) so the actual
+                value can be drawn right on the bar — a plain Bar label was
+                already found not to render at all in this app's Recharts
+                setup (see FuelBarChart.jsx), the same reason the dots above
+                use a custom `dot` renderer instead of Recharts' label
+                mechanism. Client request 2026-09: show the number so a
+                reader can directly compare it against Chart A's dot value
+                for the same voyage instead of eyeballing alignment. */}
+            <Bar yAxisId="time" dataKey="timeSave" name="Time Saving(+)/Loss(-) h" isAnimationActive={false}
+              shape={(props) => {
+                const { x, y, width, height, payload } = props
+                const val = payload.timeSave
+                const fill = val >= 0 ? GREEN_HEX : RED_HEX
+                const labelY = val >= 0 ? y - 4 : y + height + 12
+                return (
+                  <g>
+                    <rect x={x} y={y} width={width} height={height} fill={fill} />
+                    <text x={x + width / 2} y={labelY} textAnchor="middle" fontSize={11} fontWeight="bold" fill="#000">{valLabelFmt(val)}</text>
+                  </g>
+                )
+              }} />
+            <Bar yAxisId="fuel" dataKey="fuelSave" name="Fuel Saving(+)/Loss(-) mt" isAnimationActive={false}
+              shape={(props) => {
+                const { x, y, width, height, payload } = props
+                const val = payload.fuelSave
+                const good = val >= 0
+                const labelY = good ? y - 4 : y + height + 12
+                return (
+                  <g>
+                    <rect x={x} y={y} width={width} height={height} fill={good ? 'url(#fuelHatchGreen)' : 'url(#fuelHatchRed)'} stroke={good ? GREEN_HEX : RED_HEX} strokeWidth={1} />
+                    <text x={x + width / 2} y={labelY} textAnchor="middle" fontSize={11} fontWeight="bold" fill="#000">{valLabelFmt(val)}</text>
+                  </g>
+                )
+              }} />
           </BarChart>
         </ResponsiveContainer>
       </div>
