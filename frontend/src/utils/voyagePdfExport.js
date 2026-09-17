@@ -435,7 +435,7 @@ function equipmentFuelRowCells(rows, activeFoGrades, activeGoGrades, decimals = 
 // ── Page builders ──────────────────────────────────────────────────────────
 
 /** Page 1 — Cover / Voyage Header */
-function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate, series) {
+function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate, series, dataWarning) {
   const W = doc.internal.pageSize.getWidth()
   let y = addHeader(doc, voyageNo, routeId, reportDate, '')
 
@@ -444,11 +444,34 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   doc.setFontSize(22)
   doc.setTextColor(0, 0, 0)
   doc.text('Voyage Audit Report', W / 2, y + 20, { align: 'center' })
-  
+
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.text(`Report created: ${reportDate}`, W / 2, y + 28, { align: 'center' })
   y += 40
+
+  // Visible warning when one or more of the report's data fetches genuinely
+  // failed (server/network error, not just "no data") — surfaces the
+  // failure instead of silently rendering blank charts/zeroed tables as if
+  // that were the real answer (found 2026-09: a Postgres connection-pool
+  // exhaustion caused /voyage/series to fail mid-report with no visible
+  // sign in the PDF at all).
+  if (dataWarning) {
+    doc.setFillColor(255, 235, 235)
+    doc.setDrawColor(200, 40, 40)
+    doc.setLineWidth(0.4)
+    const boxH = 14
+    doc.rect(14, y, W - 28, boxH, 'FD')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(180, 20, 20)
+    doc.text('⚠ Some data could not be loaded — this report may be incomplete', W / 2, y + 6, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.text(dataWarning, W / 2, y + 11, { align: 'center' })
+    doc.setTextColor(0, 0, 0)
+    y += boxH + 6
+  }
 
   // Big vessel name
   doc.setFont('helvetica', 'bold')
@@ -1725,6 +1748,11 @@ function buildCPMethodologyPages(doc, routeId, reportDate, voyageNo) {
  * @param {string} opts.source        - 'wni' | 'mari_apps' | 'all'
  * @param {string} opts.loadingCond   - 'Laden' | 'Ballast' | 'all'
  * @param {Function} opts.onProgress  - (msg) => void progress callback
+ * @returns {Promise<{filename: string, pages: number, dataWarning: string|null}>}
+ *   dataWarning is non-null when a genuine fetch failure (network/5xx, not
+ *   just "no records") happened during generation — the PDF itself also
+ *   shows this on its cover page, but callers should surface it too (e.g.
+ *   an alert) since a user watching only the download might miss it.
  */
 export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyageNos, source, loadingCond, onProgress }) {
   onProgress?.('Fetching voyage summary…')
@@ -1741,12 +1769,36 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   // now — same 'all' -> undefined mapping already used for CP performance
   // just below, so an explicit "All" selection still blends deliberately.
   const seriesSource = source === 'all' ? undefined : source
+
+  // Distinguish a genuine fetch failure (network drop, 5xx — e.g. the
+  // Postgres connection-pool exhaustion found 2026-09 that silently
+  // produced an all-zero, structurally-broken-looking report) from a
+  // legitimate "no records" response (404 from /voyage/summary when a
+  // voyage really has none under the selected source) — only the former
+  // should surface a warning; the latter is expected, already-handled
+  // behaviour (see the `if (series.length > 0)` gating below).
+  const failedFetches = []
+  function catchFetch(label, fallback) {
+    return (err) => {
+      const status = err?.response?.status
+      const isRealFailure = !status || status >= 500
+      if (isRealFailure) {
+        console.error(`[Voyage PDF] ${label} fetch failed:`, err)
+        failedFetches.push(label)
+      }
+      return fallback
+    }
+  }
+
   const [sum, series, cpData, cpDataAll] = await Promise.all([
-    fetchVoyageSummary(voyageNo, vesselImo, seriesSource).catch(() => ({})),
-    fetchVoyageSeries(voyageNo, vesselImo, seriesSource).catch(() => []),
-    fetchCPPerformance(vesselImo, voyageNos, source === 'all' ? undefined : source, loadingCond === 'all' ? undefined : loadingCond).catch(() => null),
-    fetchCPPerformance(vesselImo, undefined, source === 'all' ? undefined : source, undefined).catch(() => null),
+    fetchVoyageSummary(voyageNo, vesselImo, seriesSource).catch(catchFetch('voyage summary', {})),
+    fetchVoyageSeries(voyageNo, vesselImo, seriesSource).catch(catchFetch('daily voyage data (charts/tables)', [])),
+    fetchCPPerformance(vesselImo, voyageNos, source === 'all' ? undefined : source, loadingCond === 'all' ? undefined : loadingCond).catch(catchFetch('CP performance', null)),
+    fetchCPPerformance(vesselImo, undefined, source === 'all' ? undefined : source, undefined).catch(catchFetch('CP performance (trend charts)', null)),
   ])
+  const dataWarning = failedFetches.length
+    ? `Failed to load: ${failedFetches.join(', ')} — likely a temporary server/database issue. Please regenerate this report.`
+    : null
 
   onProgress?.('Rendering charts & maps...')
   const [pdfAssets, cpCharts] = await Promise.all([
@@ -1785,7 +1837,7 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   // ── 4. Build all pages ────────────────────────────────────────────────────
-  buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate, series)
+  buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate, series, dataWarning)
   buildCPChartsPage(doc, cpCharts)
   if (pdfAssets?.chartsDataUrl) buildChartsPage(doc, pdfAssets.chartsDataUrl)
   buildSpeedConsPage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
@@ -1811,7 +1863,7 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   onProgress?.(`Saving ${filename}…`)
   doc.save(filename)
 
-  return { filename, pages: totalPages }
+  return { filename, pages: totalPages, dataWarning }
 }
 
 /**

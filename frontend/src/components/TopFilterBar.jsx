@@ -151,14 +151,16 @@ function VoyageDownloadBtn({ vesselImo, vesselName, voyageNos, source, loadingCo
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfMsg,     setPdfMsg]     = useState('')
   const [pdfError,   setPdfError]   = useState('')
+  const [pdfWarning, setPdfWarning] = useState('')
 
   async function handleDownload() {
     if (pdfLoading || !voyageNos.length) return
     setPdfLoading(true)
     setPdfError('')
+    setPdfWarning('')
     setPdfMsg('Preparing…')
     try {
-      const { filename, pages } = await generateVoyagePdf({
+      const { filename, pages, dataWarning } = await generateVoyagePdf({
         vesselImo,
         vesselName,
         voyageNo:   voyageNos[0],
@@ -168,7 +170,17 @@ function VoyageDownloadBtn({ vesselImo, vesselName, voyageNos, source, loadingCo
         onProgress: (msg) => setPdfMsg(msg),
       })
       setPdfMsg(`✓ ${filename} (${pages} pages)`)
-      setTimeout(() => { setPdfMsg(''); setPdfLoading(false) }, 4000)
+      setPdfLoading(false)
+      // dataWarning means a genuine fetch failure happened mid-generation
+      // (e.g. a DB connection-pool exhaustion, found 2026-09) — the PDF's
+      // own cover page also shows this, but it's easy to miss on a
+      // download the user isn't actively reading, so surface it here too
+      // and keep it up longer than the plain success message.
+      if (dataWarning) {
+        setPdfWarning(dataWarning)
+        setTimeout(() => setPdfWarning(''), 12000)
+      }
+      setTimeout(() => setPdfMsg(''), 4000)
     } catch (e) {
       setPdfError('PDF generation failed. ' + (e?.message || ''))
       setPdfLoading(false)
@@ -193,6 +205,7 @@ function VoyageDownloadBtn({ vesselImo, vesselName, voyageNos, source, loadingCo
           }
         </button>
         {pdfError && <span className="voyage-dl-error">{pdfError}</span>}
+        {pdfWarning && <span className="voyage-dl-error">⚠ {pdfWarning}</span>}
         {!pdfLoading && pdfMsg && <span className="voyage-dl-ok">{pdfMsg}</span>}
       </div>
     </div>

@@ -36,6 +36,26 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # --- Lifespan Management (Startup/Shutdown Events) ---
 
+# Single-leader guard for the one-shot ISO 19030 startup backfill (step 5
+# below) — same port-bind trick as the Fleet Status (65432) and Email
+# (65433) schedulers, on its own port so it doesn't collide with either.
+_iso_backfill_socket = None
+
+def _try_claim_iso_backfill_leader():
+    """True if this worker should run the ISO19030 startup backfill; False if
+    another worker (this boot) already claimed it. The socket is left open
+    for the process lifetime purely to hold the port, matching the existing
+    schedulers' convention."""
+    import socket
+    global _iso_backfill_socket
+    try:
+        _iso_backfill_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _iso_backfill_socket.bind(("127.0.0.1", 65434))
+        return True
+    except socket.error:
+        return False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- STARTUP EVENT ---
@@ -193,34 +213,52 @@ async def lifespan(app: FastAPI):
     #    any vessel that already has an ISO config saved.
     #    Idempotent: uses ON CONFLICT UPDATE so re-running is safe.
     #    Skipped if no vessel has ISO config yet (user hasn't set it up).
-    try:
-        from sqlalchemy import text as _text
-        from backend.database import engine as _eng
-        from backend.iso19030.runner import run_for_vessel
-        from backend.database import SessionLocal as _SL
+    #
+    #    Single-leader guard (same port-bind trick as the Fleet Status/Email
+    #    schedulers below) — found 2026-09: with no guard, every Gunicorn
+    #    worker independently re-ran this FLEET-WIDE backfill on its own
+    #    boot. When several workers restarted together, that meant several
+    #    full backfills firing simultaneously on top of normal request
+    #    traffic, and this was a major contributor to a Postgres
+    #    connection-pool exhaustion incident (a client PDF export failed
+    #    mid-request when the DB briefly had no free connection slots left).
+    #    This step is one-shot at startup (not a recurring loop like the
+    #    schedulers), so the socket only needs to be claimed once per
+    #    process — but it's kept open for the process lifetime anyway
+    #    (never closed), matching the existing schedulers' convention, so a
+    #    later worker restart can still correctly detect "someone else has
+    #    this" for as long as an earlier worker is still alive.
+    if _try_claim_iso_backfill_leader():
+        try:
+            from sqlalchemy import text as _text
+            from backend.database import engine as _eng
+            from backend.iso19030.runner import run_for_vessel
+            from backend.database import SessionLocal as _SL
 
-        with _eng.connect() as _conn:
-            configured_vessels = _conn.execute(_text(
-                "SELECT vessel_imo FROM vessel_iso_config"
-            )).fetchall()
+            with _eng.connect() as _conn:
+                configured_vessels = _conn.execute(_text(
+                    "SELECT vessel_imo FROM vessel_iso_config"
+                )).fetchall()
 
-        if configured_vessels:
-            db = _SL()
-            try:
-                for (imo,) in configured_vessels:
-                    log.info(f"ISO 19030 backfill: processing {imo} …")
-                    summary = run_for_vessel(imo, db)
-                    log.info(
-                        f"✅ ISO 19030 backfill {imo}: "
-                        f"{summary['pass']} PASS, {summary['excl']} EXCL, "
-                        f"{summary['errors']} errors"
-                    )
-            finally:
-                db.close()
-        else:
-            log.info("ISO 19030 backfill: no configured vessels yet — skipping.")
-    except Exception as e:
-        log.error(f"ISO 19030 backfill failed: {e}")
+            if configured_vessels:
+                db = _SL()
+                try:
+                    for (imo,) in configured_vessels:
+                        log.info(f"ISO 19030 backfill: processing {imo} …")
+                        summary = run_for_vessel(imo, db)
+                        log.info(
+                            f"✅ ISO 19030 backfill {imo}: "
+                            f"{summary['pass']} PASS, {summary['excl']} EXCL, "
+                            f"{summary['errors']} errors"
+                        )
+                finally:
+                    db.close()
+            else:
+                log.info("ISO 19030 backfill: no configured vessels yet — skipping.")
+        except Exception as e:
+            log.error(f"ISO 19030 backfill failed: {e}")
+    else:
+        log.info("ISO 19030 backfill: already claimed by another worker this boot. Skipping in this process.")
 
     # NOTE: You might want to run your historical importers (like import_history.py) 
     # here if you want them to run once upon application start, but typically 

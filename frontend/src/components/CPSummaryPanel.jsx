@@ -187,6 +187,7 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState(null)
   const [pdfLoadingVoyage, setPdfLoadingVoyage] = useState(null)
+  const [pdfWarning, setPdfWarning] = useState(null)
   const [exporting, setExporting] = useState(false)
 
   const rows = data?.results || []
@@ -289,6 +290,7 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
 
       {loading && <div className="cp-panel-msg">Loading…</div>}
       {error && <div className="cp-panel-msg cp-err">{error}</div>}
+      {pdfWarning && <div className="cp-panel-msg cp-warn">⚠ {pdfWarning}</div>}
       {!loading && data && !data.cp_configured && (
         <div className="cp-panel-msg cp-warn">
           No CP warranties for this vessel — set them on ISO 19030 → Configuration to see Loss/Saving &amp; compliance.
@@ -359,8 +361,9 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
                             e.stopPropagation()
                             if (pdfLoadingVoyage === r.voyage_no) return
                             setPdfLoadingVoyage(r.voyage_no)
+                            setPdfWarning(null)
                             try {
-                              await generateVoyagePdf({
+                              const { dataWarning } = await generateVoyagePdf({
                                 vesselImo: imo,
                                 vesselName: vesselName || '',
                                 voyageNo: r.voyage_no,
@@ -369,8 +372,9 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
                                 loadingCond,
                                 onProgress: () => {},
                               })
+                              if (dataWarning) setPdfWarning(dataWarning)
                             } catch (_) {
-                              // silent
+                              setPdfWarning('Report generation failed — please retry.')
                             } finally {
                               setPdfLoadingVoyage(null)
                             }
