@@ -103,6 +103,20 @@ const bfScale = (ms) => {
 // (client-approved 2026-08) rather than penalise a logging gap.
 const FAIR_BF_MAX = 4.0
 const FAIR_WAVE_MAX_M = 3.0
+// Displays the master's actual reported Beaufort figure (BF_Wind) — the
+// SAME field the fair-weather calculation itself reads — falling back to
+// the derived bfScale(True_Wind_Spd_ms) only when BF_Wind is genuinely
+// missing. Found 2026-09 (verified against raw source data on two real
+// voyages): the WEATHERNEWS ANALYSIS table's "WIND RF" column and the
+// synthesized message-traffic text were both showing bfScale(wind speed)
+// unconditionally, which can disagree with BF_Wind even though BF_Wind is
+// confirmed to match the master's own raw-entered figure exactly — making
+// the report's own displayed wind force number contradict the one that
+// actually decided good/adverse weather for that day.
+function bfDisplay(r) {
+  return r.BF_Wind != null && r.BF_Wind !== '' ? String(Math.round(+r.BF_Wind)) : bfScale(r.True_Wind_Spd_ms)
+}
+
 function isFairWeatherRow(r) {
   const bf = r.BF_Wind != null && r.BF_Wind !== '' ? +r.BF_Wind : null
   const hs = r.Sig_Wave_Ht_m != null && r.Sig_Wave_Ht_m !== '' ? +r.Sig_Wave_Ht_m : null
@@ -1344,7 +1358,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
         fmt(r.SOG_kn),
         fmt(r.Distance_nm, 1),
         windDir(r.True_Wind_Dir_deg),
-        bfScale(r.True_Wind_Spd_ms),
+        bfDisplay(r),
         fmt(r.Sig_Wave_Ht_m),
         fmt(r.Swell_Ht_m),
         windDir(r.Swell_Dir_deg),
@@ -1582,10 +1596,14 @@ function buildMessageTrafficPages(doc, seriesRows, routeId, reportDate, voyageNo
       // Label fix (client report 2026-09, GCL YAMUNA): this value is
       // True_Wind_Spd_ms — meters/second, matching what bfScale()'s
       // thresholds (0.3/1.6/3.4/5.5.../28.5) actually expect, the standard
-      // Beaufort scale defined in m/s. The Beaufort NUMBER was always
-      // computed correctly; only the text label next to it wrongly said
-      // "knots", making a manual cross-check against the knots value fail.
-      `[Wind : ${fmt(r.True_Wind_Spd_ms,0)}m/s, ${bfScale(r.True_Wind_Spd_ms)} Beaufort Number, ${windDir(r.True_Wind_Dir_deg)}]`,
+      // Beaufort scale defined in m/s.
+      // Beaufort NUMBER fix (2026-09, verified against raw source data on
+      // 2 real voyages): show the master's actual reported BF_Wind, the
+      // same field the fair-weather calculation reads — not a value
+      // re-derived from this same wind-speed reading, which can disagree
+      // with what the master actually logged and with what the report's
+      // own good/adverse-weather verdict was based on.
+      `[Wind : ${fmt(r.True_Wind_Spd_ms,0)}m/s, ${bfDisplay(r)} Beaufort Number, ${windDir(r.True_Wind_Dir_deg)}]`,
       `[Wave Height : ${fmt(r.Sig_Wave_Ht_m)}m]   [Swell Height : ${fmt(r.Swell_Ht_m)}m]`,
       `[Current speed : ${fmt(r.Current_Spd_kn)}kts]`,
       `[SFOC : ${fmt(r.SFOC_gkWh)}g/kWh]`,
