@@ -94,6 +94,27 @@ def _numsum(row, cols):
     return total
 
 
+DIST_CHECK_TOL_PCT = 25.0  # same tolerance as cp_calculator.py's _distance_ok
+
+
+def _distance_ok(r):
+    """Ported from cp_calculator.py: rejects a row whose reported distance
+    is wildly inconsistent with SOG x hours (its own docstring example:
+    "24 nm @ 13.9 kn") — common right around a port-approach/EOSP boundary.
+    Missing this was this script's own third bug: it kept a garbage row the
+    app correctly excludes, inflating a voyage's distance/time on this
+    script's side only."""
+    d = _num(r.get("Distance_nm"))
+    h = _num(r.get("Duration_h"))
+    s = _num(r.get("SOG_kn"))
+    if d is None or h is None or s is None or h <= 0 or s <= 0:
+        return True  # can't check -> don't penalise
+    implied = s * h
+    if implied <= 0:
+        return True
+    return abs(d - implied) <= (DIST_CHECK_TOL_PCT / 100.0) * implied
+
+
 def _is_fair_weather(row):
     """Mirrors the printed methodology exactly: BF<=4 and Hs<=3.0m. Missing
     just one -> not fair (can't verify). Missing both -> treated as good
@@ -313,7 +334,10 @@ def _segment_result(seg_rows, imo):
     for fuel over-consumption vs saving. A segment's decided loss can be
     negative (a saving), and summing decided values across segments is
     valid the same way summing several already-decided report rows is."""
-    steaming = [r for r in seg_rows if (_num(r.get("Distance_nm")) or 0) > 0 and (_num(r.get("Duration_h")) or 0) > 0]
+    steaming = [r for r in seg_rows
+                if (_num(r.get("Distance_nm")) or 0) > 0
+                and (_num(r.get("Duration_h")) or 0) > 0
+                and _distance_ok(r)]
     if not steaming:
         return None
     fair_rows = [r for r in steaming if _is_fair_weather(r)]
