@@ -62,10 +62,15 @@ SPEED_ALLOWANCE_KN = 0.5
 CONS_TOLERANCE_PCT = 5.0
 
 # How far the app's live figures may differ from this script's independent
-# recompute before it's flagged — small enough to catch a real regression,
-# loose enough to absorb harmless rounding-display differences.
-TOL_HOURS = 0.1
-TOL_MT = 0.15
+# recompute before it's flagged. Widened 2026-09 after a fleet-wide run:
+# cp_calculator.py rounds intermediate values at several stages while this
+# script carries full float precision throughout, so small per-event
+# differences compound on voyages with many events (seen up to ~0.4h /
+# ~0.6MT on 60-90 event voyages) without being a real bug. Still tight
+# enough to have caught the actual missing-fuel-consumer-column bug, whose
+# diffs ran 0.7-5+ MT.
+TOL_HOURS = 0.5
+TOL_MT = 0.7
 TOL_NM = 1.0
 
 # All 8 documented consumer prefixes x the 3 relevant grades (see

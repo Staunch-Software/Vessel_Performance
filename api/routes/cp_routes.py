@@ -101,8 +101,18 @@ def _numexpr(col):
     # Require at least one digit (rejects '', '.', text); optional sign / decimals.
     return f"(CASE WHEN {col} ~ '^[-+]?[0-9]+(\\.[0-9]+)?$' THEN {col}::double precision ELSE 0 END)"
 
-_FO_COLS   = ["me_hfo", "me_lfo", "ae_hfo", "ae_lfo", "bl_hfo", "bl_lfo"]
-_DOGO_COLS = ["me_mdo", "ae_mdo", "bl_mdo"]
+# All 8 documented consumer prefixes (me/ae/bl/combl/inc/aeb/blfo/eg — same
+# convention as emission_routes.py's _CONSUMERS and the PDF report's
+# equipment-fuel breakdown), not just me/ae/bl. Found 2026-09 via an
+# independent audit script cross-checking raw data against this endpoint:
+# under-counted good_wx.fo_mt/dogo_mt (and Loss/Saving) on every vessel that
+# actually uses Composite Boiler, Incinerator, or the other secondary
+# consumers (AM KIRTI, GCL FOS, AMNSI MAXIMUS, GCL SARASWATI, AMNSI
+# STALLION), matching a Composite Boiler mapping gap fixed once already
+# elsewhere but never closed here.
+_CONSUMER_PREFIXES = ("me", "ae", "bl", "combl", "inc", "aeb", "blfo", "eg")
+_FO_COLS   = [f"{c}_{g}" for c in _CONSUMER_PREFIXES for g in ("hfo", "lfo")]
+_DOGO_COLS = [f"{c}_mdo" for c in _CONSUMER_PREFIXES]
 _FO_EXPR   = "(" + "+".join(_numexpr(f"n.{c}") for c in _FO_COLS) + ")"
 _DOGO_EXPR = "(" + "+".join(_numexpr(f"n.{c}") for c in _DOGO_COLS) + ")"
 
