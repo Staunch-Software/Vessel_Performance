@@ -884,7 +884,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text('=', 85, fy + 3)
   doc.text('Total (Event Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
-  doc.text(`Event Applicable Speed - ${fmt(tolKn, 2)} kn)`, 115, fy + 4, { align: 'center' })
+  doc.text(`Event Applicable CP Speed - ${fmt(tolKn, 2)} kn)`, 115, fy + 4, { align: 'center' })
   doc.text(`= ${fmt(b, 2)} Hours (b)  [${evCp.eventCount} events]`, 138, fy + 3)
   fy += 10
 
@@ -892,7 +892,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.text('=', 85, fy + 3)
   doc.text('Total (Event Distance', 115, fy, { align: 'center' })
   doc.line(95, fy + 1, 135, fy + 1)
-  doc.text('Event Applicable Speed)', 115, fy + 4, { align: 'center' })
+  doc.text('Event Applicable CP Speed)', 115, fy + 4, { align: 'center' })
   doc.text(`= ${fmt(c, 2)} Hours (c)  [${evCp.eventCount} events]`, 138, fy + 3)
 
   y += 36
