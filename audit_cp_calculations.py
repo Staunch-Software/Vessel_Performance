@@ -155,9 +155,16 @@ def _fetch_raw_rows(imo, voyage_no, source_id):
 
 
 def _window_to_bosp_eosp(rows):
-    """Same windowing rule as cp_routes.py._rows_for_source: keep only rows
+    """Same OUTER trim as cp_routes.py._rows_for_source: keep only rows
     between the last valid BOSP (or the first row, if none precedes the
-    EOSP) and the final EOSP. Returns None if there's no usable EOSP."""
+    EOSP) and the final EOSP. Returns None if there's no usable EOSP.
+    A voyage_no can still span MORE THAN ONE real BOSP->EOSP passage within
+    this trimmed window (the same literal string reused over time) — see
+    _segments() below, which is what actually splits it, matching
+    cp_calculator.py exactly. Skipping that step was the audit script's own
+    bug on its first run: it merged multiple real voyages under one
+    voyage_no into a single inflated span, producing false "mismatches"
+    against the API (which correctly reports each segment separately)."""
     eosps = [r for r in rows if r["event_type"] and "EOSP" in r["event_type"].upper()]
     if not eosps:
         return None
@@ -172,6 +179,27 @@ def _window_to_bosp_eosp(rows):
     if dep_dt >= eosp_dt:
         return None
     return [r for r in rows if dep_dt <= f"{r['Date']}T{r['Time_UTC'] or '00:00'}" <= eosp_dt]
+
+
+def _segments(rows):
+    """Ported 1:1 from cp_calculator.py._segments(): a segment only closes
+    when a NEW BOSP shows up after already having seen an EOSP — not the
+    moment any EOSP appears (absorbs a corrected/re-submitted EOSP without
+    creating a spurious extra segment)."""
+    segs, cur = [], []
+    seen_eosp = False
+    for r in rows:
+        ev = (r.get("event_type") or "").upper()
+        if "BOSP" in ev and seen_eosp and cur:
+            segs.append(cur)
+            cur = []
+            seen_eosp = False
+        cur.append(r)
+        if "EOSP" in ev:
+            seen_eosp = True
+    if cur:
+        segs.append(cur)
+    return segs
 
 
 def _aggregate(rows):
@@ -269,6 +297,61 @@ def _event_wise_time_and_consumption(steaming_rows, warranty):
     return {"b_h": b_h, "c_h": c_h, "e_mt": e_mt, "f_mt": f_mt, "event_count": event_count}
 
 
+def _segment_result(seg_rows, imo):
+    """Per-segment entire/good_wx aggregates plus the decided Loss(+)/
+    Saving(-) figures, using the SAME sign convention as cp_calculator.py:
+    whichever of (time lost, time gained) is positive wins, else 0 — same
+    for fuel over-consumption vs saving. A segment's decided loss can be
+    negative (a saving), and summing decided values across segments is
+    valid the same way summing several already-decided report rows is."""
+    steaming = [r for r in seg_rows if (_num(r.get("Distance_nm")) or 0) > 0 and (_num(r.get("Duration_h")) or 0) > 0]
+    if not steaming:
+        return None
+    fair_rows = [r for r in steaming if _is_fair_weather(r)]
+    entire = _aggregate(steaming)
+    good_wx = _aggregate(fair_rows)
+    cond = _dominant_condition(steaming)
+
+    candidates = _fetch_warranty_candidates(imo, cond)
+    warranty = _pick_sea_warranty(candidates, good_wx["avg_speed_kn"] or entire["avg_speed_kn"]) or {}
+    w_spd = _num(warranty.get("warranted_speed_kn")) or 0
+
+    ev = _event_wise_time_and_consumption(steaming, warranty)
+    time_lost_h = 0.0
+    fuel_lost_mt = 0.0
+    if good_wx["avg_speed_kn"] and w_spd:
+        a_h = entire["distance_nm"] / good_wx["avg_speed_kn"]
+        time_lost = (a_h - ev["b_h"]) if ev["b_h"] else None
+        time_gained = ev["c_h"] - a_h
+        if time_lost is not None and time_lost > 0:
+            time_lost_h = time_lost
+        elif time_gained > 0:
+            time_lost_h = -time_gained
+
+        if good_wx["time_h"]:
+            d_mt = a_h * (good_wx["fo_mt"] + good_wx["dogo_mt"]) / good_wx["time_h"]
+            fuel_over = d_mt - ev["e_mt"]
+            fuel_save = ev["f_mt"] - d_mt
+            if fuel_over > 0:
+                fuel_lost_mt = fuel_over
+            elif fuel_save > 0:
+                fuel_lost_mt = -fuel_save
+
+    return {
+        "entire": entire, "good_wx": good_wx, "condition": cond,
+        "events": ev["event_count"], "time_lost_h": time_lost_h, "fuel_lost_mt": fuel_lost_mt,
+    }
+
+
+def _sum_field(dicts, key, sub=None):
+    total = 0.0
+    for d in dicts:
+        v = d.get(sub, {}).get(key) if sub else d.get(key)
+        if v is not None:
+            total += v
+    return total
+
+
 def _check_voyage(imo, voyage_no, source_id, vessel_name, base_url, session):
     raw = _fetch_raw_rows(imo, voyage_no, source_id)
     if not raw:
@@ -278,43 +361,50 @@ def _check_voyage(imo, voyage_no, source_id, vessel_name, base_url, session):
         return {"imo": imo, "voyage_no": voyage_no, "source": source_id, "vessel": vessel_name,
                 "skipped": "no valid BOSP-EOSP window (ongoing or inverted range)"}
 
-    steaming = [r for r in windowed if (_num(r.get("Distance_nm")) or 0) > 0 and (_num(r.get("Duration_h")) or 0) > 0]
-    if not steaming:
+    segments = [_segment_result(seg, imo) for seg in _segments(windowed)]
+    segments = [s for s in segments if s is not None]
+    if not segments:
         return {"imo": imo, "voyage_no": voyage_no, "source": source_id, "vessel": vessel_name,
-                "skipped": "no steaming rows in window"}
+                "skipped": "no steaming rows in any segment"}
 
-    fair_rows = [r for r in steaming if _is_fair_weather(r)]
-    entire = _aggregate(steaming)
-    good_wx = _aggregate(fair_rows)
-    cond = _dominant_condition(steaming)
-
-    candidates = _fetch_warranty_candidates(imo, cond)
-    warranty = _pick_sea_warranty(candidates, good_wx["avg_speed_kn"] or entire["avg_speed_kn"]) or {}
-
-    my_a_h = (entire["distance_nm"] / good_wx["avg_speed_kn"]) if good_wx["avg_speed_kn"] else None
-    ev = _event_wise_time_and_consumption(steaming, warranty)
-    my_time_lost = (my_a_h - ev["b_h"]) if (my_a_h is not None and ev["b_h"]) else None
-    my_d_mt = (my_a_h * (good_wx["fo_mt"] + good_wx["dogo_mt"]) / good_wx["time_h"]) if (my_a_h and good_wx["time_h"]) else None
-    my_over_consumption = (my_d_mt - ev["e_mt"]) if (my_d_mt is not None) else None
+    my_entire_dist = _sum_field(segments, "distance_nm", "entire")
+    my_entire_time = _sum_field(segments, "time_h", "entire")
+    my_good_dist = _sum_field(segments, "distance_nm", "good_wx")
+    my_good_time = _sum_field(segments, "time_h", "good_wx")
+    my_good_fo = _sum_field(segments, "fo_mt", "good_wx")
+    my_good_dogo = _sum_field(segments, "dogo_mt", "good_wx")
+    my_time_lost = sum(s["time_lost_h"] for s in segments)
+    my_fuel_lost = sum(s["fuel_lost_mt"] for s in segments)
+    cond = segments[0]["condition"]
+    total_events = sum(s["events"] for s in segments)
 
     # Live API — the thing being checked, not the thing computing the answer.
+    # A voyage_no reused across multiple real BOSP->EOSP passages comes back
+    # as MULTIPLE result rows (one per segment_no) — sum ALL of them, not
+    # just the first, to match the segment-summed total on our side.
     try:
         resp = session.get(f"{base_url}/cp/{imo}/performance",
                             params={"voyages": voyage_no, "source": source_id}, timeout=15)
         resp.raise_for_status()
         api_results = resp.json().get("results", [])
-        api_row = next((r for r in api_results if str(r.get("voyage_no")) == str(voyage_no)), None)
+        api_rows = [r for r in api_results
+                    if str(r.get("voyage_no")) == str(voyage_no) and not r.get("not_computable") and r.get("loss")]
     except requests.RequestException as e:
         return {"imo": imo, "voyage_no": voyage_no, "source": source_id, "vessel": vessel_name,
                 "skipped": f"API call failed: {e}"}
 
-    if not api_row or api_row.get("not_computable") or not api_row.get("loss"):
+    if not api_rows:
         return {"imo": imo, "voyage_no": voyage_no, "source": source_id, "vessel": vessel_name,
                 "skipped": "API returned no computable result for this voyage"}
 
-    api_loss = api_row["loss"]
-    api_good = api_row["good_wx"]
-    api_entire = api_row["entire"]
+    api_entire_dist = _sum_field(api_rows, "distance_nm", "entire")
+    api_entire_time = _sum_field(api_rows, "time_h", "entire")
+    api_good_dist = _sum_field(api_rows, "distance_nm", "good_wx")
+    api_good_time = _sum_field(api_rows, "time_h", "good_wx")
+    api_good_fo = _sum_field(api_rows, "fo_mt", "good_wx")
+    api_good_dogo = _sum_field(api_rows, "dogo_mt", "good_wx")
+    api_time_lost = _sum_field(api_rows, "time_h", "loss")
+    api_fuel_lost = _sum_field(api_rows, "fo_mt", "loss") + _sum_field(api_rows, "dogo_mt", "loss")
 
     diffs = []
 
@@ -325,20 +415,19 @@ def _check_voyage(imo, voyage_no, source_id, vessel_name, base_url, session):
         if d > tol:
             diffs.append(f"{label}: mine={mine:.2f} api={theirs:.2f} (diff {d:.2f})")
 
-    _cmp("entire.distance_nm", entire["distance_nm"], api_entire.get("distance_nm"), TOL_NM)
-    _cmp("entire.time_h", entire["time_h"], api_entire.get("time_h"), TOL_HOURS)
-    _cmp("good_wx.distance_nm", good_wx["distance_nm"], api_good.get("distance_nm"), TOL_NM)
-    _cmp("good_wx.time_h", good_wx["time_h"], api_good.get("time_h"), TOL_HOURS)
-    _cmp("good_wx.fo_mt", good_wx["fo_mt"], api_good.get("fo_mt"), TOL_MT)
-    _cmp("good_wx.dogo_mt", good_wx["dogo_mt"], api_good.get("dogo_mt"), TOL_MT)
-    if my_time_lost is not None and my_time_lost > 0:
-        _cmp("loss.time_h", my_time_lost, api_loss.get("time_h"), TOL_HOURS)
-    if my_over_consumption is not None and my_over_consumption > 0:
-        _cmp("loss.fo_mt+dogo_mt", my_over_consumption, (api_loss.get("fo_mt") or 0) + (api_loss.get("dogo_mt") or 0), TOL_MT)
+    _cmp("entire.distance_nm", my_entire_dist, api_entire_dist, TOL_NM)
+    _cmp("entire.time_h", my_entire_time, api_entire_time, TOL_HOURS)
+    _cmp("good_wx.distance_nm", my_good_dist, api_good_dist, TOL_NM)
+    _cmp("good_wx.time_h", my_good_time, api_good_time, TOL_HOURS)
+    _cmp("good_wx.fo_mt", my_good_fo, api_good_fo, TOL_MT)
+    _cmp("good_wx.dogo_mt", my_good_dogo, api_good_dogo, TOL_MT)
+    _cmp("loss.time_h", my_time_lost, api_time_lost, TOL_HOURS)
+    _cmp("loss.fo_mt+dogo_mt", my_fuel_lost, api_fuel_lost, TOL_MT)
 
     return {
         "imo": imo, "voyage_no": voyage_no, "source": source_id, "vessel": vessel_name,
-        "condition": cond, "events": ev["event_count"], "diffs": diffs,
+        "condition": cond, "events": total_events, "segments": len(segments),
+        "api_segments": len(api_rows), "diffs": diffs,
     }
 
 
@@ -373,11 +462,12 @@ def main():
             print(f"SKIP    {tag} - {result['skipped']}")
         elif result["diffs"]:
             mismatched += 1
-            print(f"MISMATCH {tag} ({result['condition']}, {result['events']} events):")
+            print(f"MISMATCH {tag} ({result['condition']}, {result['events']} events, "
+                  f"{result['segments']} segments mine / {result['api_segments']} api):")
             for d in result["diffs"]:
                 print(f"          - {d}")
         else:
-            print(f"OK      {tag} ({result['condition']}, {result['events']} events)")
+            print(f"OK      {tag} ({result['condition']}, {result['events']} events, {result['segments']} segments)")
 
     print(f"\n{total} voyages checked, {skipped} skipped, {mismatched} mismatched.")
     sys.exit(1 if mismatched else 0)
