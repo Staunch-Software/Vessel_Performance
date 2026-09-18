@@ -267,20 +267,22 @@ def _fetch_warranty_candidates(imo, cond):
 
 
 def _event_wise_time_and_consumption(steaming_rows, warranty):
-    """(a)/(b)/(c) Time Calculation and (d')/(e')/(f') Consumption
-    Calculation, exactly as printed in the report's own methodology pages —
-    computed event-by-event (excluding nothing here, since this script
-    checks the ENTIRE steaming set, matching the app's 'excluding the COSP
-    report' rule approximately: COSP/BOSP rows carry zero distance so they
-    don't contribute regardless)."""
+    """(a)/(b)/(c) Time Calculation, and (e)/(f) Consumption extrapolation
+    for FO and DOGO KEPT SEPARATE — matching cp_calculator.py's actual
+    compute_cp_voyage_table() exactly (lines ~416-439): FO over/save and
+    DOGO over/save are each decided independently, not pooled into one
+    combined total first. Pooling them was this script's own bug on its
+    first two runs: a small FO overage can get masked by a small DOGO
+    underage in a merged pool, landing at ~0 when the app (deciding each
+    grade separately) correctly reports a small net non-zero loss."""
     w_spd = _num(warranty.get("warranted_speed_kn")) or 0
     w_fo = _num(warranty.get("warranted_fo_mtpd")) or 0
     w_dogo = _num(warranty.get("warranted_dogo_mtpd")) or 0
     tol_kn = _num(warranty.get("speed_tol_kn")) or SPEED_ALLOWANCE_KN
     tol_pct = _num(warranty.get("cons_tol_pct")) or CONS_TOLERANCE_PCT
-    tot_warranted = w_fo + w_dogo
 
-    b_h = c_h = e_mt = f_mt = 0.0
+    b_h = c_h = 0.0
+    e_fo_mt = f_fo_mt = e_dogo_mt = f_dogo_mt = 0.0
     event_count = 0
     for r in steaming_rows:
         dist = _num(r.get("Distance_nm")) or 0
@@ -289,12 +291,19 @@ def _event_wise_time_and_consumption(steaming_rows, warranty):
         event_count += 1
         eff_spd = w_spd - tol_kn
         c_h += dist / w_spd
-        f_mt += (dist / w_spd) * (tot_warranted * (1 - tol_pct / 100.0) / 24.0)
+        f_fo_mt += (dist / w_spd) * (w_fo * (1 - tol_pct / 100.0) / 24.0)
+        f_dogo_mt += (dist / w_spd) * (w_dogo * (1 - tol_pct / 100.0) / 24.0)
         if eff_spd > 0:
             b_h += dist / eff_spd
-            e_mt += (dist / eff_spd) * (tot_warranted * (1 + tol_pct / 100.0) / 24.0)
+            e_fo_mt += (dist / eff_spd) * (w_fo * (1 + tol_pct / 100.0) / 24.0)
+            e_dogo_mt += (dist / eff_spd) * (w_dogo * (1 + tol_pct / 100.0) / 24.0)
 
-    return {"b_h": b_h, "c_h": c_h, "e_mt": e_mt, "f_mt": f_mt, "event_count": event_count}
+    return {
+        "b_h": b_h, "c_h": c_h,
+        "e_fo_mt": e_fo_mt, "f_fo_mt": f_fo_mt,
+        "e_dogo_mt": e_dogo_mt, "f_dogo_mt": f_dogo_mt,
+        "event_count": event_count,
+    }
 
 
 def _segment_result(seg_rows, imo):
@@ -329,13 +338,17 @@ def _segment_result(seg_rows, imo):
             time_lost_h = -time_gained
 
         if good_wx["time_h"]:
-            d_mt = a_h * (good_wx["fo_mt"] + good_wx["dogo_mt"]) / good_wx["time_h"]
-            fuel_over = d_mt - ev["e_mt"]
-            fuel_save = ev["f_mt"] - d_mt
-            if fuel_over > 0:
-                fuel_lost_mt = fuel_over
-            elif fuel_save > 0:
-                fuel_lost_mt = -fuel_save
+            d_fo_mt = a_h * (good_wx["fo_mt"] / good_wx["time_h"])
+            fo_over = d_fo_mt - ev["e_fo_mt"]
+            fo_save = ev["f_fo_mt"] - d_fo_mt
+            fo_ls = fo_over if fo_over > 0 else (-fo_save if fo_save > 0 else 0.0)
+
+            d_dogo_mt = a_h * (good_wx["dogo_mt"] / good_wx["time_h"])
+            dogo_over = d_dogo_mt - ev["e_dogo_mt"]
+            dogo_save = ev["f_dogo_mt"] - d_dogo_mt
+            dogo_ls = dogo_over if dogo_over > 0 else (-dogo_save if dogo_save > 0 else 0.0)
+
+            fuel_lost_mt = fo_ls + dogo_ls
 
     return {
         "entire": entire, "good_wx": good_wx, "condition": cond,
