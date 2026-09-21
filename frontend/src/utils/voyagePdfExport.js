@@ -622,10 +622,9 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   const tolKn  = cp.allowance?.speed_kn != null ? +cp.allowance.speed_kn : 0.5
   const tolPct = cp.allowance?.cons_pct != null ? +cp.allowance.cons_pct : 5.0
   const timeConclusion = computeTimeLostGained(series, cp, cpW, tolKn)
-  const { dFO, dGO } = computeActualConsumptionSplit(series, cp)
-  const { eFO, fFO, eGO, fGO } = computeEventWiseCpSplit(series, cpW, tolKn, tolPct)
+  const { dFO } = computeActualConsumptionSplit(series, cp)
+  const { eFO, fFO } = computeEventWiseCpSplit(series, cpW, tolKn, tolPct)
   const foLossCover = dFO > eFO ? dFO - eFO : (dFO < fFO ? -(fFO - dFO) : 0)
-  const goLossCover = dGO > eGO ? dGO - eGO : (dGO < fGO ? -(fGO - dGO) : 0)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
@@ -734,32 +733,19 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     }
     doc.setTextColor(0, 0, 0)
     
-    // GO — raw, un-reclassified actual GO vs the GO warranty (unaffected by
-    // the FO-side reclassification above; GO keeps its own independent
-    // comparison, per manager instruction — "GO to be included ON the FO
-    // calculation itself" is additive, not a bucket-move).
-    const goLoss = goLossCover
-    doc.setFont('helvetica', 'bold')
-    if (goLoss > 0) {
-      doc.setFillColor(255, 0, 0)
-      doc.rect(160, y + 14, 20, 5, 'F')
-      doc.setTextColor(255, 255, 255)
-      doc.text(`${goLoss.toFixed(2)} MT`, 170, y + 17.5, { align: 'center' })
-    } else if (goLoss < 0) {
-      doc.setFillColor(0, 153, 0)
-      doc.rect(160, y + 21, 20, 5, 'F')
-      doc.setTextColor(255, 255, 255)
-      doc.text(`${Math.abs(goLoss).toFixed(2)} MT`, 170, y + 24.5, { align: 'center' })
-    } else {
-      doc.setTextColor(0, 0, 0)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(7)
-      doc.text('No GO', 170, y + 12, { align: 'center' })
-      doc.text('Over-consumption/', 170, y + 16, { align: 'center' })
-      doc.text('Saving', 170, y + 20, { align: 'center' })
-      doc.setFontSize(7.5)
-    }
+    // GO — no separate comparison shown here any more (manager instruction
+    // 2026-09): GO is already folded into the FO figure above via the
+    // reclassification, so a second, independent GO-vs-GO-warranty verdict
+    // on the same cover page would double up on (and could contradict) the
+    // FO box's own conclusion. GO's raw consumption is still visible on its
+    // own in Section A's table; this box just no longer renders a verdict.
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
     doc.setTextColor(0, 0, 0)
+    doc.text('No GO', 170, y + 12, { align: 'center' })
+    doc.text('Over-consumption/', 170, y + 16, { align: 'center' })
+    doc.text('Saving', 170, y + 20, { align: 'center' })
+    doc.setFontSize(7.5)
     
     // CP Warranty Footer
     doc.line(14, y + 33, W - 14, y + 33)
