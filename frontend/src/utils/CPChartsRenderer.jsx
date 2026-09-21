@@ -132,12 +132,27 @@ function hasPlottableData(r) {
 // loss) was rendered correctly but at ~1/9th the height of the adjacent
 // +26.4h voyage sharing the same axis — real data, but easy to read as "the
 // bar is missing" next to a much taller neighbour.
+// BUG FIXED 2026-09: the first version of this assumed Recharts always hands
+// back `y` as the zero-line edge and `height` as a positive magnitude — true
+// for a positive (saving) bar, but for a negative (loss) bar Recharts flips
+// which of `y`/`y+height` is which (and `height` comes back negative). That
+// made every loss bar's true height compare as "too short" regardless of its
+// real size — even the single LARGEST-magnitude bar on the chart (-16.6h)
+// was being collapsed to the 4px minimum, not just genuinely tiny ones.
+// Fixed by deriving top/bottom with min/max (correct either way Recharts
+// hands them back) and picking the zero-line edge from the VALUE's own sign
+// instead of from `y` directly.
 const MIN_BAR_H = 4
 function minHeightRect(val, y, height) {
-  if (val === 0 || height >= MIN_BAR_H) return { drawY: y, drawH: height }
+  const top = Math.min(y, y + height)
+  const bottom = Math.max(y, y + height)
+  const trueHeight = bottom - top
+  if (val === 0 || trueHeight >= MIN_BAR_H) return { drawY: top, drawH: trueHeight }
+  // Positive (saving) bars sit ABOVE zero -> zero is the bottom edge.
+  // Negative (loss) bars sit BELOW zero -> zero is the top edge.
   return val > 0
-    ? { drawY: y - (MIN_BAR_H - height), drawH: MIN_BAR_H }
-    : { drawY: y, drawH: MIN_BAR_H }
+    ? { drawY: bottom - MIN_BAR_H, drawH: MIN_BAR_H }
+    : { drawY: top, drawH: MIN_BAR_H }
 }
 
 // Explicit, shared Y-axis width for both charts — see the comment at Chart
