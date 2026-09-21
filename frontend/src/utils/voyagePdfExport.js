@@ -3,24 +3,24 @@
  * ------------------
  * Generates a WNI-style Voyage Audit Report PDF using jsPDF + jsPDF-AutoTable.
  *
- * Page Structure:
+ * Page Structure (reordered per client request 2026-09 — Speed & Weather
+ * Analysis and Fuel Consumption Analysis moved up right after the cover
+ * page; CP Performance Charts and the weather-current chart image moved
+ * down to where those used to sit; Message Traffic removed entirely):
  *   Page 1   — Cover / Voyage Header
- *   Page 2   — CP Performance Charts: (A) Good-Weather Speed & Fuel/Day vs CP
+ *   Page 2   — Speed & Weather Analysis Summary Table
+ *   Next     — Positions & Weather Detail (8 rows / page)
+ *   Next     — Fuel Consumption Analysis
+ *   Next     — Speed & Consumption Summary (Good Wx / All Wx)
+ *   Next     — Consumption Calculation Methodology
+ *   Next     — CP Performance Charts: (A) Good-Weather Speed & Fuel/Day vs CP
  *              Warranty + allowance bands, trended across this vessel's last
  *              10 voyages in this voyage's loading condition, and (B) Time &
  *              Fuel Loss/Saving, last 10 voyages of that SAME condition (see
  *              CPChartsRenderer.jsx)
- *   Page 3   — Ship Speed / FO Consumption+RPM / DO-GO Consumption+RPM /
+ *   Next     — Ship Speed / FO Consumption+RPM / DO-GO Consumption+RPM /
  *              Wind Speed / Wave Height+Current charts (see
- *              PdfHiddenRenderer.jsx) — moved here from its previous spot
- *              right after Fuel Consumption Analysis, per client request
- *              2026-09 to read alongside the CP Performance Charts
- *   Page 4   — Speed & Consumption Summary (Good Wx / All Wx)
- *   Page 5   — Consumption Calculation Methodology
- *   Page 6   — Speed & Weather Analysis Summary Table
- *   Pages 7+ — Positions & Weather Detail (8 rows / page)
- *   Next     — Fuel Consumption Analysis
- *   Next     — Message Traffic (one section per report record)
+ *              PdfHiddenRenderer.jsx)
  *   Last 2   — CP Compliance Audit Methodology (static)
  */
 
@@ -807,7 +807,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   const W = doc.internal.pageSize.getWidth()
   const cp = cpData?.results?.[0] || {}
 
-  // Route label now lives on the CP Charts page (page 2) instead — see
+  // Route label now lives on the CP Charts page instead — see
   // CPChartsRenderer.jsx's routeCaption — so it isn't repeated here.
   y = sectionTitle(doc, y, 'A. Good Weather Analysis')
   y += 5
@@ -1683,100 +1683,6 @@ function buildFuelPage(doc, sum, seriesRows, cpData, routeId, reportDate, voyage
   y = doc.lastAutoTable.finalY + 10
 }
 
-/** Message Traffic pages */
-function buildMessageTrafficPages(doc, seriesRows, routeId, reportDate, voyageNo, vesselName) {
-  if (!seriesRows || seriesRows.length === 0) return;
-  const W = doc.internal.pageSize.getWidth();
-  const colWidth = (W - 28) / 2 - 4;
-
-  let y = 297; // force new page trigger on first iteration
-  let col = 0;
-  let startY = 0;
-
-  seriesRows.forEach((r, idx) => {
-    let dateStr = '—'
-    if (r.Date && typeof r.Date === 'string' && r.Date.length >= 16) {
-      dateStr = `${r.Date.substring(8, 10)}/${r.Date.substring(5, 7)}/${r.Date.substring(0, 4)} ${r.Date.substring(11, 16)}`
-    }
-
-    const msgLines = [
-      `[== Start of Message]`,
-      `[Vessel Name : ${vesselName || '—'}]`,
-      `[Voyage number : ${r.Voyage_No || voyageNo}]`,
-      `[Displayed REPORT TYPE : ${r.event_type || 'NOON REPORT'}]`,
-      `[Load Condition : ${r.Loading_Cond || '—'}]`,
-      `[Time (UTC) : ${dateStr}]`,
-      `[Draft fore : ${fmt(r.Draft_Fwd_m)}m]   [Draft aft : ${fmt(r.Draft_Aft_m)}m]`,
-      `[Average speed : ${fmt(r.STW_kn)}kts]   [Average RPM : ${fmt(r.Shaft_RPM)}rpm]`,
-      `[Average M/E power : ${fmt(r.Shaft_Power_kW, 0)}kW]`,
-      `[Distance SLR : ${fmt(r.Distance_nm,1)}nm]   [Report duration : ${fmt(r.Duration_h,1)}hrs]`,
-      `[ME FOC : ${r.ME_Fuel_Grade || '—'}/${fmt(r.ME_FOC_MT)}/////(MT)]`,
-      `[AE FOC : ${r.AE_Fuel_Grade || '—'}/${fmt(r.AE_FOC_MT)}/////(MT)]`,
-      // Label fix (client report 2026-09, GCL YAMUNA): this value is
-      // True_Wind_Spd_ms — meters/second, matching what bfScale()'s
-      // thresholds (0.3/1.6/3.4/5.5.../28.5) actually expect, the standard
-      // Beaufort scale defined in m/s.
-      // Beaufort NUMBER fix (2026-09, verified against raw source data on
-      // 2 real voyages): show the master's actual reported BF_Wind, the
-      // same field the fair-weather calculation reads — not a value
-      // re-derived from this same wind-speed reading, which can disagree
-      // with what the master actually logged and with what the report's
-      // own good/adverse-weather verdict was based on.
-      `[Wind : ${fmt(r.True_Wind_Spd_ms,0)}m/s, ${bfDisplay(r)} Beaufort Number, ${windDir(r.True_Wind_Dir_deg)}]`,
-      `[Wave Height : ${fmt(r.Sig_Wave_Ht_m)}m]   [Swell Height : ${fmt(r.Swell_Ht_m)}m]`,
-      `[Current speed : ${fmt(r.Current_Spd_kn)}kts]`,
-      `[SFOC : ${fmt(r.SFOC_gkWh)}g/kWh]`,
-      `[REPORT TYPE : ${r.event_type || 'NOON REPORT'}]`,
-      `[== End of Message]`,
-    ];
-
-    const msgHeight = 5 + (msgLines.length * 4.5) + 7;
-    
-    // Check if we need to wrap to next column or next page
-    if (y + msgHeight > 275) {
-      if (col === 0 && startY > 0) {
-        col = 1;
-        y = startY;
-      } else {
-        doc.addPage();
-        y = addHeader(doc, voyageNo, routeId, reportDate, 'Message Traffic');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text(`VOYAGE: ${seriesRows[0]?.From_Port || '—'} to ${seriesRows[seriesRows.length - 1]?.To_Port || '—'}`, 14, y);
-        y += 5;
-        doc.text(`CONDITION: ${seriesRows[0]?.Loading_Cond || '—'}`, 14, y);
-        y += 8;
-        doc.setDrawColor(...MGRAY);
-        doc.line(14, y, W - 14, y);
-        y += 5;
-        startY = y;
-        col = 0;
-      }
-    }
-
-    const startX = col === 0 ? 14 : 14 + colWidth + 8;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...NAVY);
-    doc.text(`FROM MASTER  ${dateStr}`, startX, y);
-    doc.setTextColor(0,0,0);
-    y += 5;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    msgLines.forEach(line => {
-      doc.text(line, startX, y, { maxWidth: colWidth });
-      y += 4.5;
-    });
-
-    y += 2;
-    doc.setDrawColor(...MGRAY);
-    doc.line(startX, y, startX + colWidth, y);
-    y += 5;
-  });
-}
-
 /** CP Performance page */
 function buildCPPage(doc, cpData, routeId, reportDate, voyageNo) {
   if (!cpData?.results?.length) return
@@ -1974,18 +1880,22 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   // ── 4. Build all pages ────────────────────────────────────────────────────
+  // Order per client request 2026-09: Speed and Weather Analysis + Fuel
+  // Consumption Analysis moved up right after the cover page; Charter-Party
+  // Performance Charts + the Speed/Consumption weather-current chart image
+  // moved down to where those used to sit.
   buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportDate, series, dataWarning)
-  buildCPChartsPage(doc, cpCharts)
-  if (pdfAssets?.chartsDataUrl) buildChartsPage(doc, pdfAssets.chartsDataUrl)
-  buildSpeedConsPage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
-  buildMethodologyPage1(doc, sum, series, cpData, routeId, reportDate, voyageNo)
   buildSummaryTablePage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
 
   if (series.length > 0) {
     buildPositionPages(doc, sum, series, cpData, vesselName, routeId, reportDate, voyageNo)
     buildFuelPage(doc, sum, series, cpData, routeId, reportDate, voyageNo, vesselName)
-    buildMessageTrafficPages(doc, series, routeId, reportDate, voyageNo, vesselName)
   }
+
+  buildSpeedConsPage(doc, sum, series, cpData, routeId, reportDate, voyageNo)
+  buildMethodologyPage1(doc, sum, series, cpData, routeId, reportDate, voyageNo)
+  buildCPChartsPage(doc, cpCharts)
+  if (pdfAssets?.chartsDataUrl) buildChartsPage(doc, pdfAssets.chartsDataUrl)
 
   buildCPMethodologyPages(doc, routeId, reportDate, voyageNo)
 
@@ -2004,9 +1914,10 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
 }
 
 /**
- * CP Performance charts — page 2, BEFORE Speed and Consumption Calculation.
- * One combined page holding both: (A) Good-Weather speed & fuel/day vs CP
- * warranty + allowance bands, trended across this vessel's full history for
+ * CP Performance charts — near the end of the report, after Speed and
+ * Consumption Calculation. One combined page holding both: (A) Good-Weather
+ * speed & fuel/day vs CP warranty + allowance bands, trended across this
+ * vessel's full history for
  * this voyage's own loading condition, and (B) the combined Time/Fuel
  * Loss(-)/Saving(+) diverging bar chart across all of this vessel's voyages,
  * both conditions together (never split by condition — see cp_calculator).
