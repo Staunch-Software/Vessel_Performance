@@ -285,6 +285,112 @@ function computeEventWiseCp(seriesRows, cpW, tolKn, tolPct) {
   return { bHours, cHours, eTot, fTot, eventCount }
 }
 
+// Same cumulative event-wise Max/Min Warranted Consumption as
+// computeEventWiseCp(), but keeping FO and GO separate instead of combining
+// them — needed so the cover page's FO/GO Lost-Saved boxes and Section C's
+// combined total can both be derived from one source (eFO+eGO === the old
+// combined eTot, exactly, since the tolerance % applies linearly either way).
+function computeEventWiseCpSplit(seriesRows, cpW, tolKn, tolPct) {
+  const rows = eventWiseCpRows(seriesRows)
+  let eFO = 0, fFO = 0, eGO = 0, fGO = 0, eventCount = 0
+  rows.forEach(r => {
+    const dist = +(r.Distance_nm) || 0
+    const { speed, fo, go } = eventCpFigures(r, cpW)
+    if (dist <= 0 || !speed) return
+    eventCount += 1
+    const effSpeed = speed - tolKn
+    fFO += (dist / speed) * (fo * (1 - tolPct / 100) / 24)
+    fGO += (dist / speed) * (go * (1 - tolPct / 100) / 24)
+    if (effSpeed > 0) {
+      eFO += (dist / effSpeed) * (fo * (1 + tolPct / 100) / 24)
+      eGO += (dist / effSpeed) * (go * (1 + tolPct / 100) / 24)
+    }
+  })
+  return { eFO, fFO, eGO, fGO, eventCount }
+}
+
+const numOr0 = (v) => { const n = +v; return isNaN(n) ? 0 : n }
+
+// Reclassifies GO into the FO/Total comparison figure using that day's own
+// CP-remarks GO allowance (manager methodology 2026-09): in rough weather a
+// vessel may be forced to burn GO in place of its normal fuel, so for
+// FO-warranty comparison purposes that GO needs folding into the FO figure.
+// This is deliberately ADDITIVE, not a bucket-move — GO's own separate
+// consumption and its own comparison against the GO warranty are untouched;
+// only the FO/Total side gains this amount ("GO to be included ON the FO
+// calculation itself", manager's own wording).
+//   a = that day's CP-remarks GO allowance (0 if the day has no per-day GO
+//       instruction at all — explicit fallback, NOT the standing GO warranty)
+//   b = that day's actual raw GO consumption
+//   b - a > 0  -> add the EXCESS (b - a) to that day's FO figure
+//   b - a <= 0 -> add the FULL raw GO amount (b) to that day's FO figure
+function reclassifiedFO(hfoRaw, goRaw, goAllowanceOrNull) {
+  const a = goAllowanceOrNull ?? 0
+  const excess = goRaw - a
+  return hfoRaw + (excess > 0 ? excess : goRaw)
+}
+
+// Per-row TRUE FO (HFO+LFO) vs GO (MDO) totals, summed across all 4
+// consumers (ME, AE, Aux Boiler "bl", Composite Boiler "combl"), plus the
+// reclassified FO figure (see reclassifiedFO above) for CP comparison.
+function sumFuelGrades(rows) {
+  let fo = 0, go = 0, foReclassified = 0
+  rows.forEach(r => {
+    const hfo = numOr0(r.me_hfo) + numOr0(r.me_lfo) + numOr0(r.ae_hfo) + numOr0(r.ae_lfo)
+              + numOr0(r.bl_hfo) + numOr0(r.bl_lfo) + numOr0(r.combl_hfo) + numOr0(r.combl_lfo)
+    const mdo = numOr0(r.me_mdo) + numOr0(r.ae_mdo) + numOr0(r.bl_mdo) + numOr0(r.combl_mdo)
+    fo += hfo
+    go += mdo
+    foReclassified += reclassifiedFO(hfo, mdo, r.cp_instruction?.go_mt_day)
+  })
+  return { fo, go, foReclassified }
+}
+
+// Actual-side (d)-style figures, split FO/GO, extrapolated over the entire
+// voyage distance at the achieved good-weather speed — same shape as the
+// existing combined (d')/(d_tot), just split so FO uses the reclassified
+// total and GO uses the raw total, each compared against its own warranty.
+function computeActualConsumptionSplit(seriesRows, cp) {
+  const goodRows  = (seriesRows || []).filter(isFairWeatherRow)
+  const { go, foReclassified } = sumFuelGrades(goodRows)
+  const goodTimeB = cp.good_wx?.time_h ?? 0
+  const gwSpeedB  = cp.good_wx?.avg_speed_kn || 0
+  const distE     = cp.entire?.distance_nm || (seriesRows || []).reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
+  if (!(goodTimeB > 0) || !(gwSpeedB > 0)) return { dFO: 0, dGO: 0, distE, gwSpeedB, goodTimeB, foReclassified, go }
+  return {
+    dFO: (distE / gwSpeedB) * (foReclassified / goodTimeB),
+    dGO: (distE / gwSpeedB) * (go / goodTimeB),
+    distE, gwSpeedB, goodTimeB, foReclassified, go,
+  }
+}
+
+// The full Time Lost/Gained conclusion (formulas a/b/c) — factored out so
+// the cover page's Lost/Saved box and Section B's own detailed workings
+// always show the SAME number, computed the SAME (event-wise) way, instead
+// of the cover page pulling a different figure from the backend's simpler
+// single-warranty cp.loss.time_h (client request 2026-09).
+function computeTimeLostGained(seriesRows, cp, cpW, tolKn) {
+  const gwSpeedB = cp.good_wx?.avg_speed_kn || 0
+  const distE    = cp.entire?.distance_nm || (seriesRows || []).reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
+  const tolPct   = cp.allowance?.cons_pct != null ? +cp.allowance.cons_pct : 5.0
+  const evCp = computeEventWiseCp(seriesRows, cpW, tolKn, tolPct)
+  const a = gwSpeedB > 0 ? distE / gwSpeedB : 0
+  const b = evCp.bHours
+  const c = evCp.cHours
+  const timeLost   = a - b
+  const timeGained = c - a
+  let concludedHours = 0, concludedIsLoss = false, concludedNeutral = false
+  if (timeLost > 0) {
+    concludedIsLoss = true
+    concludedHours = timeLost
+  } else if (timeGained > 0) {
+    concludedHours = timeGained
+  } else {
+    concludedNeutral = true
+  }
+  return { a, b, c, timeLost, timeGained, concludedHours, concludedIsLoss, concludedNeutral, eventCount: evCp.eventCount }
+}
+
 // ── Equipment x fuel-type consumption breakdown (client request 2026-09) ──
 // Replaces the old flat "FO (mt)" / "DO/GO (mt)" columns wherever they
 // appear (the compact Periods table — duplicated 3x across the report — and
@@ -509,6 +615,18 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   const cpW = cp.warranty || {}
   const cpGD = cp.good_wx_def || {}
 
+  // This box now mirrors Sections B/C's own event-wise, CP-remarks-aware
+  // conclusions (manager request 2026-09) instead of the backend's simpler
+  // single-warranty cp.loss figures — so page 1's headline numbers always
+  // match the detailed workings on pages 4-5, not a different calculation.
+  const tolKn  = cp.allowance?.speed_kn != null ? +cp.allowance.speed_kn : 0.5
+  const tolPct = cp.allowance?.cons_pct != null ? +cp.allowance.cons_pct : 5.0
+  const timeConclusion = computeTimeLostGained(series, cp, cpW, tolKn)
+  const { dFO, dGO } = computeActualConsumptionSplit(series, cp)
+  const { eFO, fFO, eGO, fGO } = computeEventWiseCpSplit(series, cpW, tolKn, tolPct)
+  const foLossCover = dFO > eFO ? dFO - eFO : (dFO < fFO ? -(fFO - dFO) : 0)
+  const goLossCover = dGO > eGO ? dGO - eGO : (dGO < fGO ? -(fGO - dGO) : 0)
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   const lblX = 14
@@ -578,7 +696,7 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     doc.text('Saved', 72, y + 28, { align: 'right' })
     doc.line(60, y + 21, W - 14, y + 21) // horiz line between lost and saved
     
-    const tLoss = cp.loss?.time_h || 0
+    const tLoss = timeConclusion.concludedNeutral ? 0 : (timeConclusion.concludedIsLoss ? timeConclusion.concludedHours : -timeConclusion.concludedHours)
     if (tLoss > 0) {
       doc.setFillColor(255, 0, 0)
       doc.rect(80, y + 14, 20, 5, 'F')
@@ -593,7 +711,7 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     doc.setTextColor(0, 0, 0)
     
     // FO
-    const foLoss = cp.loss?.fo_mt || 0
+    const foLoss = foLossCover
     doc.setFont('helvetica', 'bold')
     if (foLoss > 0) {
       doc.setFillColor(255, 0, 0)
@@ -616,8 +734,11 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     }
     doc.setTextColor(0, 0, 0)
     
-    // GO
-    const goLoss = cp.loss?.dogo_mt || 0
+    // GO — raw, un-reclassified actual GO vs the GO warranty (unaffected by
+    // the FO-side reclassification above; GO keeps its own independent
+    // comparison, per manager instruction — "GO to be included ON the FO
+    // calculation itself" is additive, not a bucket-move).
+    const goLoss = goLossCover
     doc.setFont('helvetica', 'bold')
     if (goLoss > 0) {
       doc.setFillColor(255, 0, 0)
@@ -750,20 +871,18 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   // ME consumption as FO and all AE+Boiler consumption as GO. Fields come
   // straight from /voyage/series (me_hfo/me_lfo/me_mdo etc.), not from the
   // cp.entire/cp.good_wx aggregates (those don't carry a grade split).
-  const numOr0 = (v) => { const n = +v; return isNaN(n) ? 0 : n }
-  function sumFoGo(rows) {
-    let fo = 0, go = 0
-    rows.forEach(r => {
-      fo += numOr0(r.me_hfo) + numOr0(r.me_lfo) + numOr0(r.ae_hfo) + numOr0(r.ae_lfo)
-          + numOr0(r.bl_hfo) + numOr0(r.bl_lfo) + numOr0(r.combl_hfo) + numOr0(r.combl_lfo)
-      go += numOr0(r.me_mdo) + numOr0(r.ae_mdo) + numOr0(r.bl_mdo) + numOr0(r.combl_mdo)
-    })
-    return { fo, go }
-  }
-  const goodGrades  = sumFoGo(goodRows)
-  const totalGrades = sumFoGo(seriesRows)
-  const goodFO  = goodGrades.fo,  goodGO  = goodGrades.go
-  const totalFO = totalGrades.fo, totalGO = totalGrades.go
+  //
+  // "FO Consumption" below is the RECLASSIFIED figure (manager methodology
+  // 2026-09 — see reclassifiedFO()'s doc comment): GO burned in place of
+  // normal fuel during rough weather is folded into this FO figure for CP
+  // comparison purposes. "GO Consumption" stays the raw, un-reclassified
+  // actual GO burn — it's still tracked and compared against the GO
+  // warranty on its own; only FO/Total gains this amount, nothing is
+  // subtracted out of GO.
+  const goodGrades  = sumFuelGrades(goodRows)
+  const totalGrades = sumFuelGrades(seriesRows)
+  const goodFO  = goodGrades.foReclassified,  goodGO  = goodGrades.go
+  const totalFO = totalGrades.foReclassified, totalGO = totalGrades.go
 
   const goodDailyFO  = goodDur > 0 ? goodFO / (goodDur / 24) : 0
   const totalDailyFO = totalDur > 0 ? totalFO / (totalDur / 24) : 0
@@ -781,7 +900,7 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
       ['Distance Sailed [Miles]',       fmt(goodDist, 0), '-',  fmt(totalDist, 0), '-'],
       ['Time on Route [Hours]',         fmt(goodDur, 2), '-',   fmt(totalDur, 2), '-'],
       ['Average Speed [Knots]',         fmt(goodSpeed, 2), '-', fmt(totalSpeed, 2), '-'],
-      ['Total FO Consumption [MT]',     fmt(goodFO, 2), '-',    fmt(totalFO, 2), '-'],
+      ['Total FO Consumption** [MT]',   fmt(goodFO, 2), '-',    fmt(totalFO, 2), '-'],
       ['Total GO Consumption [MT]',     fmt(goodGO, 2), '-',    fmt(totalGO, 2), '-'],
       ['Total Fuel Consumption [MT]',   fmt(goodFO + goodGO, 2), '-', fmt(totalFO + totalGO, 2), '-'],
       ['Averaged Daily Total Consumption', fmt(goodDailyFO + goodDailyGO, 2), '-', fmt(totalDailyFO + totalDailyGO, 2), '-'],
@@ -798,7 +917,9 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(6)
   doc.text('*In ECA refers to the area where the bunker type is changed over.', W - 24, y, { align: 'right' })
-  
+  y += 3
+  doc.text('**FO includes GO consumed in excess of (or, when not exceeded, in full) that period\'s CP-remarks GO allowance.', W - 24, y, { align: 'right' })
+
   y += 8
   
   doc.setFont('helvetica', 'normal')
@@ -973,15 +1094,27 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   const gwSpeedB = cp.good_wx?.avg_speed_kn || 0
   const distE    = cp.entire?.distance_nm || seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const effSpd   = wSpeed - tolKn
-  const goodDailyFOB = cp.good_wx?.daily_fo ?? 0
-  const goodDailyGOB = cp.good_wx?.daily_dogo ?? 0
+  // Formula (d)'s own denominator is the voyage's REAL total Good Weather
+  // Time (in hours), not the "24 hours" constant (e)/(f) use — confirmed
+  // against WNI's own reference Voyage Audit Report (client-supplied
+  // 2026-09, e.g. "20.02 / 18.8" where 18.8 is the real measured
+  // Good-Weather Time, not 24). The numerator is the reclassified FO total
+  // + raw GO total (manager methodology 2026-09, see reclassifiedFO()) —
+  // computed here on the frontend from seriesRows/cp_instruction, not
+  // pulled from the backend's cp.good_wx.fo_mt/dogo_mt any more, so this
+  // figure and Section A's own FO/GO table stay consistent with each other.
+  const { dFO, dGO, goodTimeB, foReclassified: goodTotalFOB, go: goodTotalGOB } = computeActualConsumptionSplit(seriesRows, cp)
 
   // Cumulative EVENT-WISE Max/Min Warranted Consumption (formulas e'/f') —
   // client request 2026-09: same event-by-event methodology as Section B's
   // (b)/(c), using whichever CP instruction actually applied each day
   // (excluding COSP). (d') is unchanged — it's the vessel's own ACTUAL
   // good-weather consumption rate, not a CP instruction, so out of scope.
-  const evCp = computeEventWiseCp(seriesRows, cpW, tolKn, tolPct)
+  // Split FO/GO (see computeEventWiseCpSplit) so this page's numbers derive
+  // from the same source as the cover page's separate FO/GO Lost-Saved
+  // boxes — eFO+eGO here is identical to the old combined eTot.
+  const cpSplit = computeEventWiseCpSplit(seriesRows, cpW, tolKn, tolPct)
+  const evCp = { eTot: cpSplit.eFO + cpSplit.eGO, fTot: cpSplit.fFO + cpSplit.fGO, eventCount: cpSplit.eventCount }
 
   const foMax = foW * (1 + tolPct / 100)
   const foMin = foW * (1 - tolPct / 100)
@@ -1073,11 +1206,11 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      // Total = FO + GO combined, matching the "Total Consumption" heading —
      // NOT FO alone. Same backend-sourced a_h/b_h/c_h time-equivalents used
      // for Section B — see cp_calculator.compute_cp_voyage_table.
-     const goodDailyTotalB = goodDailyFOB + goodDailyGOB
+     const goodTotalConsB = goodTotalFOB + goodTotalGOB
      const totalW    = foW + goW
      const totalMax   = totalW * (1 + tolPct / 100)
      const totalMin   = totalW * (1 - tolPct / 100)
-     const d_tot = (distE / gwSpeedB) * (goodDailyTotalB / 24)
+     const d_tot = dFO + dGO
      const e_tot = evCp.eTot
      const f_tot = evCp.fTot
 
@@ -1090,9 +1223,9 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.line(78, blockY + 2.5, 106, blockY + 2.5)
      doc.text(fmt(gwSpeedB, 2), 92, blockY + 5.5, { align: 'center' })
      doc.text('x', 112, blockY + 4)
-     doc.text(fmt(goodDailyTotalB, 2), 128, blockY + 1.5, { align: 'center' })
+     doc.text(fmt(goodTotalConsB, 2), 128, blockY + 1.5, { align: 'center' })
      doc.line(116, blockY + 2.5, 140, blockY + 2.5)
-     doc.text('24.0', 128, blockY + 5.5, { align: 'center' })
+     doc.text(fmt(goodTimeB, 1), 128, blockY + 5.5, { align: 'center' })
      doc.text(`=  ${fmt(d_tot, 2)} MT`, 145, blockY + 4)
      doc.text("(d')", 175, blockY + 4)
 

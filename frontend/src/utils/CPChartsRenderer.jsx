@@ -105,6 +105,41 @@ function symmetricNiceDomain(maxAbs) {
   return bound
 }
 
+// True if a segment has ANY real good-weather speed/fuel or loss figure to
+// plot. A segment with zero recorded distance/time (e.g. a same-day port
+// hop, or a fully-idle window between two events) comes back from the API
+// with every numeric field null/0 and ratio_pct 0.0 — there is nothing
+// meaningful to draw for it. Left in, it still claims an x-axis slot in the
+// "Last 10 Voyages" trend, showing up as an unexplained blank gap and
+// pushing a real voyage out of the window (manager feedback 2026-09, GCL
+// GANGA's "72 B/01"/"72 L/02" — both confirmed via the API as all-zero
+// segments, not a data/condition-classification bug).
+function hasPlottableData(r) {
+  if (!r) return false
+  const gw = r.good_wx || {}
+  if (gw.avg_speed_kn != null) return true
+  if (gw.daily_fo != null || gw.daily_dogo != null) return true
+  const loss = r.loss || {}
+  return loss.time_h != null || loss.fo_mt != null || loss.dogo_mt != null
+}
+
+// Enlarges a diverging bar's rect to a minimum visible height when its true
+// value would otherwise round to a sliver a couple of pixels tall — keeping
+// the zero-line edge anchored (top edge for a loss/negative bar, bottom edge
+// for a saving/positive bar) so the enlargement never looks like it crossed
+// zero. A genuine 0 is left alone (no fake bar drawn for "no loss/saving").
+// Manager feedback 2026-09: AM KIRTI's newest-voyage Time bar (a real -3.04h
+// loss) was rendered correctly but at ~1/9th the height of the adjacent
+// +26.4h voyage sharing the same axis — real data, but easy to read as "the
+// bar is missing" next to a much taller neighbour.
+const MIN_BAR_H = 4
+function minHeightRect(val, y, height) {
+  if (val === 0 || height >= MIN_BAR_H) return { drawY: y, drawH: height }
+  return val > 0
+    ? { drawY: y - (MIN_BAR_H - height), drawH: MIN_BAR_H }
+    : { drawY: y, drawH: MIN_BAR_H }
+}
+
 // Explicit, shared Y-axis width for both charts — see the comment at Chart
 // A's <YAxis yAxisId="speed"> below for why this must be identical on all
 // 4 axes across both charts, not left to Recharts' own auto-sizing.
@@ -164,6 +199,11 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
   const primaryAtd = primaryRow?.atd || ''
   const condRows = (primaryCond ? rows.filter(r => r.loading_cond === primaryCond) : rows)
     .filter(r => String(r.atd || '') <= primaryAtd || String(r.voyage_no) === String(voyageNo))
+    // Drop empty segments from the trend window (see hasPlottableData) — but
+    // never drop the report's own voyage, even in the unlikely case it has
+    // no plottable data itself; that should still show up as an explicit
+    // gap on ITS OWN report, not silently vanish.
+    .filter(r => hasPlottableData(r) || String(r.voyage_no) === String(voyageNo))
     .slice().sort((a, b) => String(a.atd || '').localeCompare(String(b.atd || '')))
     .slice(-10)
 
@@ -199,6 +239,11 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
       label: shortLabel(r.voyage_no, r.atd),
       timeSave: -(r.loss?.time_h ?? 0),
       fuelSave: -((r.loss?.fo_mt ?? 0) + (r.loss?.dogo_mt ?? 0)),
+      // Backend's own "representative sample" flag (fair-weather time share
+      // >= 50%, cp_calculator.py GW_RATIO) — faded in the bar shapes below
+      // so a thin-sample voyage (e.g. a short passage) reads as lower-
+      // confidence rather than identical to a solid 50%+ result.
+      lowSample: r.sample_sufficient === false,
     }))
   const maxAbsTime = symmetricNiceDomain(Math.max(1, ...lossData.map(d => Math.abs(d.timeSave))) * 1.15)
   const maxAbsFuel = symmetricNiceDomain(Math.max(1, ...lossData.map(d => Math.abs(d.fuelSave))) * 1.15)
@@ -323,7 +368,7 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
         {primaryCond === 'Ballast' ? 'Ballast' : 'Laden'} — Time & Fuel Loss/Saving (Last 10 Voyages)
       </h4>
       <p style={{ textAlign: 'center', fontFamily: 'sans-serif', margin: '0 0 6px', color: '#444', fontSize: '12px' }}>
-        Green = Saving, Red = Loss &nbsp;|&nbsp; Left bar (solid) Time (h), Right bar (shaded) Fuel FO+DO/GO (mt)
+        Green = Saving, Red = Loss &nbsp;|&nbsp; Left bar (solid) Time (h), Right bar (shaded) Fuel FO+DO/GO (mt) &nbsp;|&nbsp; Faded bar = fair-weather sample below 50%
       </p>
       <div style={{ height: '580px', width: '100%' }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
@@ -368,10 +413,11 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
                 const { x, y, width, height, payload } = props
                 const val = payload.timeSave
                 const fill = val >= 0 ? GREEN_HEX : RED_HEX
-                const labelY = val >= 0 ? y - 4 : y + height + 12
+                const { drawY, drawH } = minHeightRect(val, y, height)
+                const labelY = val >= 0 ? drawY - 4 : drawY + drawH + 12
                 return (
-                  <g>
-                    <rect x={x} y={y} width={width} height={height} fill={fill} />
+                  <g opacity={payload.lowSample ? 0.4 : 1}>
+                    <rect x={x} y={drawY} width={width} height={drawH} fill={fill} />
                     <text x={x + width / 2} y={labelY} textAnchor="middle" fontSize={11} fontWeight="bold" fill="#000">{valLabelFmt(val)}</text>
                   </g>
                 )
@@ -381,10 +427,11 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
                 const { x, y, width, height, payload } = props
                 const val = payload.fuelSave
                 const good = val >= 0
-                const labelY = good ? y - 4 : y + height + 12
+                const { drawY, drawH } = minHeightRect(val, y, height)
+                const labelY = good ? drawY - 4 : drawY + drawH + 12
                 return (
-                  <g>
-                    <rect x={x} y={y} width={width} height={height} fill={good ? 'url(#fuelHatchGreen)' : 'url(#fuelHatchRed)'} stroke={good ? GREEN_HEX : RED_HEX} strokeWidth={1} />
+                  <g opacity={payload.lowSample ? 0.4 : 1}>
+                    <rect x={x} y={drawY} width={width} height={drawH} fill={good ? 'url(#fuelHatchGreen)' : 'url(#fuelHatchRed)'} stroke={good ? GREEN_HEX : RED_HEX} strokeWidth={1} />
                     <text x={x + width / 2} y={labelY} textAnchor="middle" fontSize={11} fontWeight="bold" fill="#000">{valLabelFmt(val)}</text>
                   </g>
                 )
