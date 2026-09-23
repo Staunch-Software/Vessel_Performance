@@ -125,6 +125,28 @@ function isFairWeatherRow(r) {
   return bf <= FAIR_BF_MAX && hs <= FAIR_WAVE_MAX_M
 }
 
+// Data-quality check (manager request 2026-09): when BF_Wind/Sig_Wave_Ht_m
+// are missing for a report, isFairWeatherRow() above silently counts it as
+// Good Weather (client-approved 2026-08, "don't penalise a logging gap") —
+// but that means a voyage with NO weather data at all reads on this report
+// as a 100% Good Weather voyage with no visible sign the classification is
+// actually based on an absent reading rather than a confirmed calm day.
+// This surfaces that gap so the reader isn't misled by a silently-defaulted
+// figure.
+function computeWeatherDataQuality(seriesRows) {
+  const rows = eventWiseCpRows(seriesRows || [])
+  let missingBoth = 0, missingOne = 0
+  rows.forEach(r => {
+    const bf = r.BF_Wind != null && r.BF_Wind !== '' ? +r.BF_Wind : null
+    const hs = r.Sig_Wave_Ht_m != null && r.Sig_Wave_Ht_m !== '' ? +r.Sig_Wave_Ht_m : null
+    if (bf == null && hs == null) missingBoth += 1
+    else if (bf == null || hs == null) missingOne += 1
+  })
+  const total = rows.length
+  const missingTotal = missingBoth + missingOne
+  return { total, missingBoth, missingOne, missingTotal, allMissing: total > 0 && missingBoth === total }
+}
+
 // ── PDF helper functions ───────────────────────────────────────────────────
 
 function addHeader(doc, voyageNo, routeId, reportDate, pageTitle) {
@@ -622,9 +644,24 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   const tolKn  = cp.allowance?.speed_kn != null ? +cp.allowance.speed_kn : 0.5
   const tolPct = cp.allowance?.cons_pct != null ? +cp.allowance.cons_pct : 5.0
   const timeConclusion = computeTimeLostGained(series, cp, cpW, tolKn)
-  const { dFO } = computeActualConsumptionSplit(series, cp)
-  const { eFO, fFO } = computeEventWiseCpSplit(series, cpW, tolKn, tolPct)
-  const foLossCover = dFO > eFO ? dFO - eFO : (dFO < fFO ? -(fFO - dFO) : 0)
+  const { dFO, dGO } = computeActualConsumptionSplit(series, cp)
+  const { eFO, fFO, eGO, fGO } = computeEventWiseCpSplit(series, cpW, tolKn, tolPct)
+  // Must compare against the COMBINED (FO+GO) warranted band, not an FO-only
+  // one — dFO is the RECLASSIFIED figure (manager methodology 2026-09), which
+  // already has GO folded into it, so it represents total fuel-equivalent
+  // consumption. Comparing that against eFO/fFO alone (built from only the
+  // fo_mtpd portion of the warranty) is apples-to-oranges and silently
+  // narrows/shifts the band, which is why this box previously showed "No FO
+  // Over-consumption/Saving" even on voyages where Section C's own "Total
+  // Consumption" conclusion (same page-2 formula, same eFO+eGO/fFO+fGO
+  // source) found a real saving or over-consumption (manager feedback
+  // 2026-09: "though there is fuel saving - same is not reflecting on 01st
+  // page"). Using the combined total here makes page 1 match that conclusion
+  // exactly.
+  const dTotCover = dFO + dGO
+  const eTotCover = eFO + eGO
+  const fTotCover = fFO + fGO
+  const foLossCover = dTotCover > eTotCover ? dTotCover - eTotCover : (dTotCover < fTotCover ? -(fTotCover - dTotCover) : 0)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
@@ -662,6 +699,33 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   doc.text(gwText, W / 2, y + 11, { align: 'center' })
   
   y += 20
+
+  // Data Quality note (manager request 2026-09) — flags when weather data
+  // (BF_Wind/Sig_Wave_Ht_m) is missing for some or all of the voyage, since
+  // isFairWeatherRow() above silently counts a missing reading as Good
+  // Weather rather than excluding it (client-approved 2026-08 "don't
+  // penalise a logging gap"). Without this note a voyage with no weather
+  // data at all reads as a fully-verified Good Weather voyage with nothing
+  // to show the classification defaulted rather than being confirmed.
+  const wq = computeWeatherDataQuality(series)
+  if (wq.missingTotal > 0) {
+    const noteH = 10
+    doc.setFillColor(255, 244, 214)
+    doc.setDrawColor(200, 140, 0)
+    doc.setLineWidth(0.4)
+    doc.rect(14, y, W - 28, noteH, 'FD')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(150, 100, 0)
+    doc.text('⚠ Data Quality:', 18, y + 4)
+    doc.setFont('helvetica', 'normal')
+    const msg = wq.allMissing
+      ? `Weather data (Wind/Wave) is missing for all ${wq.total} reports on this voyage — Good Weather classification defaults to Good in the absence of a reading, it is not a confirmed calm-weather verdict.`
+      : `Weather data (Wind/Wave) is missing for ${wq.missingTotal} of ${wq.total} reports (${wq.missingBoth} fully missing, ${wq.missingOne} partially) — those reports default to Good Weather in the absence of a reading.`
+    doc.text(msg, 18, y + 8, { maxWidth: W - 36 })
+    doc.setTextColor(0, 0, 0)
+    y += noteH + 4
+  }
 
   // CP Grid Box
   doc.rect(14, y, W - 28, 42)
@@ -1436,8 +1500,31 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
     doc.setFillColor(200, 200, 200)
     doc.rect(145, y - 2.5, 8, 3.5, 'FD')
     doc.text('Excluded periods from analysis', 155, y)
-    
+
     y += 6
+
+    // Data Quality note (manager request 2026-09) — same check as the cover
+    // page (computeWeatherDataQuality), repeated here since this is the page
+    // that actually shows the WEATHERNEWS ANALYSIS table with the "—" dashes
+    // when a report has no wind/wave reading; without this note a reader
+    // scanning this table has no explanation for why those columns are blank
+    // yet the row is still tallied into "Good weather period" above.
+    if (i === 0) {
+      const wq = computeWeatherDataQuality(allRows)
+      if (wq.missingTotal > 0) {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(6.5)
+        doc.setTextColor(150, 100, 0)
+        doc.text('⚠ Data Quality:', 14, y)
+        doc.setFont('helvetica', 'normal')
+        const msg = wq.allMissing
+          ? `Weather data (Wind/Wave) missing for all ${wq.total} reports — shown as "—" below; those rows still default to Good Weather in the absence of a reading.`
+          : `Weather data (Wind/Wave) missing for ${wq.missingTotal} of ${wq.total} reports (${wq.missingBoth} fully, ${wq.missingOne} partially) — shown as "—" below; those rows default to Good Weather in the absence of a reading.`
+        doc.text(msg, 45, y)
+        doc.setTextColor(0, 0, 0)
+        y += 5
+      }
+    }
 
     autoTable(doc, {
       startY: y,
