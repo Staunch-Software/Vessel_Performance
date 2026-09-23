@@ -709,20 +709,23 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   // to show the classification defaulted rather than being confirmed.
   const wq = computeWeatherDataQuality(series)
   if (wq.missingTotal > 0) {
-    const noteH = 10
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    const msg = wq.allMissing
+      ? `Weather data (Wind/Wave) is missing for all ${wq.total} reports on this voyage — Good Weather classification defaults to Good in the absence of a reading, it is not a confirmed calm-weather verdict.`
+      : `Weather data (Wind/Wave) is missing for ${wq.missingTotal} of ${wq.total} reports (${wq.missingBoth} fully missing, ${wq.missingOne} partially) — those reports default to Good Weather in the absence of a reading.`
+    const msgLines = doc.splitTextToSize(msg, W - 36)
+    const lineH = 3.5
+    const noteH = 5 + msgLines.length * lineH + 2
     doc.setFillColor(255, 244, 214)
     doc.setDrawColor(200, 140, 0)
     doc.setLineWidth(0.4)
     doc.rect(14, y, W - 28, noteH, 'FD')
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7.5)
     doc.setTextColor(150, 100, 0)
     doc.text('⚠ Data Quality:', 18, y + 4)
     doc.setFont('helvetica', 'normal')
-    const msg = wq.allMissing
-      ? `Weather data (Wind/Wave) is missing for all ${wq.total} reports on this voyage — Good Weather classification defaults to Good in the absence of a reading, it is not a confirmed calm-weather verdict.`
-      : `Weather data (Wind/Wave) is missing for ${wq.missingTotal} of ${wq.total} reports (${wq.missingBoth} fully missing, ${wq.missingOne} partially) — those reports default to Good Weather in the absence of a reading.`
-    doc.text(msg, 18, y + 8, { maxWidth: W - 36 })
+    doc.text(msgLines, 18, y + 8, { lineHeightFactor: 1.15 })
     doc.setTextColor(0, 0, 0)
     y += noteH + 4
   }
@@ -1520,9 +1523,10 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
         const msg = wq.allMissing
           ? `Weather data (Wind/Wave) missing for all ${wq.total} reports — shown as "—" below; those rows still default to Good Weather in the absence of a reading.`
           : `Weather data (Wind/Wave) missing for ${wq.missingTotal} of ${wq.total} reports (${wq.missingBoth} fully, ${wq.missingOne} partially) — shown as "—" below; those rows default to Good Weather in the absence of a reading.`
-        doc.text(msg, 45, y)
+        const msgLines = doc.splitTextToSize(msg, W - 45 - 14)
+        doc.text(msgLines, 45, y, { lineHeightFactor: 1.15 })
         doc.setTextColor(0, 0, 0)
-        y += 5
+        y += 3.5 * msgLines.length + 2
       }
     }
 
