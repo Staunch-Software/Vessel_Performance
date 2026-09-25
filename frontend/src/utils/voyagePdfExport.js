@@ -399,12 +399,20 @@ function buildEquipmentFuelHead(leadCols, activeFoGrades, activeGoGrades, trailC
   })
   flatCols.push({ equip: 'Grand', grade: 'total' })
 
-  const equipHeaderRowFo = equipLabels.map(label => ({
-    content: label, colSpan: activeFoGrades.length + (label === 'Total' ? 1 : 0), styles: { halign: 'center' },
-  }))
-  const equipHeaderRowGo = equipLabels.map(label => ({
-    content: label, colSpan: activeGoGrades.length + (label === 'Total' ? 1 : 0), styles: { halign: 'center' },
-  }))
+  // Bug found 2026-09 (AM KIRTI 39/01, a 100%-GO voyage: zero HFO/LFO/BIO
+  // the whole way, so activeFoGrades is genuinely empty): a header cell
+  // with colSpan 0 isn't just invisible — autoTable still renders it as a
+  // degenerate cell, shifting every column after it out of alignment with
+  // the sub-header row below and the actual data columns ("MDO" appearing
+  // to land under the wrong group). Must drop zero-colSpan cells entirely,
+  // not just let their span go to 0, so this header row's cell COUNT always
+  // matches the sub-header row's actual column count.
+  const equipHeaderRowFo = equipLabels
+    .map(label => ({ content: label, colSpan: activeFoGrades.length + (label === 'Total' ? 1 : 0), styles: { halign: 'center' } }))
+    .filter(c => c.colSpan > 0)
+  const equipHeaderRowGo = equipLabels
+    .map(label => ({ content: label, colSpan: activeGoGrades.length + (label === 'Total' ? 1 : 0), styles: { halign: 'center' } }))
+    .filter(c => c.colSpan > 0)
 
   const foGroupSpan = activeFoGrades.length * equipLabels.length + 1 // +1 for Total's own extra sub-column
   const goGroupSpan = activeGoGrades.length * equipLabels.length + 1
