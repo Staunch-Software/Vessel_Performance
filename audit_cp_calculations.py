@@ -404,9 +404,18 @@ def _segment_result(seg_rows, imo):
     warranty = _pick_sea_warranty(candidates, good_wx["avg_speed_kn"] or entire["avg_speed_kn"]) or {}
     w_spd = _num(warranty.get("warranted_speed_kn")) or 0
 
-    # Event-wise over the whole SEGMENT (not just fair-weather rows) —
-    # matches cp_calculator.py, which builds b_h/c_h/e_tot/f_tot from `seg`.
-    ev = _event_wise_time_and_consumption(steaming, warranty)
+    # Event-wise over the whole SEGMENT (seg_rows, NOT `steaming`) — matches
+    # cp_calculator.py, which builds b_h/c_h/e_tot/f_tot from `seg`, not from
+    # its own dist>0-and-duration>0-filtered `steaming` list. Bug found
+    # 2026-09 (fleet-wide VM audit run, GCL YAMUNA 061L): `steaming` requires
+    # Duration_h > 0, but a real report can have a genuine distance with
+    # Duration_h recorded as 0 — that row's implied hours (dist / speed)
+    # still belong in the event-wise sum, which never reads Duration_h at
+    # all. Passing `steaming` here silently dropped that row (and wrongly
+    # kept the BOSP boundary row, which _event_wise_rows excludes by event
+    # type instead) — a ~20 hour gap on a 14-day voyage, once per segment
+    # with this data pattern.
+    ev = _event_wise_time_and_consumption(seg_rows, warranty)
     time_lost_h = 0.0
     fuel_lost_mt = 0.0
     if good_wx["avg_speed_kn"] and w_spd and ev["event_count"] > 0:
