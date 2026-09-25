@@ -257,12 +257,18 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
     }
   }
 
-  // Vessel-level Loss/Saving totals
+  // Vessel-level Loss/Saving totals. dogo_mt is now always null (GO no
+  // longer gets its own independent verdict — folded into the combined
+  // fo_mt total, backend change 2026-09) — summing it with `|| 0` used to
+  // silently turn "not applicable" into a fake "0.00 mt" that read as an
+  // assessed net-zero conclusion, while every individual row correctly
+  // showed "—" for the same field. Keep the total null too unless some row
+  // genuinely has a real (non-null) value.
   const tot = rows.reduce((a, r) => ({
     time: a.time + (r.loss?.time_h || 0),
     fo:   a.fo   + (r.loss?.fo_mt  || 0),
-    dogo: a.dogo + (r.loss?.dogo_mt|| 0),
-  }), { time: 0, fo: 0, dogo: 0 })
+    dogo: r.loss?.dogo_mt != null ? (a.dogo ?? 0) + r.loss.dogo_mt : a.dogo,
+  }), { time: 0, fo: 0, dogo: null })
 
   return (
     <div className="cpp-panel">
