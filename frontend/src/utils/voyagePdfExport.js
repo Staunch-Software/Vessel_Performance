@@ -3,6 +3,17 @@
  * ------------------
  * Generates a WNI-style Voyage Audit Report PDF using jsPDF + jsPDF-AutoTable.
  *
+ * CP Loss(+)/Saving(-) figures (cover page, Section B Time Calculation,
+ * Section C Consumption Calculation) are READ, not recalculated: this file
+ * fetches /cp/{imo}/performance (`cpData`) the same as the live Logbook+
+ * Charter-Party Performance table, and uses its `loss`/`detail`/`good_wx`/
+ * `entire` fields directly. There is no independent CP calculation left in
+ * this file (removed 2026-09, client request) — see backend/cp/
+ * cp_calculator.py's compute_cp_voyage_table() for the one place this
+ * methodology is implemented. Only the daily per-consumer fuel/weather
+ * tables and chart data still come from /voyage/series raw rows, since
+ * those are plain data listings, not part of the verdict.
+ *
  * Page Structure (reordered per client request 2026-09 — Speed & Weather
  * Analysis and Fuel Consumption Analysis moved up right after the cover
  * page; CP Performance Charts and the weather-current chart image moved
@@ -257,182 +268,19 @@ function eventWiseCpRows(seriesRows) {
   return (seriesRows || []).filter(r => !/COSP|BOSP/i.test(r.event_type || ''))
 }
 
-// Resolves the CP speed/FO/GO that actually applied on ONE event/day:
-// that day's parsed CP remarks instruction (cp_instruction) if one exists,
-// otherwise the vessel's standing CP warranty. GO falls back to the standing
-// warranty EXCEPT when the remarks parser found a real LSMGO figure
-// (Format C — "INSTRUCTED CP SPEED ... / VLSFO CONSUMPTION ... / LSMGO
-// CONSUMPTION: Z MT" — the only remarks format with its own GO figure); most
-// remarks formats only ever specify one combined IFO figure and have no
-// go_mt_day to use (manager feedback 2026-09: LSMGO for CP wasn't being
-// captured even when the remarks explicitly stated it).
-function eventCpFigures(row, cpW) {
-  const instr = row.cp_instruction
-  return {
-    speed: instr?.speed_kn ?? +(cpW.speed_kn || 0),
-    fo:    instr?.total_mt_day ?? +(cpW.fo_mtpd || 0),
-    go:    instr?.go_mt_day ?? +(cpW.dogo_mtpd || 0),
-  }
-}
-
-// Cumulative event-wise Time-at-Warranted-Speed figures (formulas b/c) and
-// Max/Min Warranted Consumption figures (formulas e/f) — client request
-// 2026-09: previously ONE division using a single fixed CP warranty figure
-// for the whole voyage; now summed per-event using whichever CP instruction
-// actually applied that day.
-//
-// DOUBT — flagged for the client to confirm, not yet answered: should the
-// ±tolerance in (b)/(e)/(f) apply per-event (that day's own applicable
-// speed/consumption ± tolerance, as implemented here per explicit
-// instruction 2026-09), or should tolerance only ever apply around the
-// single standing warranty regardless of a day having its own override?
-function computeEventWiseCp(seriesRows, cpW, tolKn, tolPct) {
-  const rows = eventWiseCpRows(seriesRows)
-  let bHours = 0, cHours = 0, eTot = 0, fTot = 0, eventCount = 0
-  rows.forEach(r => {
-    const dist = +(r.Distance_nm) || 0
-    const { speed, fo, go } = eventCpFigures(r, cpW)
-    if (dist <= 0 || !speed) return
-    eventCount += 1
-    const effSpeed  = speed - tolKn
-    const totalMax  = (fo + go) * (1 + tolPct / 100)
-    const totalMin  = (fo + go) * (1 - tolPct / 100)
-    cHours += dist / speed
-    fTot   += (dist / speed) * (totalMin / 24)
-    if (effSpeed > 0) {
-      bHours += dist / effSpeed
-      eTot   += (dist / effSpeed) * (totalMax / 24)
-    }
-  })
-  return { bHours, cHours, eTot, fTot, eventCount }
-}
-
-// Same cumulative event-wise Max/Min Warranted Consumption as
-// computeEventWiseCp(), but keeping FO and GO separate instead of combining
-// them — needed so the cover page's FO/GO Lost-Saved boxes and Section C's
-// combined total can both be derived from one source (eFO+eGO === the old
-// combined eTot, exactly, since the tolerance % applies linearly either way).
-function computeEventWiseCpSplit(seriesRows, cpW, tolKn, tolPct) {
-  const rows = eventWiseCpRows(seriesRows)
-  let eFO = 0, fFO = 0, eGO = 0, fGO = 0, eventCount = 0
-  rows.forEach(r => {
-    const dist = +(r.Distance_nm) || 0
-    const { speed, fo, go } = eventCpFigures(r, cpW)
-    if (dist <= 0 || !speed) return
-    eventCount += 1
-    const effSpeed = speed - tolKn
-    fFO += (dist / speed) * (fo * (1 - tolPct / 100) / 24)
-    fGO += (dist / speed) * (go * (1 - tolPct / 100) / 24)
-    if (effSpeed > 0) {
-      eFO += (dist / effSpeed) * (fo * (1 + tolPct / 100) / 24)
-      eGO += (dist / effSpeed) * (go * (1 + tolPct / 100) / 24)
-    }
-  })
-  return { eFO, fFO, eGO, fGO, eventCount }
-}
-
-const numOr0 = (v) => { const n = +v; return isNaN(n) ? 0 : n }
-
-// Reclassifies GO into the FO/Total comparison figure using that day's own
-// CP-remarks GO allowance (manager methodology 2026-09): in rough weather a
-// vessel may be forced to burn GO in place of its normal fuel, so for
-// FO-warranty comparison purposes that GO needs folding into the FO figure.
-// This is deliberately ADDITIVE, not a bucket-move — GO's own separate
-// consumption and its own comparison against the GO warranty are untouched;
-// only the FO/Total side gains this amount ("GO to be included ON the FO
-// calculation itself", manager's own wording).
-//   a = that day's CP-remarks GO allowance (0 if the day has no per-day GO
-//       instruction at all — explicit fallback, NOT the standing GO warranty)
-//   b = that day's actual raw GO consumption
-//   b - a > 0  -> add the EXCESS (b - a) to that day's FO figure
-//   b - a <= 0 -> add the FULL raw GO amount (b) to that day's FO figure
-function reclassifiedFO(hfoRaw, goRaw, goAllowanceOrNull) {
-  const a = goAllowanceOrNull ?? 0
-  const excess = goRaw - a
-  return hfoRaw + (excess > 0 ? excess : goRaw)
-}
-
-// Per-row TRUE FO (HFO+LFO) vs GO (MDO) totals, summed across all 8
-// consumer prefixes (ME, AE, Aux Boiler "bl", Composite Boiler "combl",
-// Incinerator "inc", "aeb", "blfo", Emergency Generator "eg") — same
-// consumer breadth as the live Charter-Party Performance table's SQL
-// (cp_routes.py's _CONSUMER_PREFIXES). Found 2026-09 while unifying the PDF
-// and live table: this function was still only summing 4 of the 8, missing
-// a small amount on any vessel that actually uses Incinerator/aeb/blfo/eg —
-// the exact under-counting bug cp_routes.py had already been fixed for
-// separately, never closed here. Plus the reclassified FO figure (see
-// reclassifiedFO above) for CP comparison.
-const _SUM_FUEL_PREFIXES = ['me', 'ae', 'bl', 'combl', 'inc', 'aeb', 'blfo', 'eg']
-function sumFuelGrades(rows) {
-  let fo = 0, go = 0, foReclassified = 0
-  rows.forEach(r => {
-    const hfo = _SUM_FUEL_PREFIXES.reduce((s, p) => s + numOr0(r[`${p}_hfo`]) + numOr0(r[`${p}_lfo`]), 0)
-    const mdo = _SUM_FUEL_PREFIXES.reduce((s, p) => s + numOr0(r[`${p}_mdo`]), 0)
-    fo += hfo
-    go += mdo
-    foReclassified += reclassifiedFO(hfo, mdo, r.cp_instruction?.go_mt_day)
-  })
-  return { fo, go, foReclassified }
-}
-
-// Actual-side (d)-style figures, split FO/GO, extrapolated over the entire
-// voyage distance at the achieved good-weather speed — same shape as the
-// existing combined (d')/(d_tot), just split so FO uses the reclassified
-// total and GO uses the raw total, each compared against its own warranty.
-//
-// dTotal is the TRUE physical fuel total (raw FO + raw GO) — NOT dFO+dGO.
-// Bug found 2026-09 (AM KIRTI 39/01, a 100%-GO ECA-transit leg: raw FO=0,
-// raw GO=52.10 MT): dFO is built from foReclassified, which — per
-// reclassifiedFO() — already contains some or all of that SAME raw GO
-// amount folded in (up to the full 52.10 MT when there's no per-day GO
-// allowance). Any caller that then did dFO + dGO (dGO being that same raw
-// GO again) was double-counting the reclassified portion — in the worst
-// case (as here) counting a single physical MT of fuel twice, which is what
-// produced "Total Fuel Consumption" = 104.20 MT on a leg that only burned
-// 52.10 MT. dFO/dGO remain correct for their own FO-only/GO-only warranty
-// comparisons (that's their intended purpose) — only a combined "total"
-// must use raw figures, never foReclassified + raw GO.
-function computeActualConsumptionSplit(seriesRows, cp) {
-  const goodRows  = (seriesRows || []).filter(isFairWeatherRow)
-  const { fo, go, foReclassified } = sumFuelGrades(goodRows)
-  const goodTimeB = cp.good_wx?.time_h ?? 0
-  const gwSpeedB  = cp.good_wx?.avg_speed_kn || 0
-  const distE     = cp.entire?.distance_nm || (seriesRows || []).reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
-  if (!(goodTimeB > 0) || !(gwSpeedB > 0)) return { dFO: 0, dGO: 0, dTotal: 0, distE, gwSpeedB, goodTimeB, foReclassified, fo, go }
-  return {
-    dFO: (distE / gwSpeedB) * (foReclassified / goodTimeB),
-    dGO: (distE / gwSpeedB) * (go / goodTimeB),
-    dTotal: (distE / gwSpeedB) * ((fo + go) / goodTimeB),
-    distE, gwSpeedB, goodTimeB, foReclassified, fo, go,
-  }
-}
-
-// The full Time Lost/Gained conclusion (formulas a/b/c) — factored out so
-// the cover page's Lost/Saved box and Section B's own detailed workings
-// always show the SAME number, computed the SAME (event-wise) way, instead
-// of the cover page pulling a different figure from the backend's simpler
-// single-warranty cp.loss.time_h (client request 2026-09).
-function computeTimeLostGained(seriesRows, cp, cpW, tolKn) {
-  const gwSpeedB = cp.good_wx?.avg_speed_kn || 0
-  const distE    = cp.entire?.distance_nm || (seriesRows || []).reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
-  const tolPct   = cp.allowance?.cons_pct != null ? +cp.allowance.cons_pct : 5.0
-  const evCp = computeEventWiseCp(seriesRows, cpW, tolKn, tolPct)
-  const a = gwSpeedB > 0 ? distE / gwSpeedB : 0
-  const b = evCp.bHours
-  const c = evCp.cHours
-  const timeLost   = a - b
-  const timeGained = c - a
-  let concludedHours = 0, concludedIsLoss = false, concludedNeutral = false
-  if (timeLost > 0) {
-    concludedIsLoss = true
-    concludedHours = timeLost
-  } else if (timeGained > 0) {
-    concludedHours = timeGained
-  } else {
-    concludedNeutral = true
-  }
-  return { a, b, c, timeLost, timeGained, concludedHours, concludedIsLoss, concludedNeutral, eventCount: evCp.eventCount }
-}
+// NOTE (2026-09): this file used to also define eventCpFigures(),
+// computeEventWiseCp(), computeEventWiseCpSplit(), reclassifiedFO(),
+// sumFuelGrades(), computeActualConsumptionSplit(), and
+// computeTimeLostGained() — an independent recalculation of the same CP
+// Loss(+)/Saving(-) methodology cp_calculator.py's compute_cp_voyage_table()
+// implements server-side. That duplication was the actual root cause behind
+// a whole string of PDF-vs-live-table mismatches this session (cover page
+// not matching Section C, a double-counting bug, different BOSP/EOSP
+// windows, different fuel-consumer breadth). Per client request, the PDF
+// now reads cp.loss/cp.detail/cp.good_wx/cp.entire directly from the same
+// /cp/{imo}/performance response instead of recomputing any of it — see
+// buildCoverPage, buildSpeedConsPage, and buildMethodologyPage1. Those
+// functions were deleted rather than left as unused dead code.
 
 // ── Equipment x fuel-type consumption breakdown (client request 2026-09) ──
 // Replaces the old flat "FO (mt)" / "DO/GO (mt)" columns wherever they
@@ -658,29 +506,14 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   const cpW = cp.warranty || {}
   const cpGD = cp.good_wx_def || {}
 
-  // This box now mirrors Sections B/C's own event-wise, CP-remarks-aware
-  // conclusions (manager request 2026-09) instead of the backend's simpler
-  // single-warranty cp.loss figures — so page 1's headline numbers always
-  // match the detailed workings on pages 4-5, not a different calculation.
-  const tolKn  = cp.allowance?.speed_kn != null ? +cp.allowance.speed_kn : 0.5
-  const tolPct = cp.allowance?.cons_pct != null ? +cp.allowance.cons_pct : 5.0
-  const timeConclusion = computeTimeLostGained(series, cp, cpW, tolKn)
-  const { dTotal } = computeActualConsumptionSplit(series, cp)
-  const { eFO, fFO, eGO, fGO } = computeEventWiseCpSplit(series, cpW, tolKn, tolPct)
-  // Must compare against the COMBINED (FO+GO) warranted band, not an FO-only
-  // one — this box needs the same "Total Consumption" conclusion Section C
-  // reaches (manager feedback 2026-09: "though there is fuel saving - same
-  // is not reflecting on 01st page"). dTotal is the TRUE physical fuel total
-  // (raw FO + raw GO) — using dFO+dGO here was a double-count bug (dFO is
-  // built from the RECLASSIFIED FO figure, which already contains some/all
-  // of the same GO that dGO adds again); see computeActualConsumptionSplit's
-  // own doc comment (found 2026-09 via AM KIRTI 39/01, a 100%-GO ECA leg
-  // where this produced "104.20 MT" total fuel on a voyage that only burned
-  // 52.10 MT).
-  const dTotCover = dTotal
-  const eTotCover = eFO + eGO
-  const fTotCover = fFO + fGO
-  const foLossCover = dTotCover > eTotCover ? dTotCover - eTotCover : (dTotCover < fTotCover ? -(fTotCover - dTotCover) : 0)
+  // Reads the live /cp/{imo}/performance endpoint's own decided Loss(+)/
+  // Saving(-) figures directly — NOT recomputed here (client request
+  // 2026-09: the PDF used to independently recalculate this in JS, which
+  // kept drifting out of sync with the live Logbook+ table; both now read
+  // the exact same backend-computed numbers, see cp_calculator.py's
+  // compute_cp_voyage_table). This box therefore always matches both the
+  // live table AND Sections B/C below, which read the same cp.loss/
+  // cp.detail values.
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
@@ -781,7 +614,7 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     doc.text('Saved', 72, y + 28, { align: 'right' })
     doc.line(60, y + 21, W - 14, y + 21) // horiz line between lost and saved
     
-    const tLoss = timeConclusion.concludedNeutral ? 0 : (timeConclusion.concludedIsLoss ? timeConclusion.concludedHours : -timeConclusion.concludedHours)
+    const tLoss = cp.loss?.time_h ?? 0
     if (tLoss > 0) {
       doc.setFillColor(255, 0, 0)
       doc.rect(80, y + 14, 20, 5, 'F')
@@ -795,8 +628,9 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     }
     doc.setTextColor(0, 0, 0)
     
-    // FO
-    const foLoss = foLossCover
+    // FO — combined FO+GO Total Fuel verdict (GO no longer gets its own
+    // independent verdict, manager instruction 2026-09 — see the GO box below).
+    const foLoss = cp.loss?.fo_mt ?? 0
     doc.setFont('helvetica', 'bold')
     if (foLoss > 0) {
       doc.setFillColor(255, 0, 0)
@@ -937,24 +771,22 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   const totalSpeed = cp.entire?.avg_speed_kn ?? (totalDur > 0 ? totalDist / totalDur : 0)
   const goodSpeed  = cp.good_wx?.avg_speed_kn ?? (goodDur > 0 ? goodDist / goodDur : 0)
 
-  // TRUE FO (HFO+LFO) vs GO (MDO) totals, summed per-row across all 4
-  // consumers (ME, AE, Aux Boiler "bl", Composite Boiler "combl") — client
-  // request 2026-09: replaces the previous approximation that treated all
-  // ME consumption as FO and all AE+Boiler consumption as GO. Fields come
-  // straight from /voyage/series (me_hfo/me_lfo/me_mdo etc.), not from the
-  // cp.entire/cp.good_wx aggregates (those don't carry a grade split).
+  // FO/GO totals now come straight from the live /cp/{imo}/performance
+  // endpoint (client request 2026-09) instead of being recomputed here from
+  // raw per-consumer fields — one calculation, read by both the PDF and the
+  // live table (see cp_calculator.py's _agg_wni/_reclassified_fo).
   //
-  // "FO Consumption" below is the RECLASSIFIED figure (manager methodology
-  // 2026-09 — see reclassifiedFO()'s doc comment): GO burned in place of
-  // normal fuel during rough weather is folded into this FO figure for CP
-  // comparison purposes. "GO Consumption" stays the raw, un-reclassified
-  // actual GO burn — it's still tracked and compared against the GO
-  // warranty on its own; only FO/Total gains this amount, nothing is
-  // subtracted out of GO.
-  const goodGrades  = sumFuelGrades(goodRows)
-  const totalGrades = sumFuelGrades(seriesRows)
-  const goodFO  = goodGrades.foReclassified,  goodGO  = goodGrades.go
-  const totalFO = totalGrades.foReclassified, totalGO = totalGrades.go
+  // "FO Consumption" is the RECLASSIFIED figure (manager methodology
+  // 2026-09 — see the backend's _reclassified_fo doc comment): GO burned in
+  // place of normal fuel during rough weather is folded into this FO figure
+  // for display purposes. "GO Consumption" stays the raw, un-reclassified
+  // actual GO burn — it's still tracked on its own; only FO/Total gains
+  // this amount, nothing is subtracted out of GO. Note this reclassified
+  // figure is DISPLAY-ONLY — the actual Loss/Saving verdict (cover page,
+  // Section C) uses the combined RAW total instead, to avoid double-
+  // counting (see cp_calculator.py's "detail" doc comment).
+  const goodFO  = cp.good_wx?.fo_reclassified_mt ?? 0,  goodGO  = cp.good_wx?.dogo_mt ?? 0
+  const totalFO = cp.entire?.fo_reclassified_mt ?? 0,   totalGO = cp.entire?.dogo_mt ?? 0
 
   const goodDailyFO  = goodDur > 0 ? goodFO / (goodDur / 24) : 0
   const totalDailyFO = totalDur > 0 ? totalFO / (totalDur / 24) : 0
@@ -962,17 +794,13 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   const goodDailyGO  = goodDur > 0 ? goodGO / (goodDur / 24) : 0
   const totalDailyGO = totalDur > 0 ? totalGO / (totalDur / 24) : 0
 
-  // "Total Fuel Consumption" must be the TRUE physical total actually
-  // burned — raw FO + raw GO — NOT goodFO+goodGO (reclassified FO + raw
-  // GO), which double-counts whatever portion of GO reclassifiedFO() folded
-  // into the FO figure. Bug found 2026-09 via AM KIRTI 39/01, a 100%-GO ECA
-  // leg (raw FO=0, raw GO=52.10 MT): with the old formula, "Total FO
-  // Consumption**" showed 52.10 (all of GO reclassified in, correct for
-  // that column) AND "Total GO Consumption" also showed 52.10 (raw, also
-  // correct on its own) — but summing them for "Total Fuel Consumption"
-  // produced 104.20 MT, double the 52.10 MT actually burned.
-  const goodRawTotal  = goodGrades.fo + goodGrades.go
-  const totalRawTotal = totalGrades.fo + totalGrades.go
+  // "Total Fuel Consumption" is the TRUE physical total actually burned —
+  // raw FO + raw GO — NOT goodFO+goodGO (reclassified FO + raw GO), which
+  // double-counts whatever portion of GO got folded into the reclassified
+  // FO figure above (see cp_calculator.py's "detail" doc comment for the
+  // bug this avoids — found 2026-09 via AM KIRTI 39/01).
+  const goodRawTotal  = (cp.good_wx?.fo_mt ?? 0) + (cp.good_wx?.dogo_mt ?? 0)
+  const totalRawTotal = (cp.entire?.fo_mt ?? 0) + (cp.entire?.dogo_mt ?? 0)
   const goodDailyRawTotal  = goodDur > 0 ? goodRawTotal / (goodDur / 24) : 0
   const totalDailyRawTotal = totalDur > 0 ? totalRawTotal / (totalDur / 24) : 0
 
@@ -1051,24 +879,22 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   const gwSpeedB = cp.good_wx?.avg_speed_kn || 0
   const distE    = cp.entire?.distance_nm || totalDist
 
-  // (b)/(c) — cumulative EVENT-WISE Time at Warranted Speed (client request
-  // 2026-09): a voyage with more than one CP instruction (varying speed/
-  // consumption across days, see the Varying CP instruction table on page
-  // 1) no longer gets ONE division against a single fixed warranted speed
-  // for the whole voyage — each event from just after COSP through EOSP
-  // uses whichever CP instruction actually applied that day, and the
-  // resulting hours are summed. (a) is unchanged — it's the vessel's own
-  // ACTUAL good-weather speed, not a CP instruction, so it's out of scope
-  // for this change and still uses the full voyage distance (distE).
-  const evCp = computeEventWiseCp(seriesRows, cpW, tolKn, tolPct)
+  // (a)/(b)/(c) now come straight from the live /cp/{imo}/performance
+  // endpoint's "detail" block (client request 2026-09) — the same
+  // cumulative event-wise figures (whichever CP instruction actually
+  // applied each day) the live Logbook+ table's own Loss/Saving verdict is
+  // built from, instead of being recomputed independently here.
+  const detail = cp.detail || {}
+  const evCp = { bHours: detail.b_h ?? 0, cHours: detail.c_h ?? 0, eventCount: detail.event_count ?? 0 }
 
   const p1 = "Time loss or gained is calculated by comparing (a) Total Time at Good Weather Performance Speed to (b) and (c) listed below. Both (b) and (c) are now computed cumulatively, event by event (excluding the COSP report), using whichever CP instruction actually applied on each day of the voyage — see the Varying CP instruction table on page 1 for voyages with more than one. Time loss calculation (b) applies a minus " + fmt(tolKn, 2) + " knot allowance for 'about' on each event's applicable speed, while no allowance is applied in (c)."
   const splitText = doc.splitTextToSize(p1, W - 28)
   doc.text(splitText, 14, y)
   y += splitText.length * 4 + 4
 
-  // Math logic for time calculation
-  const a = gwSpeedB > 0 ? distE / gwSpeedB : 0
+  // Math logic for time calculation — (a) also from the endpoint's own
+  // "detail" block, not recomputed from gwSpeedB/distE locally.
+  const a = detail.a_h ?? 0
   const b = evCp.bHours
   const c = evCp.cHours
   const timeLost   = a - b
@@ -1180,30 +1006,21 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   const gwSpeedB = cp.good_wx?.avg_speed_kn || 0
   const distE    = cp.entire?.distance_nm || seriesRows.reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
   const effSpd   = wSpeed - tolKn
-  // Formula (d)'s own denominator is the voyage's REAL total Good Weather
-  // Time (in hours), not the "24 hours" constant (e)/(f) use — confirmed
-  // against WNI's own reference Voyage Audit Report (client-supplied
-  // 2026-09, e.g. "20.02 / 18.8" where 18.8 is the real measured
-  // Good-Weather Time, not 24). The numerator is the TRUE physical total
-  // (raw FO + raw GO, i.e. dTotal — NOT the reclassified FO total added to
-  // raw GO again, which double-counts whatever portion of GO was folded
-  // into the reclassified FO figure; see computeActualConsumptionSplit's
-  // doc comment, found 2026-09 via AM KIRTI 39/01). Computed here on the
-  // frontend from seriesRows/cp_instruction, not pulled from the backend's
-  // cp.good_wx.fo_mt/dogo_mt any more, so this figure and Section A's own
-  // FO/GO table stay consistent with each other.
-  const { dTotal, goodTimeB, fo: goodRawFO, go: goodRawGO } = computeActualConsumptionSplit(seriesRows, cp)
-
-  // Cumulative EVENT-WISE Max/Min Warranted Consumption (formulas e'/f') —
-  // client request 2026-09: same event-by-event methodology as Section B's
-  // (b)/(c), using whichever CP instruction actually applied each day
-  // (excluding COSP). (d') is unchanged — it's the vessel's own ACTUAL
-  // good-weather consumption rate, not a CP instruction, so out of scope.
-  // Split FO/GO (see computeEventWiseCpSplit) so this page's numbers derive
-  // from the same source as the cover page's separate FO/GO Lost-Saved
-  // boxes — eFO+eGO here is identical to the old combined eTot.
-  const cpSplit = computeEventWiseCpSplit(seriesRows, cpW, tolKn, tolPct)
-  const evCp = { eTot: cpSplit.eFO + cpSplit.eGO, fTot: cpSplit.fFO + cpSplit.fGO, eventCount: cpSplit.eventCount }
+  // (d')/(e')/(f') now come straight from the live /cp/{imo}/performance
+  // endpoint's "detail" block (client request 2026-09) — the same combined
+  // Total Fuel figures the live Logbook+ table's own verdict is built from,
+  // instead of being recomputed independently here. d_tot is the TRUE
+  // physical total (raw FO + raw GO — never a reclassified figure, which
+  // would double-count; see cp_calculator.py's compute_cp_voyage_table doc
+  // comment for the bug this avoids, found 2026-09 via AM KIRTI 39/01).
+  // goodTimeB/goodRawFO/goodRawGO come from cp.good_wx directly, so this
+  // page and Section A's own FO/GO table stay consistent with each other.
+  const detail = cp.detail || {}
+  const dTotal    = detail.d_tot ?? 0
+  const goodTimeB = cp.good_wx?.time_h ?? 0
+  const goodRawFO = cp.good_wx?.fo_mt ?? 0
+  const goodRawGO = cp.good_wx?.dogo_mt ?? 0
+  const evCp = { eTot: detail.e_tot ?? 0, fTot: detail.f_tot ?? 0, eventCount: detail.event_count ?? 0 }
 
   const foMax = foW * (1 + tolPct / 100)
   const foMin = foW * (1 - tolPct / 100)
@@ -1322,8 +1139,9 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.text("(d')", 175, blockY + 4)
 
      blockY += 10
-     // E — cumulative event-wise sum, see computeEventWiseCp; the old
-     // "Total Distance / Warranted Speed x Consumption / 24" single-division
+     // E — cumulative event-wise sum, now read from the API's cp.detail
+     // block; the old "Total Distance / Warranted Speed x Consumption / 24"
+     // single-division
      // layout no longer applies once each event can carry its own CP
      // instruction, so this shows the cumulative result directly instead of
      // a formula whose arithmetic wouldn't match e_tot any more.
@@ -1602,7 +1420,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
         formatCoord(r.lon_degree, r.lon_minutes, r.lon_direction),
         // Per-day CP speed (client request 2026-09): that day's own CP
         // remarks instruction if one exists, otherwise the standing CP
-        // warranty — same resolution rule used by eventCpFigures() above.
+        // warranty — display-only, not part of the Loss/Saving verdict.
         fmt(r.cp_instruction?.speed_kn ?? +(cpW.speed_kn || 0), 2),
         fmt(r.SOG_kn),
         fmt(r.Distance_nm, 1),

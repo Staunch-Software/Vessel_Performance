@@ -284,6 +284,38 @@ GW_CURRENT = "NoAdv"
 GW_RATIO  = 50          # good-weather ratio threshold (%)
 
 
+def _reclassified_fo(hfo_raw, go_raw, go_allowance):
+    """Reclassifies GO into the FO comparison figure using that day's own
+    CP-remarks GO allowance (manager methodology 2026-09): in rough weather
+    a vessel may be forced to burn GO in place of its normal fuel, so for
+    FO-warranty comparison/display purposes that GO needs folding into the
+    FO figure. Deliberately ADDITIVE, not a bucket-move — GO's own separate
+    consumption (fo_mt/dogo_mt above) is untouched; only this figure gains
+    the amount. Ported 2026-09 from voyagePdfExport.js's reclassifiedFO() —
+    this now lives in exactly one place, read by both the PDF report and the
+    live table (client request), instead of being recomputed independently
+    in the frontend.
+      a = that day's CP-remarks GO allowance (0 if none — explicit fallback,
+          not the standing GO warranty)
+      b = that day's actual raw GO consumption
+      b - a > 0  -> add the EXCESS (b - a) to that day's FO figure
+      b - a <= 0 -> add the FULL raw GO amount (b) to that day's FO figure
+    """
+    a = go_allowance if go_allowance is not None else 0
+    excess = go_raw - a
+    return hfo_raw + (excess if excess > 0 else go_raw)
+
+
+def _sum_fo_reclassified(rows):
+    total = 0.0
+    for r in rows:
+        hfo = _num(r.get("fo_mt")) or 0
+        go = _num(r.get("dogo_mt")) or 0
+        instr = r.get("cp_instruction") or {}
+        total += _reclassified_fo(hfo, go, instr.get("go_mt_day"))
+    return round(total, 2)
+
+
 def _agg_wni(rows):
     dist  = sum(_num(r.get("Distance_nm")) or 0 for r in rows)
     hours = sum(_num(r.get("Duration_h")) or 0 for r in rows)
@@ -297,6 +329,11 @@ def _agg_wni(rows):
         "current_factor_kn": _round(_mean([_num(r.get("Current_Spd_kn")) for r in rows]), 2),
         "fo_mt":          round(fo, 2),
         "dogo_mt":        round(dogo, 2),
+        # Display-only reclassified FO (see _reclassified_fo's doc comment) —
+        # NOT used for any verdict/comparison (that's the combined d_tot/
+        # e_tot/f_tot in "detail", built from raw fo_mt+dogo_mt to avoid
+        # double-counting GO — see that comment in compute_cp_voyage_table).
+        "fo_reclassified_mt": _sum_fo_reclassified(rows),
         "daily_fo":       round(fo / days, 2) if days else None,
         "daily_dogo":     round(dogo / days, 2) if days else None,
         "days":           round(days, 2),
@@ -461,9 +498,19 @@ def compute_cp_voyage_table(rows, cp_by_cond):
             dist_e   = entire["distance_nm"]
             time_ls = fo_ls = None
             dogo_ls = None  # GO no longer gets its own verdict — see module doc comment above
+            # Intermediate formula values (a_h/b_h/c_h/d_tot/e_tot/f_tot) are
+            # exposed in the result's "detail" key below — these are what the
+            # PDF report's Section B/C pages walk through step by step. They
+            # used to be recomputed independently in the frontend
+            # (voyagePdfExport.js); exposing them here lets the PDF just
+            # DISPLAY this endpoint's own numbers instead of recalculating,
+            # which is what caused the PDF/live-table drift this whole
+            # unification effort has been fixing (client request 2026-09).
+            a_h = b_h = c_h = d_tot = e_tot = f_tot = None
             ev = _event_wise_cp(seg, w_spd, w_fo, w_dogo, tol_kn, tol_pct)
             if gw_speed and dist_e and ev["event_count"] > 0:
                 a_h = dist_e / gw_speed
+                b_h, c_h = ev["b_h"], ev["c_h"]
                 time_lost   = (a_h - ev["b_h"]) if ev["b_h"] > 0 else None
                 time_gained = ev["c_h"] - a_h
                 if time_lost is not None and time_lost > 0:
@@ -484,6 +531,7 @@ def compute_cp_voyage_table(rows, cp_by_cond):
                 if good_time:
                     good_raw_total = (good_wx["fo_mt"] or 0) + (good_wx["dogo_mt"] or 0)
                     d_tot = a_h * (good_raw_total / good_time)
+                    e_tot, f_tot = ev["e_tot"], ev["f_tot"]
                     over = (d_tot - ev["e_tot"]) if ev["e_tot"] > 0 else None
                     save = (ev["f_tot"] - d_tot) if ev["f_tot"] > 0 else None
                     if over is not None and over > 0:
@@ -522,6 +570,15 @@ def compute_cp_voyage_table(rows, cp_by_cond):
                 "loss": {
                     "time_h": time_ls, "fo_mt": fo_ls, "dogo_mt": dogo_ls, "ratio_pct": ratio,
                 },
+                # Formula walk-through values for the PDF's Section B (Time
+                # Calculation) and Section C (Consumption Calculation) pages —
+                # see comment above. event_count is the same [N events] shown
+                # in both formula boxes.
+                "detail": {
+                    "a_h": _round(a_h, 2), "b_h": _round(b_h, 2), "c_h": _round(c_h, 2),
+                    "d_tot": _round(d_tot, 2), "e_tot": _round(e_tot, 2), "f_tot": _round(f_tot, 2),
+                    "event_count": ev["event_count"],
+                },
                 "good_wx":  good_wx,
                 "entire":   entire,
                 "warranty": {"speed_kn": w_spd, "fo_mtpd": w_fo, "dogo_mtpd": w_dogo},
@@ -553,6 +610,7 @@ def not_computable_result(voyage_no, reason, source=None):
     empty_agg = {
         "time_h": None, "distance_nm": None, "avg_speed_kn": None,
         "current_factor_kn": None, "fo_mt": None, "dogo_mt": None,
+        "fo_reclassified_mt": None,
         "daily_fo": None, "daily_dogo": None, "days": None,
     }
     return {
@@ -565,6 +623,7 @@ def not_computable_result(voyage_no, reason, source=None):
         "atd":            "",
         "ata":            "",
         "loss": {"time_h": None, "fo_mt": None, "dogo_mt": None, "ratio_pct": None},
+        "detail": {"a_h": None, "b_h": None, "c_h": None, "d_tot": None, "e_tot": None, "f_tot": None, "event_count": None},
         "good_wx":  empty_agg,
         "entire":   empty_agg,
         "warranty": {"speed_kn": None, "fo_mtpd": None, "dogo_mtpd": None},
