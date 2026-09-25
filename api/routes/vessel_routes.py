@@ -17,6 +17,7 @@ from backend.models import (
     NoonReportData, MariAppsReportData, DataQualityLog, RawMariAppsLog, RawNoonReport
 )
 from backend.cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
+from backend.voyage_window import find_bosp_eosp_window
 
 # --- Dependency to get DB session ---
 def get_db():
@@ -446,50 +447,50 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, source: str = None, db: S
     if source:
         q = q.filter(AnalysisData.source_id == source)
     results = q.order_by(AnalysisData.Date.asc(), AnalysisData.Time_UTC.asc()).all()
-    bosps = []
-    eosps = []
-    for row in results:
-        ad = row[0]
-        noon = row[1]
-        mariapps = row[2]
+
+    def _ltype(row):
+        ad, noon, mariapps = row
         source_model = noon if noon else (mariapps if mariapps else None)
-        
-        # Get log type
-        ltype = getattr(source_model, 'log_type', getattr(source_model, 'event_type', None)) if source_model else getattr(ad, 'event_type', None)
-        ltype = (ltype or "").upper()
-        
-        if "BOSP" in ltype:
-            bosps.append(ad)
-        if "EOSP" in ltype:
-            eosps.append(ad)
-            
-    eosp_record = eosps[-1] if eosps else None
-    bosp_record = None
-    if bosps:
-        if eosp_record:
-            eosp_dt = f"{eosp_record.Date}T{eosp_record.Time_UTC or '00:00'}"
-            valid_bosps = [b for b in bosps if f"{b.Date}T{b.Time_UTC or '00:00'}" <= eosp_dt]
-            if valid_bosps:
-                bosp_record = valid_bosps[0]
-        else:
-            bosp_record = bosps[0]
-            
-    dep_record = bosp_record if bosp_record else (results[0][0] if results else None)
-    arr_record = eosp_record if eosp_record else (results[-1][0] if results else None)
+        lt = getattr(source_model, 'log_type', getattr(source_model, 'event_type', None)) if source_model else getattr(ad, 'event_type', None)
+        return (lt or "").upper()
+
+    dated = [(f"{row[0].Date}T{row[0].Time_UTC or '00:00'}", _ltype(row), row) for row in results]
+
+    # Same window-finding used by the live Charter-Party Performance table
+    # (cp_routes.py) — found 2026-09: this endpoint and that one had each
+    # grown their own separate implementation of the same BOSP/EOSP logic,
+    # and they drifted apart at the edges (differed by a day/~15nm on a real
+    # voyage), so the PDF report and the live table never quite agreed even
+    # after their downstream calculation math was unified. See
+    # backend/voyage_window.py.
+    #
+    # Unlike cp_routes.py, this endpoint does NOT exclude a voyage outright
+    # when there's no valid window (no EOSP yet, or an inverted range) — it
+    # falls back to its own pre-existing graceful degradation (first BOSP or
+    # first row as departure, last row as arrival) so a report can still be
+    # generated for an in-progress voyage. Only the case where a real window
+    # DOES exist is now guaranteed to match cp_routes.py exactly.
+    window = find_bosp_eosp_window(dated)
+    if window is not None:
+        dep_record, arr_record, dep_dt, arr_dt = window
+    else:
+        bosps = [(dt, r) for dt, et, r in dated if "BOSP" in et]
+        eosps = [(dt, r) for dt, et, r in dated if "EOSP" in et]
+        eosp_record = eosps[-1][1] if eosps else None
+        bosp_record = bosps[0][1] if bosps else None
+        dep_record = bosp_record if bosp_record else (results[0] if results else None)
+        arr_record = eosp_record if eosp_record else (results[-1] if results else None)
+        dep_dt = f"{dep_record[0].Date}T{dep_record[0].Time_UTC or '00:00'}" if dep_record else ""
+        arr_dt = f"{arr_record[0].Date}T{arr_record[0].Time_UTC or '00:00'}" if arr_record else ""
 
     valid_results = []
-    
-    dep_dt = f"{dep_record.Date}T{dep_record.Time_UTC or '00:00'}" if dep_record else ""
-    arr_dt = f"{arr_record.Date}T{arr_record.Time_UTC or '00:00'}" if arr_record else ""
-
-    for row in results:
-        ad = row[0]
-        if dep_record and arr_record:
-            ad_dt = f"{ad.Date}T{ad.Time_UTC or '00:00'}"
-            if dep_dt <= ad_dt <= arr_dt:
+    for dt, _, row in dated:
+        if dep_record is not None and arr_record is not None:
+            if dep_dt <= dt <= arr_dt:
                 valid_results.append(row)
         else:
             valid_results = results
+            break
 
     # ── Per-day CP remarks (Varying CP Instruction) + real fuel grade labels ──
     # expanded_mariapps_data.raw_log_id == AnalysisData.raw_mariapps_id ==
@@ -686,24 +687,24 @@ def get_voyage_summary(voyage_no: str, vessel_imo: str, source: str = None, db: 
     first = records[0]   # fallback earliest record
     last  = records[-1]  # fallback latest record
 
-    eosp_record = eosps[-1] if eosps else None
-    
-    bosp_record = None
-    if bosps:
-        if eosp_record:
-            # Only accept a BOSP if it happened before or at the same time as EOSP
-            eosp_dt = f"{eosp_record.Date}T{eosp_record.Time_UTC or '00:00'}"
-            valid_bosps = [b for b in bosps if f"{b.Date}T{b.Time_UTC or '00:00'}" <= eosp_dt]
-            if valid_bosps:
-                bosp_record = valid_bosps[0]
-        else:
-            bosp_record = bosps[0]
-
-    dep_record = bosp_record if bosp_record else first
-    arr_record = eosp_record if eosp_record else last
-    
-    dep_dt = f"{dep_record.Date}T{dep_record.Time_UTC or '00:00'}" if dep_record else ""
-    arr_dt = f"{arr_record.Date}T{arr_record.Time_UTC or '00:00'}" if arr_record else ""
+    # Same window-finding used by /voyage/series and the live Charter-Party
+    # Performance table (cp_routes.py) — see backend/voyage_window.py. This
+    # was a THIRD separately-written copy of the same BOSP/EOSP logic (this
+    # endpoint feeds the PDF report's cover-page departure/arrival fields),
+    # found 2026-09 while unifying the other two. Falls back to the same
+    # graceful degradation as /voyage/series (not a hard exclusion) when
+    # there's no valid window yet.
+    dated = [(f"{r.Date}T{r.Time_UTC or '00:00'}", ("BOSP" if r in bosps else ("EOSP" if r in eosps else "")), r) for r in records]
+    window = find_bosp_eosp_window(dated)
+    if window is not None:
+        dep_record, arr_record, dep_dt, arr_dt = window
+    else:
+        eosp_record = eosps[-1] if eosps else None
+        bosp_record = bosps[0] if bosps else None
+        dep_record = bosp_record if bosp_record else first
+        arr_record = eosp_record if eosp_record else last
+        dep_dt = f"{dep_record.Date}T{dep_record.Time_UTC or '00:00'}" if dep_record else ""
+        arr_dt = f"{arr_record.Date}T{arr_record.Time_UTC or '00:00'}" if arr_record else ""
     
     valid_records = []
     if dep_record and arr_record:

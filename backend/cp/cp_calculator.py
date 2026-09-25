@@ -19,6 +19,7 @@ Each row is expected to expose these analysis_data keys (None-safe):
   ME_FOC_MT, AE_FOC_MT, BF_Wind, Sig_Wave_Ht_m, source_id, Record_ID
 """
 
+import re
 from collections import OrderedDict
 
 from backend.cp.cp_compliance_v2 import _pick_sea_warranty
@@ -339,6 +340,67 @@ def _segments(vrows):
     return segs
 
 
+# ── event-wise CP-remarks-aware calculation (client request 2026-09) ────────
+# Ported from the PDF Voyage Audit Report's own frontend calculation
+# (voyagePdfExport.js: eventWiseCpRows/eventCpFigures/computeEventWiseCp) so
+# the live Logbook+ table and the PDF report reach the SAME conclusion for
+# the same voyage, instead of the live table's older single-standing-rate
+# extrapolation (which had no awareness of a day's own CP remarks override,
+# and judged FO/DOGO as two fully independent verdicts against warranty
+# rates that can be wrong when a vessel's GO warranty was never properly
+# populated — see cp_routes.py's AE-fuel-grade fix).
+#
+# DOGO no longer gets its own independent Loss/Saving verdict here (manager
+# instruction 2026-09, matching the PDF's cover-page GO box): GO consumption
+# is judged only as part of the COMBINED FO+GO total below, so `dogo_mt` in
+# the returned `loss` dict is always None now.
+
+def _event_wise_rows(seg):
+    """Excludes the COSP/BOSP boundary row itself, keeping every event from
+    the next report through EOSP inclusive — matches eventWiseCpRows()."""
+    return [r for r in seg if not re.search(r"COSP|BOSP", r.get("event_type") or "", re.IGNORECASE)]
+
+
+def _event_cp_figures(row, w_spd, w_fo, w_dogo):
+    """Resolves the CP speed/FO/GO that actually applied on ONE event/day:
+    that day's parsed CP remarks instruction (cp_instruction, attached by
+    cp_routes._rows_for_source) if one exists, otherwise the vessel's
+    standing CP warranty — matches eventCpFigures()."""
+    instr = row.get("cp_instruction") or {}
+    speed = instr.get("speed_kn")
+    fo    = instr.get("total_mt_day")
+    go    = instr.get("go_mt_day")
+    return (
+        speed if speed is not None else (w_spd or 0),
+        fo if fo is not None else (w_fo or 0),
+        go if go is not None else (w_dogo or 0),
+    )
+
+
+def _event_wise_cp(seg, w_spd, w_fo, w_dogo, tol_kn, tol_pct):
+    """Cumulative event-wise Time-at-Warranted-Speed (b_h/c_h) and combined
+    Max/Min Warranted Consumption (e_tot/f_tot), using whichever CP
+    instruction actually applied each day — matches computeEventWiseCp()."""
+    rows = _event_wise_rows(seg)
+    b_h = c_h = e_tot = f_tot = 0.0
+    event_count = 0
+    for r in rows:
+        dist = _num(r.get("Distance_nm")) or 0
+        speed, fo, go = _event_cp_figures(r, w_spd, w_fo, w_dogo)
+        if dist <= 0 or not speed:
+            continue
+        event_count += 1
+        eff_spd   = speed - tol_kn
+        total_max = (fo + go) * (1 + tol_pct / 100.0)
+        total_min = (fo + go) * (1 - tol_pct / 100.0)
+        c_h   += dist / speed
+        f_tot += (dist / speed) * (total_min / 24.0)
+        if eff_spd > 0:
+            b_h   += dist / eff_spd
+            e_tot += (dist / eff_spd) * (total_max / 24.0)
+    return {"b_h": b_h, "c_h": c_h, "e_tot": e_tot, "f_tot": f_tot, "event_count": event_count}
+
+
 def compute_cp_voyage_table(rows, cp_by_cond):
     """
     Return WNI-style per-segment rows for the selected voyage(s).
@@ -350,6 +412,11 @@ def compute_cp_voyage_table(rows, cp_by_cond):
     so a segment sailed at Full speed is compared against the Full warranty, not
     forced against a single collapsed figure. Each dict needs: warranted_speed_kn,
     warranted_fo_mtpd, warranted_dogo_mtpd, speed_tol_kn, cons_tol_pct.
+
+    Each result's `loss.fo_mt` is the COMBINED FO+GO Total Fuel Loss(+)/
+    Saving(-) (see _event_wise_cp()); `loss.dogo_mt` is always None — GO no
+    longer gets an independent verdict, per manager instruction 2026-09
+    (matches the PDF report's cover-page GO box).
     """
     by_voyage = OrderedDict()
     for r in rows:
@@ -359,7 +426,17 @@ def compute_cp_voyage_table(rows, cp_by_cond):
     for voyage_no, vrows in by_voyage.items():
         vrows = sorted(vrows, key=lambda r: str(r.get("Date") or ""))
         for seg_no, seg in enumerate(_segments(vrows), start=1):
-            steaming = [r for r in seg if _is_steaming(r) and _distance_ok(r)]
+            # No _distance_ok() sanity filter here (removed 2026-09) — the
+            # PDF report's own frontend calculation never applied one, and
+            # this table dropping a row the PDF kept (found via a real
+            # voyage's EOSP row: 15nm/1h vs its instantaneous SOG, a ~30%
+            # mismatch typical of a short partial-day boundary segment, not
+            # actual garbage data) was producing a "close but not exact"
+            # mismatch between the two — the same class of drift this whole
+            # unification effort exists to eliminate. _is_steaming() alone
+            # (positive distance AND duration) still applies, matching the
+            # PDF's own dist<=0 guards.
+            steaming = [r for r in seg if _is_steaming(r)]
             if not steaming:
                 continue
             fair = [r for r in steaming if _is_fair_weather(r)]
@@ -376,25 +453,19 @@ def compute_cp_voyage_table(rows, cp_by_cond):
             tol_kn  = _num(cfg.get("speed_tol_kn"))  or 0.0
             tol_pct = _num(cfg.get("cons_tol_pct")) or 0.0
 
-            # Loss(+) / Saving(-) — good-weather performance vs warranty, extrapolated
-            # across the entire-voyage distance/duration. Two separate comparisons,
-            # per CP convention (matches the PDF voyage report's Time Calculation):
-            #   Time Lost   = (a) - (b)  — (b) uses warranted speed minus the 'about'
-            #                              allowance (tol_kn), benefit of the doubt to the vessel
-            #   Time Gained = (c) - (a)  — (c) uses the full warranted speed, no allowance,
-            #                              to claim a saving
-            # Whichever is positive is the result; if neither is, it's 0 (within tolerance).
+            # Event-wise (client request 2026-09) — see _event_wise_cp()'s doc
+            # comment. Time Lost/Gained now uses cumulative per-event b_h/c_h
+            # (whichever CP instruction actually applied each day) instead of
+            # one single warranted-speed division for the whole segment.
             gw_speed = good_wx["avg_speed_kn"]
             dist_e   = entire["distance_nm"]
-            time_ls = fo_ls = dogo_ls = None
-            a_h = b_h = c_h = None
-            if w_spd and gw_speed and dist_e:
-                eff_spd = w_spd - tol_kn
+            time_ls = fo_ls = None
+            dogo_ls = None  # GO no longer gets its own verdict — see module doc comment above
+            ev = _event_wise_cp(seg, w_spd, w_fo, w_dogo, tol_kn, tol_pct)
+            if gw_speed and dist_e and ev["event_count"] > 0:
                 a_h = dist_e / gw_speed
-                b_h = dist_e / eff_spd if eff_spd else None
-                c_h = dist_e / w_spd
-                time_lost   = (a_h - b_h) if b_h else None
-                time_gained = c_h - a_h
+                time_lost   = (a_h - ev["b_h"]) if ev["b_h"] > 0 else None
+                time_gained = ev["c_h"] - a_h
                 if time_lost is not None and time_lost > 0:
                     time_ls = round(time_lost, 2)
                 elif time_gained > 0:
@@ -402,41 +473,25 @@ def compute_cp_voyage_table(rows, cp_by_cond):
                 else:
                     time_ls = 0.0
 
-            # Fuel Over-consumption(+) / Saving(-) — same two-formula convention as
-            # time above (matches the PDF voyage report's Consumption Calculation):
-            #   Over-consumption = (d) - (e)  — (e) extrapolates the MAX warranted
-            #                                   consumption (+tol%) over (b_h), the
-            #                                   tolerant/allowance speed time — benefit
-            #                                   of the doubt to the vessel
-            #   Saving           = (f) - (d)  — (f) extrapolates the MIN warranted
-            #                                   consumption (-tol%) over (c_h), the full
-            #                                   warranted-speed time, no allowance
-            # (d) is the entire-voyage-equivalent consumption at the observed good-weather
-            # rate, extrapolated over (a_h) — the same good-weather-speed time used for (a).
-            if a_h is not None and good_wx["daily_fo"] is not None:
-                d_fo = a_h * (good_wx["daily_fo"] / 24.0)
-                e_fo = b_h * (w_fo * (1 + tol_pct/100.0) / 24.0) if (w_fo is not None and b_h) else None
-                f_fo = c_h * (w_fo * (1 - tol_pct/100.0) / 24.0) if (w_fo is not None and c_h) else None
-                fo_over = (d_fo - e_fo) if e_fo is not None else None
-                fo_save = (f_fo - d_fo) if f_fo is not None else None
-                if fo_over is not None and fo_over > 0:
-                    fo_ls = round(fo_over, 2)
-                elif fo_save is not None and fo_save > 0:
-                    fo_ls = round(-fo_save, 2)
-                elif fo_over is not None or fo_save is not None:
-                    fo_ls = 0.0
-            if a_h is not None and good_wx["daily_dogo"] is not None:
-                d_go = a_h * (good_wx["daily_dogo"] / 24.0)
-                e_go = b_h * (w_dogo * (1 + tol_pct/100.0) / 24.0) if (w_dogo is not None and b_h) else None
-                f_go = c_h * (w_dogo * (1 - tol_pct/100.0) / 24.0) if (w_dogo is not None and c_h) else None
-                go_over = (d_go - e_go) if e_go is not None else None
-                go_save = (f_go - d_go) if f_go is not None else None
-                if go_over is not None and go_over > 0:
-                    dogo_ls = round(go_over, 2)
-                elif go_save is not None and go_save > 0:
-                    dogo_ls = round(-go_save, 2)
-                elif go_over is not None or go_save is not None:
-                    dogo_ls = 0.0
+                # Combined Total Fuel Over-consumption(+) / Saving(-) — FO and
+                # GO judged TOGETHER against the combined warranted band, not
+                # as two independent verdicts. Uses the TRUE physical total
+                # (raw FO + raw GO from good_wx, already correctly aggregated
+                # by _agg_wni) — never a reclassified figure, which would
+                # double-count; see voyagePdfExport.js's dTotal doc comment
+                # for the bug this mirrors and avoids.
+                good_time = good_wx["time_h"]
+                if good_time:
+                    good_raw_total = (good_wx["fo_mt"] or 0) + (good_wx["dogo_mt"] or 0)
+                    d_tot = a_h * (good_raw_total / good_time)
+                    over = (d_tot - ev["e_tot"]) if ev["e_tot"] > 0 else None
+                    save = (ev["f_tot"] - d_tot) if ev["f_tot"] > 0 else None
+                    if over is not None and over > 0:
+                        fo_ls = round(over, 2)
+                    elif save is not None and save > 0:
+                        fo_ls = round(-save, 2)
+                    elif over is not None or save is not None:
+                        fo_ls = 0.0
 
             ratio = round(good_wx["time_h"] / entire["time_h"] * 100, 1) if entire["time_h"] else 0.0
 

@@ -352,15 +352,22 @@ function reclassifiedFO(hfoRaw, goRaw, goAllowanceOrNull) {
   return hfoRaw + (excess > 0 ? excess : goRaw)
 }
 
-// Per-row TRUE FO (HFO+LFO) vs GO (MDO) totals, summed across all 4
-// consumers (ME, AE, Aux Boiler "bl", Composite Boiler "combl"), plus the
-// reclassified FO figure (see reclassifiedFO above) for CP comparison.
+// Per-row TRUE FO (HFO+LFO) vs GO (MDO) totals, summed across all 8
+// consumer prefixes (ME, AE, Aux Boiler "bl", Composite Boiler "combl",
+// Incinerator "inc", "aeb", "blfo", Emergency Generator "eg") — same
+// consumer breadth as the live Charter-Party Performance table's SQL
+// (cp_routes.py's _CONSUMER_PREFIXES). Found 2026-09 while unifying the PDF
+// and live table: this function was still only summing 4 of the 8, missing
+// a small amount on any vessel that actually uses Incinerator/aeb/blfo/eg —
+// the exact under-counting bug cp_routes.py had already been fixed for
+// separately, never closed here. Plus the reclassified FO figure (see
+// reclassifiedFO above) for CP comparison.
+const _SUM_FUEL_PREFIXES = ['me', 'ae', 'bl', 'combl', 'inc', 'aeb', 'blfo', 'eg']
 function sumFuelGrades(rows) {
   let fo = 0, go = 0, foReclassified = 0
   rows.forEach(r => {
-    const hfo = numOr0(r.me_hfo) + numOr0(r.me_lfo) + numOr0(r.ae_hfo) + numOr0(r.ae_lfo)
-              + numOr0(r.bl_hfo) + numOr0(r.bl_lfo) + numOr0(r.combl_hfo) + numOr0(r.combl_lfo)
-    const mdo = numOr0(r.me_mdo) + numOr0(r.ae_mdo) + numOr0(r.bl_mdo) + numOr0(r.combl_mdo)
+    const hfo = _SUM_FUEL_PREFIXES.reduce((s, p) => s + numOr0(r[`${p}_hfo`]) + numOr0(r[`${p}_lfo`]), 0)
+    const mdo = _SUM_FUEL_PREFIXES.reduce((s, p) => s + numOr0(r[`${p}_mdo`]), 0)
     fo += hfo
     go += mdo
     foReclassified += reclassifiedFO(hfo, mdo, r.cp_instruction?.go_mt_day)

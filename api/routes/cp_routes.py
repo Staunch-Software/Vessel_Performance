@@ -21,6 +21,8 @@ from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend.models import Vessel, VesselCPConfig, CPVesselDescription, CPSeaWarranty
 from backend.cp.cp_calculator import compute_cp_voyage_table, not_computable_result
+from backend.cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
+from backend.voyage_window import find_bosp_eosp_window
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/cp", tags=["cp"])
@@ -129,7 +131,7 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
     sql = f"""
         SELECT a."Voyage_No", a."Loading_Cond", a."Date", a."Time_UTC", a."From_Port", a."To_Port",
                a."Distance_nm", a."Duration_h", a."SOG_kn", a."STW_kn", a."BF_Wind",
-               a."Sig_Wave_Ht_m", a."Current_Spd_kn", a.source_id,
+               a."Sig_Wave_Ht_m", a."Current_Spd_kn", a.source_id, a.raw_mariapps_id,
                {_FO_EXPR} AS fo_mt, {_DOGO_EXPR} AS dogo_mt,
                n.log_type AS event_type
         FROM analysis_data a
@@ -178,49 +180,58 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
         by_voyage.setdefault(r["Voyage_No"], []).append(r)
 
     for v_no, v_rows in by_voyage.items():
-        bosps = [r for r in v_rows if r["event_type"] and "BOSP" in r["event_type"].upper()]
-        eosps = [r for r in v_rows if r["event_type"] and "EOSP" in r["event_type"].upper()]
+        # v_rows is already Date/Time_UTC-ordered (the SQL's own ORDER BY).
+        dated = [(f"{r['Date']}T{r['Time_UTC'] or '00:00'}", r["event_type"], r) for r in v_rows]
 
-        if not eosps:
+        eosps_exist = any(et and "EOSP" in et.upper() for _, et, _ in dated)
+        if not eosps_exist:
             excluded_voyages[v_no] = "Voyage not yet complete — no EOSP report found."
             continue  # ongoing voyage — no EOSP yet, nothing to report on it
 
-        eosp_record = eosps[-1]
-        bosp_record = None
-        if bosps:
-            eosp_dt = f"{eosp_record['Date']}T{eosp_record['Time_UTC'] or '00:00'}"
-            valid_bosps = [b for b in bosps if f"{b['Date']}T{b['Time_UTC'] or '00:00'}" <= eosp_dt]
-            if valid_bosps:
-                bosp_record = valid_bosps[0]
-
-        first = v_rows[0]
-        dep_record = bosp_record if bosp_record else first
-        arr_record = eosp_record  # always the real EOSP — never falls back to "last row"
-
-        dep_dt = f"{dep_record['Date']}T{dep_record['Time_UTC'] or '00:00'}"
-        arr_dt = f"{arr_record['Date']}T{arr_record['Time_UTC'] or '00:00'}"
-
-        # dep_dt can land AT OR AFTER arr_dt when there's no BOSP before
-        # this voyage's own EOSP (bosp_record stays None, falling back to
-        # the voyage's first logged row — which, since rows are date-sorted,
-        # can BE the EOSP row itself when it's chronologically first, as
-        # confirmed on a real voyage: dep_record and arr_record end up the
-        # SAME row). Either way the range collapses to nothing useful, same
-        # silent-empty-result problem as the no-EOSP case — surface it the
-        # same way instead of guessing.
-        if dep_dt >= arr_dt:
+        window = find_bosp_eosp_window(dated)
+        if window is None:
+            # dep_dt landed AT OR AFTER arr_dt — no BOSP precedes this
+            # voyage's own EOSP, so the range collapsed to nothing useful
+            # (see find_bosp_eosp_window's doc comment).
             excluded_voyages[v_no] = (
                 "No valid departure-to-arrival window found for this voyage "
                 "(its EOSP predates any usable departure record — likely a "
                 "port-call gap rather than a real passage)."
             )
             continue
+        _, _, dep_dt, arr_dt = window
 
-        voyage_rows = [r for r in v_rows if dep_dt <= f"{r['Date']}T{r['Time_UTC'] or '00:00'}" <= arr_dt]
+        voyage_rows = [r for dt, _, r in dated if dep_dt <= dt <= arr_dt]
         if not voyage_rows:
             excluded_voyages[v_no] = "No steaming records found within this voyage's departure-to-arrival window."
             continue
         valid_rows.extend(voyage_rows)
+
+    # Per-day CP remarks (client request 2026-09) — same lookup vessel_routes.py's
+    # /voyage/series already does for the PDF report, so the live table can use
+    # whichever CP instruction actually applied that day (Eco/Full override,
+    # revised term mid-voyage) instead of always the single standing warranty.
+    # MariApps-only — WNI rows simply have no raw_mariapps_id and get nothing.
+    mariapps_ids = {r["raw_mariapps_id"] for r in valid_rows if r.get("raw_mariapps_id")}
+    extras_by_id = {}
+    if mariapps_ids:
+        extra_rows = db.execute(text(
+            'SELECT raw_log_id, cpx_remarks FROM expanded_mariapps_data WHERE raw_log_id = ANY(:ids)'
+        ), {"ids": list(mariapps_ids)}).fetchall()
+        extras_by_id = {r[0]: r[1] for r in extra_rows}
+
+    for r in valid_rows:
+        r["cp_instruction"] = None
+        remarks = extras_by_id.get(r.get("raw_mariapps_id")) if r.get("raw_mariapps_id") else None
+        if remarks:
+            parsed = parse_cp_remarks(remarks)
+            instr = pick_instruction_for_condition(parsed, r.get("Loading_Cond"))
+            if instr:
+                r["cp_instruction"] = {
+                    "speed_kn": instr["speed_kn"],
+                    "total_mt_day": instr["total_mt_day"],
+                    "go_mt_day": instr["go_mt_day"],
+                }
 
     return valid_rows, excluded_voyages
 
@@ -259,7 +270,16 @@ def _cp_by_cond_from_cp_description(db, imo):
     cp_by_cond = {}
     for s in sea_rows:
         me_cls = _classify_fuel_grade(s.me_fuel_grade)
-        ae_cls = _classify_fuel_grade(s.ae_fuel_grade) if s.ae_fuel_grade else me_cls
+        # Bug found 2026-09 (AM KIRTI's DO/GO warranty always 0.00, flagging
+        # a "Loss" on every single voyage regardless of scale): when the
+        # source CP Description Excel's "Fuel Grade" cell wasn't split with a
+        # "/" (import_cp_description.py), ae_fuel_grade was left NULL. This
+        # used to fall back to the ME's own grade (me_cls) — but AE virtually
+        # always burns MGO/MDO (DOGO) on this fleet, never the ME's VLSFO/HFO,
+        # so that fallback silently zeroed the DOGO warranty by miscounting
+        # AE's real consumption as FO. Default a missing AE grade to DOGO
+        # instead, matching actual fleet fuel-use patterns.
+        ae_cls = _classify_fuel_grade(s.ae_fuel_grade) if s.ae_fuel_grade else "DOGO"
         me, ae, boiler = s.me_cons_mt_day or 0, s.ae_cons_mt_day or 0, s.boiler_cons_sea_mt_day or 0
         fo   = (me if me_cls == "FO"   else 0) + (ae if ae_cls == "FO"   else 0) + boiler
         dogo = (me if me_cls == "DOGO" else 0) + (ae if ae_cls == "DOGO" else 0)
