@@ -372,17 +372,31 @@ function sumFuelGrades(rows) {
 // voyage distance at the achieved good-weather speed — same shape as the
 // existing combined (d')/(d_tot), just split so FO uses the reclassified
 // total and GO uses the raw total, each compared against its own warranty.
+//
+// dTotal is the TRUE physical fuel total (raw FO + raw GO) — NOT dFO+dGO.
+// Bug found 2026-09 (AM KIRTI 39/01, a 100%-GO ECA-transit leg: raw FO=0,
+// raw GO=52.10 MT): dFO is built from foReclassified, which — per
+// reclassifiedFO() — already contains some or all of that SAME raw GO
+// amount folded in (up to the full 52.10 MT when there's no per-day GO
+// allowance). Any caller that then did dFO + dGO (dGO being that same raw
+// GO again) was double-counting the reclassified portion — in the worst
+// case (as here) counting a single physical MT of fuel twice, which is what
+// produced "Total Fuel Consumption" = 104.20 MT on a leg that only burned
+// 52.10 MT. dFO/dGO remain correct for their own FO-only/GO-only warranty
+// comparisons (that's their intended purpose) — only a combined "total"
+// must use raw figures, never foReclassified + raw GO.
 function computeActualConsumptionSplit(seriesRows, cp) {
   const goodRows  = (seriesRows || []).filter(isFairWeatherRow)
-  const { go, foReclassified } = sumFuelGrades(goodRows)
+  const { fo, go, foReclassified } = sumFuelGrades(goodRows)
   const goodTimeB = cp.good_wx?.time_h ?? 0
   const gwSpeedB  = cp.good_wx?.avg_speed_kn || 0
   const distE     = cp.entire?.distance_nm || (seriesRows || []).reduce((s, r) => s + (+(r.Distance_nm) || 0), 0)
-  if (!(goodTimeB > 0) || !(gwSpeedB > 0)) return { dFO: 0, dGO: 0, distE, gwSpeedB, goodTimeB, foReclassified, go }
+  if (!(goodTimeB > 0) || !(gwSpeedB > 0)) return { dFO: 0, dGO: 0, dTotal: 0, distE, gwSpeedB, goodTimeB, foReclassified, fo, go }
   return {
     dFO: (distE / gwSpeedB) * (foReclassified / goodTimeB),
     dGO: (distE / gwSpeedB) * (go / goodTimeB),
-    distE, gwSpeedB, goodTimeB, foReclassified, go,
+    dTotal: (distE / gwSpeedB) * ((fo + go) / goodTimeB),
+    distE, gwSpeedB, goodTimeB, foReclassified, fo, go,
   }
 }
 
@@ -644,21 +658,19 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
   const tolKn  = cp.allowance?.speed_kn != null ? +cp.allowance.speed_kn : 0.5
   const tolPct = cp.allowance?.cons_pct != null ? +cp.allowance.cons_pct : 5.0
   const timeConclusion = computeTimeLostGained(series, cp, cpW, tolKn)
-  const { dFO, dGO } = computeActualConsumptionSplit(series, cp)
+  const { dTotal } = computeActualConsumptionSplit(series, cp)
   const { eFO, fFO, eGO, fGO } = computeEventWiseCpSplit(series, cpW, tolKn, tolPct)
   // Must compare against the COMBINED (FO+GO) warranted band, not an FO-only
-  // one — dFO is the RECLASSIFIED figure (manager methodology 2026-09), which
-  // already has GO folded into it, so it represents total fuel-equivalent
-  // consumption. Comparing that against eFO/fFO alone (built from only the
-  // fo_mtpd portion of the warranty) is apples-to-oranges and silently
-  // narrows/shifts the band, which is why this box previously showed "No FO
-  // Over-consumption/Saving" even on voyages where Section C's own "Total
-  // Consumption" conclusion (same page-2 formula, same eFO+eGO/fFO+fGO
-  // source) found a real saving or over-consumption (manager feedback
-  // 2026-09: "though there is fuel saving - same is not reflecting on 01st
-  // page"). Using the combined total here makes page 1 match that conclusion
-  // exactly.
-  const dTotCover = dFO + dGO
+  // one — this box needs the same "Total Consumption" conclusion Section C
+  // reaches (manager feedback 2026-09: "though there is fuel saving - same
+  // is not reflecting on 01st page"). dTotal is the TRUE physical fuel total
+  // (raw FO + raw GO) — using dFO+dGO here was a double-count bug (dFO is
+  // built from the RECLASSIFIED FO figure, which already contains some/all
+  // of the same GO that dGO adds again); see computeActualConsumptionSplit's
+  // own doc comment (found 2026-09 via AM KIRTI 39/01, a 100%-GO ECA leg
+  // where this produced "104.20 MT" total fuel on a voyage that only burned
+  // 52.10 MT).
+  const dTotCover = dTotal
   const eTotCover = eFO + eGO
   const fTotCover = fFO + fGO
   const foLossCover = dTotCover > eTotCover ? dTotCover - eTotCover : (dTotCover < fTotCover ? -(fTotCover - dTotCover) : 0)
@@ -943,6 +955,20 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
   const goodDailyGO  = goodDur > 0 ? goodGO / (goodDur / 24) : 0
   const totalDailyGO = totalDur > 0 ? totalGO / (totalDur / 24) : 0
 
+  // "Total Fuel Consumption" must be the TRUE physical total actually
+  // burned — raw FO + raw GO — NOT goodFO+goodGO (reclassified FO + raw
+  // GO), which double-counts whatever portion of GO reclassifiedFO() folded
+  // into the FO figure. Bug found 2026-09 via AM KIRTI 39/01, a 100%-GO ECA
+  // leg (raw FO=0, raw GO=52.10 MT): with the old formula, "Total FO
+  // Consumption**" showed 52.10 (all of GO reclassified in, correct for
+  // that column) AND "Total GO Consumption" also showed 52.10 (raw, also
+  // correct on its own) — but summing them for "Total Fuel Consumption"
+  // produced 104.20 MT, double the 52.10 MT actually burned.
+  const goodRawTotal  = goodGrades.fo + goodGrades.go
+  const totalRawTotal = totalGrades.fo + totalGrades.go
+  const goodDailyRawTotal  = goodDur > 0 ? goodRawTotal / (goodDur / 24) : 0
+  const totalDailyRawTotal = totalDur > 0 ? totalRawTotal / (totalDur / 24) : 0
+
   autoTable(doc, {
     startY: y,
     head: [
@@ -955,8 +981,8 @@ function buildSpeedConsPage(doc, sum, seriesRows, cpData, routeId, reportDate, v
       ['Average Speed [Knots]',         fmt(goodSpeed, 2), '-', fmt(totalSpeed, 2), '-'],
       ['Total FO Consumption** [MT]',   fmt(goodFO, 2), '-',    fmt(totalFO, 2), '-'],
       ['Total GO Consumption [MT]',     fmt(goodGO, 2), '-',    fmt(totalGO, 2), '-'],
-      ['Total Fuel Consumption [MT]',   fmt(goodFO + goodGO, 2), '-', fmt(totalFO + totalGO, 2), '-'],
-      ['Averaged Daily Total Consumption', fmt(goodDailyFO + goodDailyGO, 2), '-', fmt(totalDailyFO + totalDailyGO, 2), '-'],
+      ['Total Fuel Consumption [MT]',   fmt(goodRawTotal, 2), '-', fmt(totalRawTotal, 2), '-'],
+      ['Averaged Daily Total Consumption', fmt(goodDailyRawTotal, 2), '-', fmt(totalDailyRawTotal, 2), '-'],
     ],
     theme: 'grid',
     headStyles: { fillColor: WHITE, textColor: 0, lineWidth: 0.1, lineColor: 0, fontSize: 8, fontStyle: 'bold', halign: 'center' },
@@ -1151,12 +1177,15 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
   // Time (in hours), not the "24 hours" constant (e)/(f) use — confirmed
   // against WNI's own reference Voyage Audit Report (client-supplied
   // 2026-09, e.g. "20.02 / 18.8" where 18.8 is the real measured
-  // Good-Weather Time, not 24). The numerator is the reclassified FO total
-  // + raw GO total (manager methodology 2026-09, see reclassifiedFO()) —
-  // computed here on the frontend from seriesRows/cp_instruction, not
-  // pulled from the backend's cp.good_wx.fo_mt/dogo_mt any more, so this
-  // figure and Section A's own FO/GO table stay consistent with each other.
-  const { dFO, dGO, goodTimeB, foReclassified: goodTotalFOB, go: goodTotalGOB } = computeActualConsumptionSplit(seriesRows, cp)
+  // Good-Weather Time, not 24). The numerator is the TRUE physical total
+  // (raw FO + raw GO, i.e. dTotal — NOT the reclassified FO total added to
+  // raw GO again, which double-counts whatever portion of GO was folded
+  // into the reclassified FO figure; see computeActualConsumptionSplit's
+  // doc comment, found 2026-09 via AM KIRTI 39/01). Computed here on the
+  // frontend from seriesRows/cp_instruction, not pulled from the backend's
+  // cp.good_wx.fo_mt/dogo_mt any more, so this figure and Section A's own
+  // FO/GO table stay consistent with each other.
+  const { dTotal, goodTimeB, fo: goodRawFO, go: goodRawGO } = computeActualConsumptionSplit(seriesRows, cp)
 
   // Cumulative EVENT-WISE Max/Min Warranted Consumption (formulas e'/f') —
   // client request 2026-09: same event-by-event methodology as Section B's
@@ -1258,12 +1287,15 @@ function buildMethodologyPage1(doc, sum, seriesRows, cpData, routeId, reportDate
      doc.setFontSize(7)
      // Total = FO + GO combined, matching the "Total Consumption" heading —
      // NOT FO alone. Same backend-sourced a_h/b_h/c_h time-equivalents used
-     // for Section B — see cp_calculator.compute_cp_voyage_table.
-     const goodTotalConsB = goodTotalFOB + goodTotalGOB
+     // for Section B — see cp_calculator.compute_cp_voyage_table. This is
+     // the formula's NUMERATOR (raw good-weather-period total, un-
+     // extrapolated) — NOT dTotal, which is the full extrapolated RESULT;
+     // conflating the two here would print the answer as its own input.
+     const goodTotalConsB = goodRawFO + goodRawGO
      const totalW    = foW + goW
      const totalMax   = totalW * (1 + tolPct / 100)
      const totalMin   = totalW * (1 - tolPct / 100)
-     const d_tot = dFO + dGO
+     const d_tot = dTotal
      const e_tot = evCp.eTot
      const f_tot = evCp.fTot
 
