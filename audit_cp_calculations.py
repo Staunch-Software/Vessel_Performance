@@ -20,9 +20,21 @@ Deliberately does NOT import backend.cp.cp_calculator — the point is to
 verify the app's actual behaviour against an independent implementation of
 the same specification (the Charter Party Compliance Auditing Methodology
 printed on the PDF's own pages 10-11), not to test the app's code against
-itself. The one thing it does reuse is _pick_sea_warranty() from
-cp_compliance_v2.py, since that's a plain nearest-speed lookup over
-already-loaded config, not itself a source of any bug found so far.
+itself. Two things it does reuse: _pick_sea_warranty() from
+cp_compliance_v2.py (a plain nearest-speed lookup over already-loaded
+config, not itself a source of any bug found so far), and
+parse_cp_remarks()/pick_instruction_for_condition() from
+cp_remarks_parser.py (a 5-format free-text regex parser — re-implementing
+that a third time independently would itself be a much likelier source of
+a NEW bug than any value gained from cross-checking pure text parsing).
+
+Updated 2026-09 to match cp_calculator.py's event-wise, CP-remarks-aware,
+combined-FO+GO methodology (previously: one standing warranty rate per
+segment, FO/DOGO judged as two independent verdicts) — see
+compute_cp_voyage_table()'s own doc comment for the full rationale. Also
+drops the distance-sanity row filter this script used to apply (see
+_distance_ok's removal note below) to match the app, which never filtered
+on it either.
 
 Usage
 -----
@@ -45,6 +57,7 @@ or calls any mutating endpoint — read-only throughout.
 """
 
 import argparse
+import re
 import sys
 
 import requests
@@ -52,6 +65,7 @@ from sqlalchemy import text
 
 from backend.database import engine
 from backend.cp.cp_compliance_v2 import _pick_sea_warranty
+from backend.cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
 
 # Same fixed fair-weather definition as cp_calculator.py's own docstring —
 # re-typed here independently rather than imported, so a regression in the
@@ -99,25 +113,16 @@ def _numsum(row, cols):
     return total
 
 
-DIST_CHECK_TOL_PCT = 25.0  # same tolerance as cp_calculator.py's _distance_ok
-
-
-def _distance_ok(r):
-    """Ported from cp_calculator.py: rejects a row whose reported distance
-    is wildly inconsistent with SOG x hours (its own docstring example:
-    "24 nm @ 13.9 kn") — common right around a port-approach/EOSP boundary.
-    Missing this was this script's own third bug: it kept a garbage row the
-    app correctly excludes, inflating a voyage's distance/time on this
-    script's side only."""
-    d = _num(r.get("Distance_nm"))
-    h = _num(r.get("Duration_h"))
-    s = _num(r.get("SOG_kn"))
-    if d is None or h is None or s is None or h <= 0 or s <= 0:
-        return True  # can't check -> don't penalise
-    implied = s * h
-    if implied <= 0:
-        return True
-    return abs(d - implied) <= (DIST_CHECK_TOL_PCT / 100.0) * implied
+# _distance_ok() REMOVED 2026-09 — this script used to reject a row whose
+# reported distance was inconsistent with SOG x hours (>25% off), matching
+# an equivalent filter that used to exist in cp_calculator.py. Found while
+# unifying the live table with the PDF report: a real voyage's own EOSP row
+# (a short 1h/15nm boundary segment) failed this check purely because SOG at
+# the instant of arrival isn't representative of a short partial-day
+# segment, not because the data was actually bad — and the PDF's own
+# calculation never had an equivalent filter at all. The app dropped the
+# filter to match the PDF; this script does the same, or it would flag
+# every voyage with a similarly-shaped EOSP row as a false mismatch.
 
 
 def _is_fair_weather(row):
@@ -164,7 +169,7 @@ def _fetch_raw_rows(imo, voyage_no, source_id):
     grade_cols = ", ".join(f"m.{c}" for c in _FO_COLS + _DOGO_COLS)
     sql = f"""
         SELECT a."Voyage_No", a."Loading_Cond", a."Date", a."Time_UTC",
-               a."Distance_nm", a."Duration_h", a."SOG_kn",
+               a."Distance_nm", a."Duration_h", a."SOG_kn", a.raw_mariapps_id,
                a."BF_Wind", a."Sig_Wave_Ht_m",
                {event_col} AS event_type,
                {grade_cols}
@@ -177,6 +182,31 @@ def _fetch_raw_rows(imo, voyage_no, source_id):
         rows = [dict(r) for r in conn.execute(
             text(sql), {"imo": imo, "voyage_no": voyage_no, "source_id": source_id}
         ).mappings().all()]
+
+    # Per-day CP remarks (client request 2026-09) — same lookup cp_routes.py
+    # and /voyage/series both do. MariApps-only; WNI rows get cp_instruction=None.
+    mariapps_ids = {r["raw_mariapps_id"] for r in rows if r.get("raw_mariapps_id")}
+    extras_by_id = {}
+    if mariapps_ids:
+        with engine.connect() as conn:
+            extra_rows = conn.execute(text(
+                "SELECT raw_log_id, cpx_remarks FROM expanded_mariapps_data WHERE raw_log_id = ANY(:ids)"
+            ), {"ids": list(mariapps_ids)}).fetchall()
+        extras_by_id = {r[0]: r[1] for r in extra_rows}
+
+    for r in rows:
+        r["cp_instruction"] = None
+        remarks = extras_by_id.get(r.get("raw_mariapps_id")) if r.get("raw_mariapps_id") else None
+        if remarks:
+            parsed = parse_cp_remarks(remarks)
+            instr = pick_instruction_for_condition(parsed, r.get("Loading_Cond"))
+            if instr:
+                r["cp_instruction"] = {
+                    "speed_kn": instr["speed_kn"],
+                    "total_mt_day": instr["total_mt_day"],
+                    "go_mt_day": instr["go_mt_day"],
+                }
+
     return rows
 
 
@@ -278,7 +308,11 @@ def _fetch_warranty_candidates(imo, cond):
     candidates = []
     for s in rows:
         me_cls = _cls(s["me_fuel_grade"])
-        ae_cls = _cls(s["ae_fuel_grade"]) or me_cls
+        # Matches cp_routes.py's fix (found 2026-09 via AM KIRTI): default a
+        # missing AE grade to DOGO, not the ME's own grade — AE virtually
+        # always burns MGO/MDO on this fleet, never the ME's VLSFO/HFO, so
+        # falling back to me_cls was silently zeroing the DOGO warranty.
+        ae_cls = _cls(s["ae_fuel_grade"]) if s["ae_fuel_grade"] else "DOGO"
         me, ae, boiler = s["me_cons_mt_day"] or 0, s["ae_cons_mt_day"] or 0, s["boiler_cons_sea_mt_day"] or 0
         fo = (me if me_cls == "FO" else 0) + (ae if ae_cls == "FO" else 0) + boiler
         dogo = (me if me_cls == "DOGO" else 0) + (ae if ae_cls == "DOGO" else 0)
@@ -292,44 +326,59 @@ def _fetch_warranty_candidates(imo, cond):
     return candidates
 
 
+def _event_wise_rows(rows):
+    """Excludes the COSP/BOSP boundary row itself — matches
+    cp_calculator.py's _event_wise_rows()."""
+    return [r for r in rows if not re.search(r"COSP|BOSP", r.get("event_type") or "", re.IGNORECASE)]
+
+
+def _event_cp_figures(row, w_spd, w_fo, w_dogo):
+    """Resolves the CP speed/FO/GO that actually applied on ONE event/day:
+    that day's parsed cp_instruction if one exists, else the standing
+    warranty — matches cp_calculator.py's _event_cp_figures()."""
+    instr = row.get("cp_instruction") or {}
+    speed = instr.get("speed_kn")
+    fo    = instr.get("total_mt_day")
+    go    = instr.get("go_mt_day")
+    return (
+        speed if speed is not None else (w_spd or 0),
+        fo if fo is not None else (w_fo or 0),
+        go if go is not None else (w_dogo or 0),
+    )
+
+
 def _event_wise_time_and_consumption(steaming_rows, warranty):
-    """(a)/(b)/(c) Time Calculation, and (e)/(f) Consumption extrapolation
-    for FO and DOGO KEPT SEPARATE — matching cp_calculator.py's actual
-    compute_cp_voyage_table() exactly (lines ~416-439): FO over/save and
-    DOGO over/save are each decided independently, not pooled into one
-    combined total first. Pooling them was this script's own bug on its
-    first two runs: a small FO overage can get masked by a small DOGO
-    underage in a merged pool, landing at ~0 when the app (deciding each
-    grade separately) correctly reports a small net non-zero loss."""
+    """(a)/(b)/(c) Time Calculation, and combined-total (e_tot)/(f_tot)
+    Consumption extrapolation — matches cp_calculator.py's
+    _event_wise_cp() exactly: FO and GO are judged TOGETHER against one
+    combined warranted band (using whichever CP instruction actually
+    applied each day), not as two independent verdicts. Updated 2026-09 —
+    see this module's docstring for why the old FO/DOGO-split version was
+    replaced."""
     w_spd = _num(warranty.get("warranted_speed_kn")) or 0
     w_fo = _num(warranty.get("warranted_fo_mtpd")) or 0
     w_dogo = _num(warranty.get("warranted_dogo_mtpd")) or 0
     tol_kn = _num(warranty.get("speed_tol_kn")) or SPEED_ALLOWANCE_KN
     tol_pct = _num(warranty.get("cons_tol_pct")) or CONS_TOLERANCE_PCT
 
-    b_h = c_h = 0.0
-    e_fo_mt = f_fo_mt = e_dogo_mt = f_dogo_mt = 0.0
+    b_h = c_h = e_tot = f_tot = 0.0
     event_count = 0
-    for r in steaming_rows:
+    for r in _event_wise_rows(steaming_rows):
         dist = _num(r.get("Distance_nm")) or 0
-        if dist <= 0 or not w_spd:
+        speed, fo, go = _event_cp_figures(r, w_spd, w_fo, w_dogo)
+        if dist <= 0 or not speed:
             continue
         event_count += 1
-        eff_spd = w_spd - tol_kn
-        c_h += dist / w_spd
-        f_fo_mt += (dist / w_spd) * (w_fo * (1 - tol_pct / 100.0) / 24.0)
-        f_dogo_mt += (dist / w_spd) * (w_dogo * (1 - tol_pct / 100.0) / 24.0)
+        eff_spd   = speed - tol_kn
+        total_max = (fo + go) * (1 + tol_pct / 100.0)
+        total_min = (fo + go) * (1 - tol_pct / 100.0)
+        c_h   += dist / speed
+        f_tot += (dist / speed) * (total_min / 24.0)
         if eff_spd > 0:
-            b_h += dist / eff_spd
-            e_fo_mt += (dist / eff_spd) * (w_fo * (1 + tol_pct / 100.0) / 24.0)
-            e_dogo_mt += (dist / eff_spd) * (w_dogo * (1 + tol_pct / 100.0) / 24.0)
+            b_h   += dist / eff_spd
+            e_tot += (dist / eff_spd) * (total_max / 24.0)
 
-    return {
-        "b_h": b_h, "c_h": c_h,
-        "e_fo_mt": e_fo_mt, "f_fo_mt": f_fo_mt,
-        "e_dogo_mt": e_dogo_mt, "f_dogo_mt": f_dogo_mt,
-        "event_count": event_count,
-    }
+    return {"b_h": b_h, "c_h": c_h, "e_tot": e_tot, "f_tot": f_tot, "event_count": event_count}
 
 
 def _segment_result(seg_rows, imo):
@@ -339,10 +388,11 @@ def _segment_result(seg_rows, imo):
     for fuel over-consumption vs saving. A segment's decided loss can be
     negative (a saving), and summing decided values across segments is
     valid the same way summing several already-decided report rows is."""
+    # No distance-sanity filter (removed 2026-09) — see this module's
+    # docstring/comment above _is_fair_weather for why.
     steaming = [r for r in seg_rows
                 if (_num(r.get("Distance_nm")) or 0) > 0
-                and (_num(r.get("Duration_h")) or 0) > 0
-                and _distance_ok(r)]
+                and (_num(r.get("Duration_h")) or 0) > 0]
     if not steaming:
         return None
     fair_rows = [r for r in steaming if _is_fair_weather(r)]
@@ -354,10 +404,12 @@ def _segment_result(seg_rows, imo):
     warranty = _pick_sea_warranty(candidates, good_wx["avg_speed_kn"] or entire["avg_speed_kn"]) or {}
     w_spd = _num(warranty.get("warranted_speed_kn")) or 0
 
+    # Event-wise over the whole SEGMENT (not just fair-weather rows) —
+    # matches cp_calculator.py, which builds b_h/c_h/e_tot/f_tot from `seg`.
     ev = _event_wise_time_and_consumption(steaming, warranty)
     time_lost_h = 0.0
     fuel_lost_mt = 0.0
-    if good_wx["avg_speed_kn"] and w_spd:
+    if good_wx["avg_speed_kn"] and w_spd and ev["event_count"] > 0:
         a_h = entire["distance_nm"] / good_wx["avg_speed_kn"]
         time_lost = (a_h - ev["b_h"]) if ev["b_h"] else None
         time_gained = ev["c_h"] - a_h
@@ -366,18 +418,16 @@ def _segment_result(seg_rows, imo):
         elif time_gained > 0:
             time_lost_h = -time_gained
 
+        # Combined Total Fuel — raw FO + raw GO (never a reclassified
+        # figure, which would double-count) vs the combined event-wise band.
         if good_wx["time_h"]:
-            d_fo_mt = a_h * (good_wx["fo_mt"] / good_wx["time_h"])
-            fo_over = d_fo_mt - ev["e_fo_mt"]
-            fo_save = ev["f_fo_mt"] - d_fo_mt
-            fo_ls = fo_over if fo_over > 0 else (-fo_save if fo_save > 0 else 0.0)
-
-            d_dogo_mt = a_h * (good_wx["dogo_mt"] / good_wx["time_h"])
-            dogo_over = d_dogo_mt - ev["e_dogo_mt"]
-            dogo_save = ev["f_dogo_mt"] - d_dogo_mt
-            dogo_ls = dogo_over if dogo_over > 0 else (-dogo_save if dogo_save > 0 else 0.0)
-
-            fuel_lost_mt = fo_ls + dogo_ls
+            d_tot = a_h * ((good_wx["fo_mt"] + good_wx["dogo_mt"]) / good_wx["time_h"])
+            over = d_tot - ev["e_tot"] if ev["e_tot"] else None
+            save = ev["f_tot"] - d_tot if ev["f_tot"] else None
+            if over is not None and over > 0:
+                fuel_lost_mt = over
+            elif save is not None and save > 0:
+                fuel_lost_mt = -save
 
     return {
         "entire": entire, "good_wx": good_wx, "condition": cond,
@@ -446,6 +496,11 @@ def _check_voyage(imo, voyage_no, source_id, vessel_name, base_url, session):
     api_good_fo = _sum_field(api_rows, "fo_mt", "good_wx")
     api_good_dogo = _sum_field(api_rows, "dogo_mt", "good_wx")
     api_time_lost = _sum_field(api_rows, "time_h", "loss")
+    # loss.fo_mt is now the COMBINED FO+GO Total Fuel verdict; loss.dogo_mt
+    # is always None (GO no longer gets an independent verdict — see
+    # _event_wise_time_and_consumption's doc comment). _sum_field already
+    # skips None, so this still works unchanged, just no longer adding two
+    # independently-decided figures together.
     api_fuel_lost = _sum_field(api_rows, "fo_mt", "loss") + _sum_field(api_rows, "dogo_mt", "loss")
 
     diffs = []
