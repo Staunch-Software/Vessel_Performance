@@ -226,11 +226,21 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
     const tolKn  = r.allowance?.speed_kn != null ? +r.allowance.speed_kn : 0.5
     const tolPct = r.allowance?.cons_pct != null ? +r.allowance.cons_pct : 5.0
     const cpSpeed = +(r.warranty?.speed_kn || 0)
-    const cpFo    = +(r.warranty?.fo_mtpd || 0)
+    // Combined Total Fuel (FO+GO) — NOT FO alone (client request 2026-09).
+    // An FO-only line collapses to near-zero during a genuine ECA/fuel-switch
+    // voyage (confirmed real case: AM KIRTI 38/04-38/06 ran on MDO instead of
+    // HFO for days at a stretch — me_hfo/me_lfo NULL, me_mdo/ae_mdo real and
+    // substantial), which reads as "data missing/wrong" even though the
+    // vessel burned plenty of fuel, just the other grade. Matches the same
+    // combined-total approach already used for the cover page/Section C
+    // Loss-Saving verdict, for the same reason.
+    const cpFo    = +(r.warranty?.fo_mtpd || 0) + +(r.warranty?.dogo_mtpd || 0)
     const minAllowSpeed = cpSpeed ? cpSpeed - tolKn : null
     const maxAllowFo    = cpFo ? cpFo * (1 + tolPct / 100) : null
     const gwSpeed = r.good_wx?.avg_speed_kn ?? null
-    const gwFo    = r.good_wx?.daily_fo ?? null
+    const gwDailyFo   = r.good_wx?.daily_fo ?? null
+    const gwDailyDogo = r.good_wx?.daily_dogo ?? null
+    const gwFo = (gwDailyFo == null && gwDailyDogo == null) ? null : (gwDailyFo ?? 0) + (gwDailyDogo ?? 0)
     return {
       label: shortLabel(r.voyage_no, r.atd),
       cpSpeed, minAllowSpeed, gwSpeed, cpFo, maxAllowFo, gwFo,
@@ -325,7 +335,7 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
             <YAxis yAxisId="speed" width={AXIS_W} domain={speedDomain} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
               label={{ value: 'Speed (kts)', angle: -90, position: 'insideLeft', fill: NAVY_HEX, fontSize: 13 }} />
             <YAxis yAxisId="fuel" width={AXIS_W} orientation="right" domain={fuelDomain} tickFormatter={axisTickFmt} tick={{ fontSize: 13, fill: '#000' }}
-              label={{ value: 'Fuel (mt/day)', angle: 90, position: 'insideRight', fill: DRED_HEX, fontSize: 13 }} />
+              label={{ value: 'Total Fuel (mt/day)', angle: 90, position: 'insideRight', fill: DRED_HEX, fontSize: 13 }} />
             <Tooltip />
             {/* No <Legend> here — Recharts v3 doesn't reliably preserve series
                 declaration order in its auto-generated legend (renders items in a
@@ -347,9 +357,9 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
                 )
               }}
               isAnimationActive={false} />
-            <Line yAxisId="fuel" type="monotone" dataKey="cpFo" name="CP Warr FO/d" stroke={DRED_HEX} strokeWidth={2.5} dot={false} isAnimationActive={false} />
-            <Line yAxisId="fuel" type="monotone" dataKey="maxAllowFo" name="Max Allow FO/d" stroke={ORANGE_HEX} strokeWidth={2} strokeDasharray="6 4" dot={false} isAnimationActive={false} />
-            <Line yAxisId="fuel" type="monotone" dataKey="gwFo" name="GW Daily FO (actual)" stroke="#666" strokeWidth={2.5}
+            <Line yAxisId="fuel" type="monotone" dataKey="cpFo" name="CP Warr Total Fuel/d" stroke={DRED_HEX} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+            <Line yAxisId="fuel" type="monotone" dataKey="maxAllowFo" name="Max Allow Total Fuel/d" stroke={ORANGE_HEX} strokeWidth={2} strokeDasharray="6 4" dot={false} isAnimationActive={false} />
+            <Line yAxisId="fuel" type="monotone" dataKey="gwFo" name="GW Daily Total Fuel (actual)" stroke="#666" strokeWidth={2.5}
               dot={(props) => {
                 const { cx, cy, payload, index } = props
                 const ok = payload.fuelOk
@@ -372,9 +382,9 @@ function CPChartsInner({ rows, voyageNo, onComplete }) {
           { color: '#444', dashed: false, label: 'GW Avg Speed (actual)' },
         ],
         [
-          { color: DRED_HEX, dashed: false, label: 'CP Warr FO/d' },
-          { color: ORANGE_HEX, dashed: true, label: 'Max Allow FO/d' },
-          { color: '#666', dashed: false, label: 'GW Daily FO (actual)' },
+          { color: DRED_HEX, dashed: false, label: 'CP Warr Total Fuel/d' },
+          { color: ORANGE_HEX, dashed: true, label: 'Max Allow Total Fuel/d' },
+          { color: '#666', dashed: false, label: 'GW Daily Total Fuel (actual)' },
         ],
       ]} />
 
