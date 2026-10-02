@@ -439,6 +439,7 @@ _MARIAPPS_DIRECT_SENTINEL = _MARIAPPS_DIRECT_COLS[0] if _MARIAPPS_DIRECT_COLS el
 # reimplemented here (that module is pure-function/no-DB, so this is a safe,
 # one-directional import with no circularity risk).
 from ..cp.cp_compliance_v2 import _pick_sea_warranty, _normalize_loading_cond
+from ..cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
 
 _CP_WARRANTY_DIRECT_META = [
     # category="Performance" (not "Emission") — these aren't part of the
@@ -475,13 +476,41 @@ def _fetch_active_cp_sea_warranty(conn, vessel_imo):
     return [dict(r._mapping) for r in rows]
 
 
-def _cp_warranty_extra_fields(conn, vessel_imo, loading_condition_raw, observed_speed_kn, table_cols, cache):
-    """Match one report's loading condition + observed speed (STW, falling back to
-    SOG — same preference cp_compliance_v2 uses) against the vessel's Active CP
+def _cp_remarks_instruction(raw_json, loading_condition_raw):
+    """Parses the day's master's remarks (Position_Data.Remarks) for an explicit
+    charterer/master speed+consumption instruction, same parser cp_routes.py's
+    _rows_for_source() uses for the Charter-Party Performance table/PDF. Returns
+    None when remarks don't cover this report's loading condition (including no
+    remarks at all) — the only caller falls back to the observed-speed match in
+    that case, same as before this existed."""
+    if not isinstance(raw_json, dict):
+        return None
+    position_data = raw_json.get("Position_Data")
+    if not isinstance(position_data, dict):
+        return None
+    remarks = position_data.get("Remarks")
+    if remarks is None or str(remarks).strip() == "":
+        return None
+    parsed = parse_cp_remarks(str(remarks).strip())
+    return pick_instruction_for_condition(parsed, loading_condition_raw)
+
+
+def _cp_warranty_extra_fields(conn, vessel_imo, loading_condition_raw, observed_speed_kn, table_cols, cache, instruction=None):
+    """Match one report's loading condition + speed against the vessel's Active CP
     sea-passage warranty, picking the nearest-warranted-speed candidate within
     that loading condition. `cache` is a dict the caller owns, keyed by
     vessel_imo, so a batch backfill queries cp_sea_warranty once per vessel
-    rather than once per row."""
+    rather than once per row.
+
+    `instruction` (optional) is that day's parsed remarks-based CP instruction
+    (see _cp_remarks_instruction) — when present, it's authoritative for what
+    actually applied that day, so it drives BOTH which candidate is matched
+    (nearest to the instructed speed, not the observed STW/SOG) AND the
+    displayed Speed/Consumption figures themselves, straight from the
+    instruction. Only Speed/Consumption Tolerance stay sourced from the
+    matched candidate either way — remarks never restate a tolerance, that's a
+    fixed contract term. Without an instruction (the common case), this is
+    unchanged: everything comes from the nearest-observed-speed match."""
     out = {}
     if not vessel_imo:
         return out
@@ -494,18 +523,42 @@ def _cp_warranty_extra_fields(conn, vessel_imo, loading_condition_raw, observed_
     candidates = cache[vessel_imo]
     cond = _normalize_loading_cond(loading_condition_raw)
     cand = [c for c in candidates if c.get("loading_condition") == cond] if cond else []
-    warranty = _pick_sea_warranty(cand, observed_speed_kn)
+    match_speed_kn = instruction.get("speed_kn") if instruction and instruction.get("speed_kn") is not None else observed_speed_kn
+    warranty = _pick_sea_warranty(cand, match_speed_kn)
     if warranty is None:
         return out
+    instr_speed = instruction.get("speed_kn") if instruction else None
+    instr_cons  = instruction.get("total_mt_day") if instruction else None
     if "mariappsx_cp_warranted_speed_kn" in table_cols:
-        out["mariappsx_cp_warranted_speed_kn"] = warranty.get("warranted_speed_kn")
+        out["mariappsx_cp_warranted_speed_kn"] = instr_speed if instr_speed is not None else warranty.get("warranted_speed_kn")
     if "mariappsx_cp_speed_tolerance_kn" in table_cols:
         out["mariappsx_cp_speed_tolerance_kn"] = warranty.get("speed_tolerance_kn")
     if "mariappsx_cp_warranted_consumption_mtday" in table_cols:
-        out["mariappsx_cp_warranted_consumption_mtday"] = warranty.get("total_cons_mt_day")
+        out["mariappsx_cp_warranted_consumption_mtday"] = instr_cons if instr_cons is not None else warranty.get("total_cons_mt_day")
     if "mariappsx_cp_consumption_tolerance_pct" in table_cols:
         out["mariappsx_cp_consumption_tolerance_pct"] = warranty.get("cons_tolerance_pct")
     return out
+
+
+def _apply_stw_fallback(data_rec: dict) -> dict:
+    """MariApps almost never populates Performance_Data.Speed Through Water
+    (Inst.) (-> Vessel_STW_avg_operational_LF), so this column — one of the
+    manager's fixed 18 default Performance columns, shared with WNI — showed
+    blank for every MariApps row even though MariApps DOES reliably log a
+    value for it under a different raw field: Position_Data.Calculated Speed
+    Through Water (Avg.) (-> Vessel_STWcal_avg_operational_LF). Falls back to
+    that calculated value only when the direct one is missing, so a genuine
+    Performance_Data reading (when present) is never overwritten — same
+    COALESCE-style, non-destructive convention as the WNI STW/slip/swell
+    backfill above. Must run before _observed_speed_kn()/_cp_warranty_extra_
+    fields() so CP warranty (Eco/Full) matching also benefits from the real
+    STW instead of silently falling back further to SOG.
+    """
+    if not data_rec.get("Vessel_STW_avg_operational_LF"):
+        cal = data_rec.get("Vessel_STWcal_avg_operational_LF")
+        if cal is not None:
+            data_rec["Vessel_STW_avg_operational_LF"] = cal
+    return data_rec
 
 
 def _observed_speed_kn(data_rec):
@@ -1883,10 +1936,11 @@ def backfill_mariapps(engine, batch_size: int = 50):
             for (rid, vessel_imo, log_date, log_type, log_number, raw_json) in rows:
                 try:
                     flat     = flatten_mariapps(raw_json or {})
-                    data_rec = _map_flat_to_newcols(flat, MARIAPPS_TO_NEWCOL, table_cols)
+                    data_rec = _apply_stw_fallback(_map_flat_to_newcols(flat, MARIAPPS_TO_NEWCOL, table_cols))
 
                     # Determine loading_condition from source data
                     lc = flat.get("loading_condition") or flat.get("op_loading_condition") or None
+                    instruction = _cp_remarks_instruction(raw_json, lc)
 
                     fuel_fields = _emission_log_fuel_fields(conn, "mari_apps", rid, table_cols)
                     record = {
@@ -1900,7 +1954,7 @@ def backfill_mariapps(engine, batch_size: int = 50):
                         **data_rec,
                         **_mariapps_extra_fields(raw_json, table_cols),
                         **_cp_warranty_extra_fields(
-                            conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, cp_warranty_cache
+                            conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, cp_warranty_cache, instruction
                         ),
                         **fuel_fields,
                         **_emission_log_nav_fields(data_rec, table_cols),
@@ -2004,8 +2058,9 @@ def write_expanded_mariapps(conn, raw_log_id, vessel_imo, log_date,
     try:
         table_cols = _get_table_cols(conn, "expanded_mariapps_data")
         flat       = flatten_mariapps(raw_json or {})
-        data_rec   = _map_flat_to_newcols(flat, MARIAPPS_TO_NEWCOL, table_cols)
+        data_rec   = _apply_stw_fallback(_map_flat_to_newcols(flat, MARIAPPS_TO_NEWCOL, table_cols))
         lc = flat.get("loading_condition") or flat.get("op_loading_condition") or None
+        instruction = _cp_remarks_instruction(raw_json, lc)
         fuel_fields = _emission_log_fuel_fields(conn, "mari_apps", raw_log_id, table_cols)
         record = {
             "raw_log_id":        raw_log_id,
@@ -2017,7 +2072,7 @@ def write_expanded_mariapps(conn, raw_log_id, vessel_imo, log_date,
             "loading_condition": lc,
             **data_rec,
             **_mariapps_extra_fields(raw_json, table_cols),
-            **_cp_warranty_extra_fields(conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, {}),
+            **_cp_warranty_extra_fields(conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, {}, instruction),
             **fuel_fields,
             **_emission_log_nav_fields(data_rec, table_cols),
             **_mariapps_voyage_no_field(raw_json, table_cols),
