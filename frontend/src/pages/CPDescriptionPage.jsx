@@ -46,6 +46,7 @@ const HEADER_FIELDS = [
   ['cp_form', 'CP Form', 'text'],
   ['charterer_name', 'Charterer', 'text'],
   ['doc_status', 'Status', 'text'],
+  ['requires_cp_remarks_check', 'Requires Daily CP Remarks Check', 'checkbox'],
 ]
 
 function num(v) {
@@ -83,7 +84,18 @@ function ParticularsCard({ header, editMode, onChange }) {
         {HEADER_FIELDS.map(([key, label, type]) => (
           <div className="cpd-field" key={key}>
             <span className="cpd-field-label">{label}</span>
-            {editMode ? (
+            {type === 'checkbox' ? (
+              editMode ? (
+                <input
+                  className="cpd-input"
+                  type="checkbox"
+                  checked={!!header[key]}
+                  onChange={e => onChange(key, e.target.checked)}
+                />
+              ) : (
+                <span className="cpd-field-value">{header[key] ? 'Yes' : 'No'}</span>
+              )
+            ) : editMode ? (
               <input
                 className="cpd-input"
                 type={type}

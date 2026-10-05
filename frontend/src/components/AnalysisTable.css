@@ -242,18 +242,22 @@
   z-index: auto;
 }
 
-/* ── Compliance column + row highlight (Phase 3a pilot) ── */
-.compliance-pill {
+/* ── Compliance column + row highlight (Phase 3a pilot) ──
+   Manager spec: a plain colored dot — green=Compliant, yellow=Excluded
+   (weather), red=Non-compliant. "Not evaluable"/"Unmatched" still map to the
+   amber (yellow) class, same grouping COMPLIANCE_CLS already used for the
+   old text pill. Full status text is on the title attribute (hover
+   tooltip) instead of being printed inline, since a dot has no room for it. */
+.compliance-dot {
   display: inline-block;
-  padding: 1px 8px;
-  border-radius: 10px;
-  font-size: 10.5px;
-  font-weight: 700;
-  white-space: nowrap;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  vertical-align: middle;
 }
-.compliance-pill.compliance-red   { background: rgba(224,80,80,0.15);  color: #e05050; border: 1px solid rgba(224,80,80,0.35); }
-.compliance-pill.compliance-green { background: rgba(78,203,110,0.15); color: #4ecb6e; border: 1px solid rgba(78,203,110,0.35); }
-.compliance-pill.compliance-amber { background: rgba(212,160,42,0.15); color: #d4a02a; border: 1px solid rgba(212,160,42,0.35); }
+.compliance-dot.compliance-red   { background: #e05050; box-shadow: 0 0 0 1px rgba(224,80,80,0.35); }
+.compliance-dot.compliance-green { background: #4ecb6e; box-shadow: 0 0 0 1px rgba(78,203,110,0.35); }
+.compliance-dot.compliance-amber { background: #d4a02a; box-shadow: 0 0 0 1px rgba(212,160,42,0.35); }
 
 .analysis-table tbody tr.row-noncompliant td { background: rgba(224,80,80,0.07); }
 .analysis-table tbody tr.row-noncompliant td:nth-child(1),

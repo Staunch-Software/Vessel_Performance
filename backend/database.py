@@ -52,7 +52,16 @@ def init_db():
     
     # Create all tables from SQLAlchemy models
     Base.metadata.create_all(bind=engine)
-    
+
+    # create_all() only creates missing TABLES, not missing columns on tables
+    # that already existed — so a column added to an existing model (like
+    # CPVesselDescription.requires_cp_remarks_check) needs its own idempotent
+    # ALTER, same pattern as _ensure_scrape_flags() below.
+    with engine.begin() as conn:
+        conn.execute(text(
+            'ALTER TABLE cp_vessel_description ADD COLUMN IF NOT EXISTS '
+            'requires_cp_remarks_check BOOLEAN DEFAULT FALSE'))
+
     # Open database session
     db = SessionLocal()
     

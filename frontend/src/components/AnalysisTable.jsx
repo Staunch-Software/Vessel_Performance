@@ -469,21 +469,33 @@ function buildDataColumns(sorted, scanResults, complianceByDate, hideComplianceE
     cell: ({ row }) => {
       const status = isSeaPassageReport(row.original) ? complianceByDate?.[rowDateKey(row.original)] : null
       if (!status) return <span className="cell-null">—</span>
-      return <span className={`compliance-pill ${COMPLIANCE_CLS[status] || ''}`}>{status}</span>
+      return <span className={`compliance-dot ${COMPLIANCE_CLS[status] || ''}`} title={status} />
     },
   }
 
-  // Error count column (always first, computed)
+  // Error dot column (always first, computed). Manager spec: a plain green/red
+  // dot — green = no issue, red = either a missing/invalid-data finding (the
+  // first being dataqualityx_missing_cp_instruction, a real backend check) or
+  // a locally-saved scan report matching. Reasons from either source combine
+  // into the tooltip rather than the old bare count badge.
   const errCol = {
     id: '__errors__',
     accessorKey: '__errors__',
     header: 'Errors',
-    size: 62,
+    size: 50,
     cell: ({ row }) => {
+      const reasons = []
+      const dq = row.original?.dataqualityx_missing_cp_instruction
+      if (dq) reasons.push(dq)
       const n = scanResults?.[row.index]?.matchCount ?? 0
-      return n === 0
-        ? <span className="cell-null">—</span>
-        : <span className="error-count-badge">{n}</span>
+      if (n > 0) reasons.push(`${n} saved report rule${n > 1 ? 's' : ''} matched`)
+      const hasError = reasons.length > 0
+      return (
+        <span
+          className={`compliance-dot ${hasError ? 'compliance-red' : 'compliance-green'}`}
+          title={hasError ? reasons.join('; ') : 'No issues detected'}
+        />
+      )
     },
   }
 

@@ -1405,6 +1405,15 @@ class CPVesselDescription(Base):
     ae_rated_kw    = Column(Float)
     boiler_fitted  = Column(Boolean)
 
+    # Vessel-specific data-quality toggle (client request 2026-10): not every CP
+    # fixture requires the master to restate a daily CP speed/consumption
+    # instruction in remarks — only flag a Noon at sea/EOSP report as missing
+    # one for vessels where this is actually expected. Admin-editable via the
+    # existing generic PATCH /cp-description/{imo}/header endpoint, no route
+    # change needed. Default False so enabling this check is opt-in per vessel,
+    # not a silent fleet-wide behavior change.
+    requires_cp_remarks_check = Column(Boolean, default=False)
+
     cp_type        = Column(String(30))   # Time Charter / Voyage Charter / COA / Bareboat
     cp_form        = Column(String(30))   # NYPE 2015 / NYPE 1993 / NYPE 1946 / BALTIME / GENCON / Bespoke
     charterer_name = Column(String(80))

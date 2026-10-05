@@ -461,6 +461,55 @@ _CP_WARRANTY_SENTINEL = _CP_WARRANTY_DIRECT_COLS[0]
 # fire to add these 2 new ones.
 _CP_CONSUMPTION_SENTINEL = "mariappsx_cp_warranted_consumption_mtday"
 
+# ── Data Quality direct fields (manager request 2026-10) ──────────────────────
+# First rule in what's meant to grow into a real admin-configurable data-quality
+# engine: flag a Noon at sea/EOSP report that has no parseable CP instruction in
+# its remarks, so the vessel can be told to correct it. Vessel-specific — gated
+# by cp_vessel_description.requires_cp_remarks_check, since not every CP fixture
+# requires a daily remarks instruction (see _data_quality_extra_fields below).
+_DATA_QUALITY_DIRECT_META = [
+    {"col": "dataqualityx_missing_cp_instruction", "display_name": "Missing CP Instruction", "category": "Performance", "unit": ""},
+]
+_DATA_QUALITY_DIRECT_COLS = [m["col"] for m in _DATA_QUALITY_DIRECT_META]
+_DATA_QUALITY_SENTINEL = _DATA_QUALITY_DIRECT_COLS[0]
+
+_DATA_QUALITY_LOG_TYPES = {"NOON AT SEA", "EOSP"}
+
+
+def _fetch_requires_cp_remarks_check(conn, vessel_imo):
+    row = conn.execute(text("""
+        SELECT d.requires_cp_remarks_check
+        FROM cp_vessel_description d
+        WHERE d.vessel_imo = :imo AND d.doc_status = 'Active'
+        ORDER BY d.version_no DESC
+        LIMIT 1
+    """), {"imo": vessel_imo}).fetchone()
+    return bool(row[0]) if row else False
+
+
+def _data_quality_extra_fields(conn, vessel_imo, log_type, instruction, table_cols, cache):
+    """Flags a Noon at sea/EOSP report with no parseable CP instruction in its
+    remarks — but ONLY for vessels where that CP fixture actually requires one
+    (requires_cp_remarks_check); most vessels never had this expectation, so
+    leaving this ungated would throw false "errors" fleet-wide. `cache` is a
+    dict the caller owns, keyed by vessel_imo (one query per vessel per batch
+    run, same convention as _cp_warranty_extra_fields' own cache)."""
+    out = {}
+    if "dataqualityx_missing_cp_instruction" not in table_cols:
+        return out
+    if vessel_imo not in cache:
+        try:
+            cache[vessel_imo] = _fetch_requires_cp_remarks_check(conn, vessel_imo)
+        except Exception as exc:
+            log.error(f"CP remarks-check flag lookup failed for vessel {vessel_imo}: {exc}")
+            cache[vessel_imo] = False
+    if not cache[vessel_imo]:
+        return out
+    if str(log_type or "").strip().upper() not in _DATA_QUALITY_LOG_TYPES:
+        return out
+    out["dataqualityx_missing_cp_instruction"] = "Missing CP Instruction" if instruction is None else None
+    return out
+
 
 def _fetch_active_cp_sea_warranty(conn, vessel_imo):
     """All Active cp_sea_warranty rows (both Ballast/Laden x Eco/Full candidates)
@@ -1552,6 +1601,12 @@ def create_expanded_tables(engine):
                 f'ALTER TABLE expanded_mariapps_data ADD COLUMN IF NOT EXISTS "{c}" TEXT'
             ))
 
+        # Dedicated Data Quality columns (cp_vessel_description join, not raw_json). Idempotent.
+        for c in _DATA_QUALITY_DIRECT_COLS:
+            conn.execute(text(
+                f'ALTER TABLE expanded_mariapps_data ADD COLUMN IF NOT EXISTS "{c}" TEXT'
+            ))
+
         # Dedicated Emission Log columns (fuel-by-grade join + Op. Status walk).
         # Both sources — the raw per-consumer-per-grade schema is identical on
         # noon_report_data and mariapps_reports_data. Idempotent.
@@ -1818,6 +1873,23 @@ def populate_column_metadata(engine):
                 })
                 so += 1
 
+            # MariApps-only dedicated Data Quality columns (cp_vessel_description join).
+            for dm in _DATA_QUALITY_DIRECT_META:
+                entries.append({
+                    "source":       source,
+                    "db_column":    dm["col"],
+                    "display_name": dm["display_name"],
+                    "category":     dm["category"],
+                    "unit":         dm["unit"],
+                    "description":  dm["display_name"],
+                    "is_active":    True,
+                    "is_identity":  False,
+                    "performance":  True,
+                    "emission":     False,
+                    "sort_order":   so,
+                })
+                so += 1
+
     # Force the manager-specified default order onto the Performance category
     # (applies to whichever source(s) actually have these columns — currently
     # both mari_apps and wni). Done as a post-pass so it's independent of
@@ -1918,6 +1990,7 @@ def backfill_mariapps(engine, batch_size: int = 50):
     """Re-populate expanded_mariapps_data from raw_mariapps_logs using new column names."""
     cp_warranty_cache = {}  # vessel_imo -> cp_sea_warranty candidates; one query per vessel for the whole run
     bdn_ref_cache = {}      # vessel_imo -> {date: [bdn_ref, ...]}; one query per vessel for the whole run
+    cp_remarks_check_cache = {}  # vessel_imo -> requires_cp_remarks_check; one query per vessel for the whole run
     with engine.connect() as conn:
         table_cols = _get_table_cols(conn, "expanded_mariapps_data")
         total = conn.execute(text("SELECT COUNT(*) FROM raw_mariapps_logs")).scalar()
@@ -1961,6 +2034,7 @@ def backfill_mariapps(engine, batch_size: int = 50):
                         **_mariapps_voyage_no_field(raw_json, table_cols),
                         **_bdn_ref_field(conn, vessel_imo, log_date, fuel_fields, table_cols, bdn_ref_cache),
                         **_mariapps_remarks_field(raw_json, table_cols),
+                        **_data_quality_extra_fields(conn, vessel_imo, log_type, instruction, table_cols, cp_remarks_check_cache),
                     }
                     _upsert_row(conn, "expanded_mariapps_data", "raw_log_id", record)
                     processed += 1
@@ -2078,6 +2152,7 @@ def write_expanded_mariapps(conn, raw_log_id, vessel_imo, log_date,
             **_mariapps_voyage_no_field(raw_json, table_cols),
             **_bdn_ref_field(conn, vessel_imo, log_date, fuel_fields, table_cols, {}),
             **_mariapps_remarks_field(raw_json, table_cols),
+            **_data_quality_extra_fields(conn, vessel_imo, log_type, instruction, table_cols, {}),
         }
         _upsert_row(conn, "expanded_mariapps_data", "raw_log_id", record)
     except Exception as exc:
@@ -2270,6 +2345,9 @@ def setup_expanded_tables(engine):
         if _CP_CONSUMPTION_SENTINEL not in cols:
             mariapps_extras_missing = True
             log.info("expanded_mariapps_data missing CP Warranted Consumption columns — will add and backfill.")
+        if _DATA_QUALITY_SENTINEL not in cols:
+            mariapps_extras_missing = True
+            log.info("expanded_mariapps_data missing Data Quality direct columns — will add and backfill.")
 
     # ── Detect missing Emission Log direct columns (fuel-by-grade + Op. Status) ──
     # Both sources — set both flags since these columns exist on both tables.
