@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { memoryStore } from '../utils/memoryStore'
-import { Loader2, AlertTriangle, Info } from 'lucide-react'
+import { Loader2, AlertTriangle, Info, Download } from 'lucide-react'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -24,6 +24,69 @@ const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 const CATEGORY_BADGE_CLASS = {
   between_eu: 'mrv-badge-eu', to_eu: 'mrv-badge-eu', from_eu: 'mrv-badge-eu',
   outside_eu: 'mrv-badge-outside', eu_direction_unknown: 'mrv-badge-unknown', undeterminable: 'mrv-badge-unknown',
+}
+
+// Same client-side ExcelJS pattern used on the other Emission pages — exports
+// both on-screen tables (the category summary and the per-leg detail) as two
+// sheets in one workbook, matching what's currently shown exactly.
+async function exportEuMrvExcel(byCategory, legs, vesselName, year, sourceLabel) {
+  const ExcelJS = (await import('exceljs')).default
+  const { saveAs } = (await import('file-saver')).default
+
+  const workbook = new ExcelJS.Workbook()
+  const styleHeader = row => {
+    row.height = 22
+    row.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+      cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    })
+  }
+  const stripeRows = sheet => {
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber > 1 && rowNumber % 2 === 0) {
+        row.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBF0FA' } }
+        })
+      }
+    })
+  }
+
+  const catSheet = workbook.addWorksheet('CO2e by Category', { views: [{ state: 'frozen', ySplit: 1 }] })
+  catSheet.columns = [
+    { header: 'Category', key: 'label', width: 20 },
+    { header: 'Legs', key: 'leg_count', width: 10 },
+    { header: 'Distance (nm)', key: 'distance_nm', width: 14 },
+    { header: 'Fuel (t)', key: 'fuel_mt', width: 12 },
+    { header: 'CO2 (t)', key: 'co2_mt', width: 12 },
+    { header: 'CO2e (t)', key: 'co2e_mt', width: 12 },
+  ]
+  styleHeader(catSheet.getRow(1))
+  byCategory.forEach(c => catSheet.addRow(c))
+  stripeRows(catSheet)
+
+  const legSheet = workbook.addWorksheet('Per-Leg Detail', { views: [{ state: 'frozen', ySplit: 1 }] })
+  legSheet.columns = [
+    { header: 'Voyage No.', key: 'voyage_no', width: 14 },
+    { header: 'L/B', key: 'loading_condition', width: 10 },
+    { header: 'From Port', key: 'from_port', width: 20 },
+    { header: 'To Port', key: 'to_port', width: 20 },
+    { header: 'EU Category', key: 'eu_category_label', width: 16 },
+    { header: 'Distance (nm)', key: 'distance_nm', width: 14 },
+    { header: 'Fuel (t)', key: 'fuel_mt', width: 12 },
+    { header: 'CO2 (t)', key: 'co2_mt', width: 12 },
+    { header: 'CO2e (t)', key: 'co2e_mt', width: 12 },
+    { header: 'At-Berth EU CO2e (t)', key: 'at_berth_eu_co2e_mt', width: 18 },
+    { header: 'At-Berth EU Hours', key: 'at_berth_eu_hours', width: 16 },
+  ]
+  styleHeader(legSheet.getRow(1))
+  legs.forEach(l => legSheet.addRow(l))
+  stripeRows(legSheet)
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const safeName = (vesselName || 'Vessel').replace(/[^a-z0-9]+/gi, '_')
+  saveAs(blob, `${safeName}_EU_MRV_${year}_${sourceLabel}.xlsx`)
 }
 
 function StatRow({ items }) {
@@ -53,6 +116,7 @@ export default function EuMrvPage() {
   const [trendLoading, setTrendLoading] = useState(false)
   const [legs, setLegs] = useState([])
   const [legsLoading, setLegsLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     fetchVessels().then(list => {
@@ -100,6 +164,20 @@ export default function EuMrvPage() {
       .catch(() => setLegs([]))
       .finally(() => setLegsLoading(false))
   }, [selectedImo, year, source])
+
+  async function handleExport() {
+    if (exporting || (!data?.by_category?.length && legs.length === 0)) return
+    setExporting(true)
+    try {
+      const vesselName = vessels.find(v => v.imo_number === selectedImo)?.vessel_name
+      const sourceLabel = SOURCE_TABS.find(t => t.id === source)?.label || source
+      await exportEuMrvExcel(data?.by_category || [], legs, vesselName, year, sourceLabel)
+    } catch (err) {
+      alert('Export failed: ' + (err?.message || err))
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div className="em-page">
@@ -206,7 +284,19 @@ export default function EuMrvPage() {
             </div>
 
             <div className="em-card">
-              <div className="em-card-title">D. Per-Leg Detail <span className="em-card-meta">{SOURCE_TABS.find(t => t.id === source)?.label} · {year}</span></div>
+              <div className="em-card-title">
+                D. Per-Leg Detail <span className="em-card-meta">{SOURCE_TABS.find(t => t.id === source)?.label} · {year}</span>
+                <button
+                  className="em-source-tab"
+                  onClick={handleExport}
+                  disabled={exporting || (!data?.by_category?.length && legs.length === 0)}
+                  title="Export both tables (CO2e by Category + Per-Leg Detail) to Excel"
+                  style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {exporting ? <Loader2 size={13} className="icon-spin" /> : <Download size={13} />}
+                  <span>Export Excel</span>
+                </button>
+              </div>
               {legsLoading && <div className="em-empty"><Loader2 size={14} className="icon-spin" /> Loading…</div>}
               {!legsLoading && legs.length === 0 && <div className="em-empty">No legs for {year}.</div>}
               {!legsLoading && legs.length > 0 && (

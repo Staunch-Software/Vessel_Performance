@@ -244,6 +244,42 @@ async function exportLegTableExcel(legs, vesselName, year, sourceLabel) {
   saveAs(blob, `${safeName}_IMO_DCS_Voyage_Details_${year}_${sourceLabel}.xlsx`)
 }
 
+// Same flat-header export pattern as exportLegTableExcel above, but for the
+// Event tab — a plain passthrough of EVENT_COLUMNS, so the exported headers
+// match the on-screen table column-for-column.
+async function exportEventTableExcel(events, vesselName, year, sourceLabel) {
+  const ExcelJS = (await import('exceljs')).default
+  const { saveAs } = (await import('file-saver')).default
+
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Event Details', { views: [{ state: 'frozen', ySplit: 1 }] })
+  sheet.columns = EVENT_COLUMNS.map(([k, l]) => ({ header: l, key: k, width: 14 }))
+
+  const headerRow = sheet.getRow(1)
+  headerRow.height = 22
+  headerRow.eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+
+  events.forEach((e, idx) => {
+    const rowData = {}
+    EVENT_COLUMNS.forEach(([k]) => { rowData[k] = e[k] ?? '' })
+    const excelRow = sheet.addRow(rowData)
+    if (idx % 2 === 1) {
+      excelRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBF0FA' } }
+      })
+    }
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const safeName = (vesselName || 'Vessel').replace(/[^a-z0-9]+/gi, '_')
+  saveAs(blob, `${safeName}_IMO_DCS_Event_Details_${year}_${sourceLabel}.xlsx`)
+}
+
 function StatRow({ items }) {
   return (
     <div className="dcs-stat-row">
@@ -278,6 +314,7 @@ export default function ImoDcsPage() {
   const [eventsTruncated, setEventsTruncated] = useState(false)
   const [tableLoading, setTableLoading] = useState(false)
   const [legExporting, setLegExporting] = useState(false)
+  const [eventExporting, setEventExporting] = useState(false)
 
   // The top source tabs (All/WNI/MariApps) are the single source-of-truth for
   // the whole page. Monthly trend / Voyage Details can't blend sources (see
@@ -356,6 +393,20 @@ export default function ImoDcsPage() {
       alert('Export failed: ' + (err?.message || err))
     } finally {
       setLegExporting(false)
+    }
+  }
+
+  async function handleExportEventExcel() {
+    if (eventExporting || events.length === 0) return
+    setEventExporting(true)
+    try {
+      const vesselName = vessels.find(v => v.imo_number === selectedImo)?.vessel_name
+      const sourceLabel = DCS_SOURCE_TABS.find(t => t.id === dcsSource)?.label || dcsSource
+      await exportEventTableExcel(events, vesselName, year, sourceLabel)
+    } catch (err) {
+      alert('Export failed: ' + (err?.message || err))
+    } finally {
+      setEventExporting(false)
     }
   }
 
@@ -487,6 +538,18 @@ export default function ImoDcsPage() {
                     style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}
                   >
                     {legExporting ? <Loader2 size={13} className="icon-spin" /> : <Download size={13} />}
+                    <span>Export Excel</span>
+                  </button>
+                )}
+                {tableTab === 'event' && (
+                  <button
+                    className="em-source-tab"
+                    onClick={handleExportEventExcel}
+                    disabled={eventExporting || events.length === 0}
+                    title="Export the Event Details table to Excel"
+                    style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    {eventExporting ? <Loader2 size={13} className="icon-spin" /> : <Download size={13} />}
                     <span>Export Excel</span>
                   </button>
                 )}

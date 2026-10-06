@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { memoryStore } from '../utils/memoryStore'
-import { Loader2, AlertTriangle, Droplet, Plus, Pencil, Trash2, X, Info, Link2 } from 'lucide-react'
+import { Loader2, AlertTriangle, Droplet, Plus, Pencil, Trash2, X, Info, Link2, Download } from 'lucide-react'
 import {
   fetchVessels, fetchBiofuelStems, fetchBiofuelBunkerCandidates,
   createBiofuelStem, updateBiofuelStem, deleteBiofuelStem,
@@ -24,6 +24,75 @@ const EMPTY_FORM = {
 }
 
 const fmt = (v, d = 2) => (v === null || v === undefined || isNaN(v) ? '—' : (+v).toFixed(d))
+
+// Same client-side ExcelJS pattern used on the other Emission pages — one row
+// per stem plus the weighted-average/total summary row, matching the on-screen
+// table exactly (both the input columns and the calculated ones).
+async function exportBiofuelStemsExcel(stems, summary, vesselName) {
+  const ExcelJS = (await import('exceljs')).default
+  const { saveAs } = (await import('file-saver')).default
+
+  const cols = [
+    { key: 'bdn_number', header: 'BDN #', width: 14 },
+    { key: 'delivery_date', header: 'Date', width: 12 },
+    { key: 'port', header: 'Port', width: 18 },
+    { key: 'base_fuel_grade', header: 'Base Fuel', width: 10 },
+    { key: 'biofuel_type', header: 'Biofuel Type', width: 16 },
+    { key: 'input_basis', header: 'Input Basis', width: 12 },
+    { key: 'bio_pct', header: 'Bio %', width: 10 },
+    { key: 'rho_base', header: 'rho Base', width: 10 },
+    { key: 'rho_bio', header: 'rho Bio', width: 10 },
+    { key: 'bio_pct_by_mass', header: 'Bio % by Mass', width: 14 },
+    { key: 'cf_base', header: 'Cf Base (t/t)', width: 12 },
+    { key: 'cf_blend', header: 'Cf Blend (t/t)', width: 12 },
+    { key: 'lcv_base', header: 'LCV Base', width: 10 },
+    { key: 'lcv_bio', header: 'LCV Bio', width: 10 },
+    { key: 'wtw_base', header: 'WtW Base', width: 10 },
+    { key: 'wtw_bio', header: 'WtW Bio', width: 10 },
+    { key: 'wtw_blend', header: 'WtW Blend', width: 10 },
+    { key: 'quantity_mt', header: 'Total Qty (MT)', width: 14 },
+    { key: 'fossil_portion_mt', header: 'Fossil (MT)', width: 12 },
+    { key: 'bio_portion_mt', header: 'Bio (MT)', width: 12 },
+  ]
+
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Bunker Stems', { views: [{ state: 'frozen', ySplit: 1 }] })
+  sheet.columns = cols.map(c => ({ header: c.header, key: c.key, width: c.width }))
+
+  const headerRow = sheet.getRow(1)
+  headerRow.height = 22
+  headerRow.eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+
+  stems.forEach((s, idx) => {
+    const excelRow = sheet.addRow(s)
+    if (idx % 2 === 1) {
+      excelRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBF0FA' } }
+      })
+    }
+  })
+
+  if (summary) {
+    const summaryRow = sheet.addRow({
+      bdn_number: 'WEIGHTED AVG / TOTAL',
+      cf_blend: summary.cf_blend_avg,
+      wtw_blend: summary.wtw_blend_avg,
+      quantity_mt: summary.total_qty_mt,
+      fossil_portion_mt: summary.total_fossil_mt,
+      bio_portion_mt: summary.total_bio_mt,
+    })
+    summaryRow.font = { bold: true }
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const safeName = (vesselName || 'Vessel').replace(/[^a-z0-9]+/gi, '_')
+  saveAs(blob, `${safeName}_Biofuel_Calc_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
 
 function StemModal({ imo, initial, onClose, onSaved }) {
   const [form, setForm] = useState(initial ? {
@@ -215,6 +284,7 @@ export default function BiofuelCalcPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [modal, setModal] = useState(null) // null | 'new' | stem object
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     fetchVessels().then(list => {
@@ -237,6 +307,19 @@ export default function BiofuelCalcPage() {
   }, [])
 
   useEffect(() => { load(selectedImo) }, [selectedImo, load])
+
+  async function handleExport() {
+    if (exporting || stems.length === 0) return
+    setExporting(true)
+    try {
+      const vesselName = vessels.find(v => v.imo_number === selectedImo)?.vessel_name
+      await exportBiofuelStemsExcel(stems, summary, vesselName)
+    } catch (err) {
+      alert('Export failed: ' + (err?.message || err))
+    } finally {
+      setExporting(false)
+    }
+  }
 
   async function handleDelete(id) {
     if (!window.confirm('Delete this bunker stem record? This cannot be undone.')) return
@@ -261,6 +344,14 @@ export default function BiofuelCalcPage() {
             {vessels.map(v => <option key={v.imo_number} value={v.imo_number}>{v.vessel_name} ({v.imo_number})</option>)}
           </select>
         </div>
+        <button
+          className="bf-btn secondary"
+          onClick={handleExport}
+          disabled={exporting || stems.length === 0}
+          title="Export the Per-Bunker Calculations table to Excel"
+        >
+          {exporting ? <Loader2 size={14} className="icon-spin" /> : <Download size={14} />} Export Excel
+        </button>
         <button className="bf-btn" onClick={() => setModal('new')}><Plus size={14} /> Add Stem</button>
       </div>
 

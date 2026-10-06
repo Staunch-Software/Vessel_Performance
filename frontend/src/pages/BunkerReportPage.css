@@ -21,6 +21,22 @@
   flex-wrap: wrap;
 }
 .br-topbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.br-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  color: #c8d8eb;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.br-export-btn:hover { background: #1a3050; }
+.br-export-btn:disabled { background: #0e1a2b; color: #3a5578; cursor: not-allowed; }
 .br-title { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #e2eaf5; }
 .br-vessel-select {
   background: #132238;

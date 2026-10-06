@@ -7,6 +7,53 @@ import './BunkerReportPage.css'
 const fmt = (v, d = 2) =>
   v === null || v === undefined || isNaN(v) ? '—' : (+v).toFixed(d)
 
+const EXPORT_COLUMNS = [
+  ['transaction_type', 'Transaction Type'], ['voyage_leg', 'Voyage Leg'], ['port', 'Port'],
+  ['fuel_type', 'Fuel Type'], ['imo_fuel_grade', 'Grade'], ['bdn_reference_no', 'BDN Reference'],
+  ['quantity_mt', 'Quantity (MT)'], ['sulphur_content', 'Sulphur (%)'], ['density_15c', 'Density (kg/m3)'],
+  ['kinematic_viscosity', 'Viscosity (cSt)'], ['flash_point_c', 'Flash Pt (C)'], ['supplier_company', 'Supplier'],
+  ['begin_of_bunkering', 'Begin of Bunkering'], ['end_of_bunkering', 'End of Bunkering'], ['time_zone', 'Time Zone'],
+  ['marpol_sample_no', 'MARPOL Sample No.'], ['bunker_analysis_status', 'Bunker Analysis'],
+  ['lab_report_date', 'Lab Report Date'], ['lab_density_15c', 'Lab Density'],
+  ['lab_sulphur_content', 'Lab Sulphur'], ['lab_kinematic_viscosity', 'Lab Viscosity'],
+]
+
+// Same client-side ExcelJS pattern used on the other Emission pages — a plain
+// passthrough of EXPORT_COLUMNS, so headers match the on-screen table (minus
+// the preview-icon column, which has no export equivalent).
+async function exportBunkerReportExcel(rows, vesselName) {
+  const ExcelJS = (await import('exceljs')).default
+  const { saveAs } = (await import('file-saver')).default
+
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Bunker Report', { views: [{ state: 'frozen', ySplit: 1 }] })
+  sheet.columns = EXPORT_COLUMNS.map(([k, l]) => ({ header: l, key: k, width: 16 }))
+
+  const headerRow = sheet.getRow(1)
+  headerRow.height = 22
+  headerRow.eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+
+  rows.forEach((r, idx) => {
+    const rowData = {}
+    EXPORT_COLUMNS.forEach(([k]) => { rowData[k] = r[k] ?? '' })
+    const excelRow = sheet.addRow(rowData)
+    if (idx % 2 === 1) {
+      excelRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBF0FA' } }
+      })
+    }
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const safeName = (vesselName || 'Vessel').replace(/[^a-z0-9]+/gi, '_')
+  saveAs(blob, `${safeName}_Bunker_Report_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
 const STATUS_CLS = {
   'Awaiting': 'br-status-amber',
   'Completed': 'br-status-green',
@@ -93,6 +140,7 @@ export default function BunkerReportPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [previewRow, setPreviewRow] = useState(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     fetchBunkerReportVessels()
@@ -116,6 +164,19 @@ export default function BunkerReportPage() {
       .finally(() => setLoading(false))
   }, [selectedImo])
 
+  async function handleExport() {
+    if (exporting || rows.length === 0) return
+    setExporting(true)
+    try {
+      const vesselName = vessels.find(v => v.imo_number === selectedImo)?.vessel_name
+      await exportBunkerReportExcel(rows, vesselName)
+    } catch (err) {
+      alert('Export failed: ' + (err?.message || err))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="br-page">
       <div className="br-topbar">
@@ -138,6 +199,16 @@ export default function BunkerReportPage() {
             <span className="br-row-count">{rows.length} bunker record{rows.length === 1 ? '' : 's'}</span>
           )}
         </div>
+        <button
+          type="button"
+          className="br-export-btn"
+          onClick={handleExport}
+          disabled={exporting || rows.length === 0}
+          title="Export the Bunker Report table to Excel"
+        >
+          {exporting ? <Loader2 size={13} className="icon-spin" /> : <Download size={13} />}
+          <span>Export Excel</span>
+        </button>
       </div>
 
       <div className="br-body">
