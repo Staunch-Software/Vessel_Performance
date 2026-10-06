@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { memoryStore } from '../utils/memoryStore'
-import { Loader2, AlertTriangle, BarChart2 } from 'lucide-react'
+import { Loader2, AlertTriangle, BarChart2, Download } from 'lucide-react'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -167,6 +167,83 @@ function EventTable({ events, truncated }) {
   )
 }
 
+// Same client-side ExcelJS pattern as AnalysisTable.jsx's exportAnalysisExcel —
+// exports exactly the Leg table's rows/columns as currently shown, including
+// the At Sea/In Port fuel-by-grade buckets (prefixed to disambiguate from each
+// other, since the on-screen table only tells them apart via the group header).
+async function exportLegTableExcel(legs, vesselName, year, sourceLabel) {
+  const ExcelJS = (await import('exceljs')).default
+  const { saveAs } = (await import('file-saver')).default
+
+  const cols = [
+    { key: 'voyage_no', header: 'Voyage No.' },
+    { key: 'loading_condition', header: 'L/B' },
+    { key: 'from_port', header: 'Departure Port' },
+    { key: 'departure_time', header: 'Departure [UTC]' },
+    { key: 'to_port', header: 'Arrival Port' },
+    { key: 'arrival_time', header: 'Arrival [UTC]' },
+    { key: 'next_departure_time', header: 'Next Departure [UTC]' },
+    { key: 'distance_nm', header: 'Distance (nm)' },
+    { key: 'time_at_sea_h', header: 'Time at Sea (h)' },
+    { key: 'cargo_weight_mt', header: 'Cargo (t)' },
+    { key: 'transport_work_mt_nm', header: 'Transport Work (mt·nm)' },
+    { key: 'consumption_total_mt', header: 'Consumption (t)' },
+    { key: 'co2_total_mt', header: 'CO2 (t)' },
+    { key: 'attained_cii', header: 'Attained CII' },
+    { key: 'cii_rating', header: 'Rating' },
+    { key: 'at_sea_consumption_mt', header: 'At Sea Cons. (t)' },
+    ...GRADE_LABELS.map(([k, l]) => ({ key: `at_sea_${k}`, header: `At Sea ${l}` })),
+    { key: 'at_sea_co2_mt', header: 'At Sea CO2 (t)' },
+    { key: 'in_port_consumption_mt', header: 'In Port Cons. (t)' },
+    ...GRADE_LABELS.map(([k, l]) => ({ key: `in_port_${k}`, header: `In Port ${l}` })),
+    { key: 'in_port_co2_mt', header: 'In Port CO2 (t)' },
+  ]
+
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Voyage Details', { views: [{ state: 'frozen', ySplit: 1 }] })
+  sheet.columns = cols.map(c => ({ header: c.header, key: c.key, width: 16 }))
+
+  const headerRow = sheet.getRow(1)
+  headerRow.height = 22
+  headerRow.eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } }
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+
+  legs.forEach((l, idx) => {
+    const rowData = {
+      voyage_no: l.voyage_no, loading_condition: l.loading_condition,
+      from_port: l.from_port || '', departure_time: l.departure_time?.replace('T', ' ') || '',
+      to_port: l.to_port || '', arrival_time: l.arrival_time?.replace('T', ' ') || '',
+      next_departure_time: l.next_departure_time?.replace('T', ' ') || '',
+      distance_nm: l.distance_nm, time_at_sea_h: l.time_at_sea_h,
+      cargo_weight_mt: l.cargo_weight_mt ?? '', transport_work_mt_nm: l.transport_work_mt_nm ?? '',
+      consumption_total_mt: l.consumption_total_mt, co2_total_mt: l.co2_total_mt,
+      attained_cii: l.attained_cii ?? '', cii_rating: l.cii_rating ?? '',
+      at_sea_consumption_mt: l.at_sea?.consumption_mt ?? '',
+      at_sea_co2_mt: l.at_sea?.co2_mt ?? '',
+      in_port_consumption_mt: l.in_port?.consumption_mt ?? '',
+      in_port_co2_mt: l.in_port?.co2_mt ?? '',
+    }
+    GRADE_LABELS.forEach(([k]) => {
+      rowData[`at_sea_${k}`] = l.at_sea?.[k] ?? ''
+      rowData[`in_port_${k}`] = l.in_port?.[k] ?? ''
+    })
+    const excelRow = sheet.addRow(rowData)
+    if (idx % 2 === 1) {
+      excelRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBF0FA' } }
+      })
+    }
+  })
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const safeName = (vesselName || 'Vessel').replace(/[^a-z0-9]+/gi, '_')
+  saveAs(blob, `${safeName}_IMO_DCS_Voyage_Details_${year}_${sourceLabel}.xlsx`)
+}
+
 function StatRow({ items }) {
   return (
     <div className="dcs-stat-row">
@@ -200,6 +277,7 @@ export default function ImoDcsPage() {
   const [events, setEvents] = useState([])
   const [eventsTruncated, setEventsTruncated] = useState(false)
   const [tableLoading, setTableLoading] = useState(false)
+  const [legExporting, setLegExporting] = useState(false)
 
   // The top source tabs (All/WNI/MariApps) are the single source-of-truth for
   // the whole page. Monthly trend / Voyage Details can't blend sources (see
@@ -266,6 +344,20 @@ export default function ImoDcsPage() {
         .finally(() => setTableLoading(false))
     }
   }, [selectedImo, year, dcsSource, tableTab])
+
+  async function handleExportLegExcel() {
+    if (legExporting || legs.length === 0) return
+    setLegExporting(true)
+    try {
+      const vesselName = vessels.find(v => v.imo_number === selectedImo)?.vessel_name
+      const sourceLabel = DCS_SOURCE_TABS.find(t => t.id === dcsSource)?.label || dcsSource
+      await exportLegTableExcel(legs, vesselName, year, sourceLabel)
+    } catch (err) {
+      alert('Export failed: ' + (err?.message || err))
+    } finally {
+      setLegExporting(false)
+    }
+  }
 
   async function handleTechChange(e) {
     const category = e.target.value === 'None' ? null : e.target.value
@@ -386,6 +478,18 @@ export default function ImoDcsPage() {
                   <button className={`em-source-tab${tableTab === 'event' ? ' active' : ''}`} onClick={() => setTableTab('event')}>Event</button>
                 </div>
                 <span className="em-card-meta">{DCS_SOURCE_TABS.find(t => t.id === dcsSource)?.label} · {year}</span>
+                {tableTab === 'leg' && (
+                  <button
+                    className="em-source-tab"
+                    onClick={handleExportLegExcel}
+                    disabled={legExporting || legs.length === 0}
+                    title="Export the Voyage Details table to Excel"
+                    style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    {legExporting ? <Loader2 size={13} className="icon-spin" /> : <Download size={13} />}
+                    <span>Export Excel</span>
+                  </button>
+                )}
               </div>
               {tableLoading && <div className="em-empty"><Loader2 size={14} className="icon-spin" /> Loading…</div>}
               {!tableLoading && tableTab === 'leg' && <LegTable legs={legs} year={year} />}
