@@ -9,6 +9,21 @@ Schedules the ingestion pipelines to run automatically **every 6 hours**:
 
 MariApps is offset 30 min from WNI so the two scrapers don't run at the same minute.
 
+Also schedules the **Bunker Report** scrape, once daily (bunker deliveries
+aren't time-sensitive the way noon-report data is — adjust if you want it
+more frequent):
+
+| Pipeline | Time (IST) | Cron hours | Runner |
+|----------|------------|-----------|--------|
+| **Bunker Report** | 02:00 | `0 2` | `run_bunker_report_scraper.sh` |
+
+`run_mariapps_pipeline.sh` calls `backend.mariapps_pipeline.mariapps_pipeline`
+directly, not `backend.main_entry` — so the Bunker Report scrape
+(`bunker_report_scraper.run()`) was never actually invoked by cron before
+this, only by manually running `python -m backend.main_entry`. This is a
+separate script/cron line, not folded into the MariApps one, so it can be
+scheduled or disabled independently and gets its own log file.
+
 > **MariApps requires MFA-disabled SSO.** The automated login signs in with
 > `MARIAPPS_USERNAME` / `MARIAPPS_PASSWORD` (Microsoft SSO). That account **must
 > have MFA/2FA turned off** or the headless login cannot complete and the run
@@ -25,8 +40,9 @@ git pull                         # pull these new files
 # point the runners at your checkout (edit PROJECT_DIR at the top if not /opt/vessel_pipeline)
 nano scripts/run_wni_pipeline.sh
 nano scripts/run_mariapps_pipeline.sh
+nano scripts/run_bunker_report_scraper.sh
 
-chmod +x scripts/run_wni_pipeline.sh scripts/run_mariapps_pipeline.sh
+chmod +x scripts/run_wni_pipeline.sh scripts/run_mariapps_pipeline.sh scripts/run_bunker_report_scraper.sh
 ```
 
 For MariApps, make sure `.env` has the MFA-disabled SSO credentials:
@@ -45,6 +61,9 @@ tail -f logs/wni_cron.log            # watch it; Ctrl-C to stop watching
 
 ./scripts/run_mariapps_pipeline.sh
 tail -f logs/mariapps_cron.log       # confirm login succeeds + vessels scrape
+
+./scripts/run_bunker_report_scraper.sh
+tail -f logs/bunker_report_cron.log  # confirm login succeeds + bunker records scrape
 ```
 
 ---
@@ -64,6 +83,7 @@ the server's own timezone — requires Vixie/standard cron, which Ubuntu uses):
 CRON_TZ=Asia/Kolkata
 0  1,7,13,19 * * * /opt/vessel_pipeline/scripts/run_wni_pipeline.sh
 30 1,7,13,19 * * * /opt/vessel_pipeline/scripts/run_mariapps_pipeline.sh
+0  2          * * * /opt/vessel_pipeline/scripts/run_bunker_report_scraper.sh
 ```
 
 Save and exit. Confirm it registered:
@@ -76,6 +96,8 @@ crontab -l
 - `0  1,7,13,19 * * *` → WNI at **:00** of hours 01, 07, 13, 19 IST.
 - `30 1,7,13,19 * * *` → MariApps at **:30** of the same hours (offset so the
   two scrapers never start on the same minute).
+- `0  2 * * *` → Bunker Report once daily at 02:00 IST, clear of the 01:00/01:30
+  WNI+MariApps run.
 
 ---
 
@@ -85,9 +107,10 @@ crontab -l
 # See each pipeline's own log
 tail -n 100 /opt/vessel_pipeline/logs/wni_cron.log
 tail -n 100 /opt/vessel_pipeline/logs/mariapps_cron.log
+tail -n 100 /opt/vessel_pipeline/logs/bunker_report_cron.log
 
 # Confirm cron fired (system cron log; path varies by distro)
-grep -E 'run_wni_pipeline|run_mariapps_pipeline' /var/log/syslog
+grep -E 'run_wni_pipeline|run_mariapps_pipeline|run_bunker_report_scraper' /var/log/syslog
 
 # Temporarily disable one: comment out its line in `crontab -e`
 ```
