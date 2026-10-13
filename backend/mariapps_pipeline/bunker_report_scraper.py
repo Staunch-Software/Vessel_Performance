@@ -27,6 +27,7 @@ from ..config import config
 from ..database import SessionLocal, get_scrape_vessels
 from ..models import Vessel, MariAppsBunkerReport
 from .blob_storage import upload_bunker_attachment
+from .generate_auth import run_automated_login
 
 log = logging.getLogger(__name__)
 
@@ -431,10 +432,13 @@ def _download_attachments_for_row(page, row_index: int, debug_dump=False) -> lis
 # ---------------------------------------------------------------------------
 
 def run():
+    # Unconditional fresh login before every run — same pattern
+    # mariapps_pipeline.py's run() uses, since the MariApps SSO account has
+    # MFA disabled specifically so this can complete headlessly. Fixes this
+    # scraper erroring out with "Session expired — run generate_auth.py" under
+    # cron (no human around to run that manually) instead of just logging in.
     auth_file = str(config.MARIAPPS_AUTH_JSON)
-    if not os.path.exists(auth_file):
-        log.error("[AUTH]     auth.json not found — run generate_auth.py first.")
-        return
+    run_automated_login()
 
     headless = os.getenv("MARIAPPS_HEADLESS", "true").lower() != "false"
     vessel_names = get_scrape_vessels("mari_apps")
