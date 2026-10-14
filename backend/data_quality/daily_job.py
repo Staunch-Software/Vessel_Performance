@@ -38,6 +38,18 @@ RULE_LABELS = {
     "missing_fuel": "Zero fuel logged across every grade on a real steaming day",
 }
 
+# Accent color per rule — same red/amber/green dot convention already used
+# for the Compliance/Errors columns in the live dashboard (AnalysisTable.jsx),
+# so the email reads consistently with the app rather than inventing a new
+# color language. missing_fuel is red (directly skews CP fuel figures),
+# the other two are amber (data-completeness gaps, not a confirmed verdict
+# problem on their own).
+RULE_ACCENT = {
+    "missing_weather": "#d4a02a",
+    "missing_cp_instruction": "#d4a02a",
+    "missing_fuel": "#e05050",
+}
+
 
 def _upsert_open_finding(db, vessel_imo, source, report_date, rule_key, detail):
     row = (
@@ -72,32 +84,124 @@ def _dates_to_check(db, vessel_imo, yesterday):
     return sorted(dates)
 
 
+def _entry_row_html(e, accent):
+    detail = e.get("detail") or {}
+    extra = detail.get("voyages") or detail.get("logs") or []
+    extra_html = (
+        f'<span style="color:#5a7fa8;"> &middot; {", ".join(extra)}</span>' if extra else ""
+    )
+    is_reminder = (e.get("notify_count") or 0) > 0
+    badge = (
+        '<span style="display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;'
+        'font-size:10.5px;font-weight:700;background:rgba(212,160,42,0.15);color:#9a7418;'
+        'border:1px solid rgba(212,160,42,0.35);">REMINDER</span>'
+        if is_reminder else ""
+    )
+    return f"""
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #e7ecf2;white-space:nowrap;vertical-align:top;">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{accent};margin-right:8px;vertical-align:middle;"></span>
+          <span style="font-weight:600;color:#1a2b3c;font-size:12.5px;">{e['source_id'].upper()}</span>
+        </td>
+        <td style="padding:8px 0;border-bottom:1px solid #e7ecf2;color:#1a2b3c;font-size:12.5px;vertical-align:top;">
+          {e['report_date']}{extra_html}{badge}
+        </td>
+      </tr>"""
+
+
 def build_digest_html(vessel_name, entries):
     """Pure rendering, no DB access — shared by the real job (_send_digest,
     fed from DataQualityFinding rows) and test_send.py (fed straight from
     run_checks_for_date's live output, so a template preview can be sent
     without writing any finding state). `entries`: list of dicts with keys
-    source_id, rule_key, report_date, detail, notify_count."""
+    source_id, rule_key, report_date, detail, notify_count.
+
+    Table-based layout with everything inline (no <style> block, no external
+    CSS/images) — Outlook and most webmail clients strip or ignore anything
+    that isn't inline, so this is the only reliable way to style an email."""
     by_rule = {}
     for e in entries:
         by_rule.setdefault(e["rule_key"], []).append(e)
 
-    lines = [
-        f"<h3>Data Quality Alert &mdash; {vessel_name}</h3>",
-        "<p>The following mandatory data is missing or incomplete. Please review and "
-        "correct the noon reports for the listed dates/voyages.</p>",
-    ]
-    for rule_key, es in by_rule.items():
-        lines.append(f"<p><b>{RULE_LABELS.get(rule_key, rule_key)}</b></p><ul>")
-        for e in sorted(es, key=lambda x: x["report_date"]):
-            detail = e.get("detail") or {}
-            extra = detail.get("voyages") or detail.get("logs") or []
-            extra_str = f" (voyages/logs: {', '.join(extra)})" if extra else ""
-            resend_note = " &mdash; <i>reminder, still unresolved</i>" if (e.get("notify_count") or 0) > 0 else ""
-            lines.append(f"<li>{e['source_id'].upper()} &mdash; {e['report_date']}{extra_str}{resend_note}</li>")
-        lines.append("</ul>")
+    total_findings = len(entries)
+    total_reports = sum(e.get("detail", {}).get("count", 1) for e in entries)
+    rule_count = len(by_rule)
 
-    return "\n".join(lines)
+    sections = []
+    for rule_key, es in by_rule.items():
+        accent = RULE_ACCENT.get(rule_key, "#5a7fa8")
+        rows_html = "".join(_entry_row_html(e, accent) for e in sorted(es, key=lambda x: x["report_date"]))
+        sections.append(f"""
+        <tr>
+          <td style="padding:22px 0 10px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+              <tr>
+                <td style="border-left:3px solid {accent};padding-left:12px;">
+                  <span style="font-size:13.5px;font-weight:700;color:#1a2b3c;">{RULE_LABELS.get(rule_key, rule_key)}</span>
+                </td>
+              </tr>
+            </table>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
+              <tr>
+                <td style="font-size:11px;font-weight:700;color:#8696a8;text-transform:uppercase;letter-spacing:0.03em;padding-bottom:4px;width:90px;">Source</td>
+                <td style="font-size:11px;font-weight:700;color:#8696a8;text-transform:uppercase;letter-spacing:0.03em;padding-bottom:4px;">Date</td>
+              </tr>
+              {rows_html}
+            </table>
+          </td>
+        </tr>""")
+
+    body = "".join(sections)
+
+    html = f"""\
+<div style="background:#eef2f7;padding:24px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(20,30,45,0.08);">
+          <tr>
+            <td style="background:#1f3864;padding:20px 28px;">
+              <span style="color:#ffffff;font-size:16px;font-weight:700;">Data Quality Alert</span><br/>
+              <span style="color:#9fb3cc;font-size:13px;">{vessel_name}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 28px 0;">
+              <p style="margin:0;color:#3a4a5c;font-size:13px;line-height:1.5;">
+                The mandatory data below is missing or incomplete for the dates/voyages listed.
+                Please review and correct the corresponding noon reports.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:14px;">
+                <tr>
+                  <td style="background:#f3f6fa;border-radius:6px;padding:8px 14px;">
+                    <span style="font-size:12px;color:#5a7fa8;">{rule_count} issue type{'s' if rule_count != 1 else ''} &middot; {total_findings} finding{'s' if total_findings != 1 else ''} &middot; {total_reports} report{'s' if total_reports != 1 else ''} affected</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 28px 20px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                {body}
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e7ecf2;">
+              <span style="font-size:11px;color:#8696a8;">
+                Automated message from the Vessel Performance data-quality check. A "REMINDER" tag
+                means this was already flagged previously and is still unresolved as of today's check.
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>"""
+
+    return html
 
 
 def _send_digest(db, vessel_imo, open_rows):
