@@ -92,8 +92,12 @@ def check_missing_cp_instruction(db, vessel_imo, report_date):
     respects the per-vessel requires_cp_remarks_check gate, since
     dataqualityx_missing_cp_instruction is only ever set non-null for vessels
     that have that flag on (see expander.py's _data_quality_extra_fields)."""
+    # expanded_mariapps_data has no plain `voyage_no` column — MariApps' voyage
+    # number only exists as the dedicated Emission Log column emissionx_voyage_no
+    # (see expander.py's _mariapps_voyage_no_field). log_number (e.g. "40/02/27")
+    # already uniquely identifies the report, which is enough for the digest.
     rows = db.execute(text("""
-        SELECT log_number, voyage_no FROM expanded_mariapps_data
+        SELECT log_number FROM expanded_mariapps_data
         WHERE vessel_imo = :imo AND log_date = :report_date
           AND dataqualityx_missing_cp_instruction IS NOT NULL
     """), {"imo": vessel_imo, "report_date": report_date}).mappings().all()
