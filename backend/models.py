@@ -1938,3 +1938,63 @@ class BiofuelBunkerStem(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ============================================================
+# TABLE: PER-VESSEL NOTIFICATION RECIPIENTS (data-quality mails now;
+# voyage-complete report mails later — same config, different notif_type)
+# ============================================================
+# Seeded via import_notification_recipients.py (root-level, same one-off-script
+# convention as import_cp_description.py) from the client's per-vessel TO/CC
+# list. `notif_type` keeps this one table reusable for Phase 2 (voyage-complete
+# report emails) without a schema change later — 'data_quality' is the only
+# type populated for now.
+class VesselNotificationRecipient(Base):
+    __tablename__ = "vessel_notification_recipients"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    vessel_imo  = Column(String(20), ForeignKey("vessels.imo_number", ondelete="CASCADE"), nullable=False, index=True)
+    notif_type  = Column(String(30), nullable=False, default="data_quality")  # 'data_quality' | 'voyage_report' (later)
+    from_email  = Column(String(255), nullable=False, default="data@ozellar.com")
+    to_emails   = Column(JSONB, nullable=False)   # ["amkirti@ozellar.com", "pavan@ozellar.com"]
+    cc_emails   = Column(JSONB, nullable=True)    # ["kunalchandra@ozellar.com", "tmamkirti@ozellar.com"]
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("vessel_imo", "notif_type", name="uq_vessel_notif_type"),)
+
+
+# ============================================================
+# TABLE: DATA QUALITY FINDINGS (mandatory-field gaps, tracked until resolved)
+# ============================================================
+# One row per (vessel, report date, rule) — NOT the same thing as the
+# ingestion-pipeline DataQualityLog above (that's an append-only audit trail,
+# currently only used for DUPLICATE_REPORT; this is a stateful tracker with
+# open/resolved status so the daily job knows whether a gap is new, still
+# unresolved from a prior day, or has since been corrected).
+#
+# Lifecycle (client request 2026-10): the daily check (run right after that
+# day's scrape, over the PREVIOUS calendar day's reports) upserts one row per
+# gap found. A still-open row gets re-emailed each day it's re-confirmed
+# missing (last_notified_at advances); once a day's re-check finds the
+# underlying data has been corrected, the row flips to 'resolved' and stops
+# being emailed.
+class DataQualityFinding(Base):
+    __tablename__ = "data_quality_findings"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    vessel_imo      = Column(String(20), ForeignKey("vessels.imo_number", ondelete="CASCADE"), nullable=False, index=True)
+    source_id       = Column(String(50), nullable=False)   # 'wni' | 'mari_apps'
+    report_date     = Column(Date, nullable=False)          # the calendar day this finding is about
+    rule_key        = Column(String(60), nullable=False)    # e.g. 'missing_weather', 'missing_cp_instruction'
+    detail          = Column(JSONB, nullable=True)           # e.g. {"log_numbers": ["40/02/27"], "count": 1}
+    status          = Column(String(20), nullable=False, default="open")  # 'open' | 'resolved'
+
+    first_detected_at = Column(DateTime, default=datetime.utcnow)
+    last_checked_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    resolved_at       = Column(DateTime, nullable=True)
+    last_notified_at  = Column(DateTime, nullable=True)
+    notify_count      = Column(Integer, nullable=False, default=0)
+
+    __table_args__ = (UniqueConstraint("vessel_imo", "source_id", "report_date", "rule_key", name="uq_dq_finding"),)
