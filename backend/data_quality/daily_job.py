@@ -154,7 +154,7 @@ def build_digest_html(vessel_name, entries):
     body = "".join(sections)
 
     html = f"""\
-<div style="background:#eef2f7;padding:24px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+<div style="background:#eef2f7;padding:24px 0;font-family:Aptos,Arial,Helvetica,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
     <tr>
       <td align="center">
