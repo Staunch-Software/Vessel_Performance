@@ -24,6 +24,21 @@ this, only by manually running `python -m backend.main_entry`. This is a
 separate script/cron line, not folded into the MariApps one, so it can be
 scheduled or disabled independently and gets its own log file.
 
+Also schedules the **Data Quality daily check** (client request 2026-10),
+once daily after the 01:00/01:30 WNI+MariApps run has landed yesterday's data:
+
+| Pipeline | Time (IST) | Cron hours | Runner |
+|----------|------------|-----------|--------|
+| **Data Quality check** | 02:30 | `30 2` | `run_data_quality_check.sh` |
+
+Checks yesterday's reports (plus any older still-open finding's date, to
+catch late corrections) for 3 confirmed mandatory-field gaps — missing
+weather (BF Wind / Sig. Wave Height), missing CP instruction in remarks, and
+zero fuel logged on a real steaming day — and emails a per-vessel digest to
+`vessel_notification_recipients`. **One-time setup before the first cron
+run**: `python -m import_notification_recipients` to seed the per-vessel
+TO/CC lists (see that script for the source list).
+
 > **MariApps requires MFA-disabled SSO.** The automated login signs in with
 > `MARIAPPS_USERNAME` / `MARIAPPS_PASSWORD` (Microsoft SSO). That account **must
 > have MFA/2FA turned off** or the headless login cannot complete and the run
@@ -41,8 +56,9 @@ git pull                         # pull these new files
 nano scripts/run_wni_pipeline.sh
 nano scripts/run_mariapps_pipeline.sh
 nano scripts/run_bunker_report_scraper.sh
+nano scripts/run_data_quality_check.sh
 
-chmod +x scripts/run_wni_pipeline.sh scripts/run_mariapps_pipeline.sh scripts/run_bunker_report_scraper.sh
+chmod +x scripts/run_wni_pipeline.sh scripts/run_mariapps_pipeline.sh scripts/run_bunker_report_scraper.sh scripts/run_data_quality_check.sh
 ```
 
 For MariApps, make sure `.env` has the MFA-disabled SSO credentials:
@@ -64,6 +80,10 @@ tail -f logs/mariapps_cron.log       # confirm login succeeds + vessels scrape
 
 ./scripts/run_bunker_report_scraper.sh
 tail -f logs/bunker_report_cron.log  # confirm login succeeds + bunker records scrape
+
+python -m import_notification_recipients   # one-time, before the first data-quality run
+./scripts/run_data_quality_check.sh
+tail -f logs/data_quality_cron.log   # confirm "N vessels checked, M mailed"
 ```
 
 ---
@@ -84,6 +104,7 @@ CRON_TZ=Asia/Kolkata
 0  1,7,13,19 * * * /opt/vessel_pipeline/scripts/run_wni_pipeline.sh
 30 1,7,13,19 * * * /opt/vessel_pipeline/scripts/run_mariapps_pipeline.sh
 0  2          * * * /opt/vessel_pipeline/scripts/run_bunker_report_scraper.sh
+30 2          * * * /opt/vessel_pipeline/scripts/run_data_quality_check.sh
 ```
 
 Save and exit. Confirm it registered:
@@ -98,6 +119,8 @@ crontab -l
   two scrapers never start on the same minute).
 - `0  2 * * *` → Bunker Report once daily at 02:00 IST, clear of the 01:00/01:30
   WNI+MariApps run.
+- `30 2 * * *` → Data Quality check once daily at 02:30 IST, after the
+  01:00/01:30 WNI+MariApps run so yesterday's data has landed.
 
 ---
 
@@ -108,9 +131,10 @@ crontab -l
 tail -n 100 /opt/vessel_pipeline/logs/wni_cron.log
 tail -n 100 /opt/vessel_pipeline/logs/mariapps_cron.log
 tail -n 100 /opt/vessel_pipeline/logs/bunker_report_cron.log
+tail -n 100 /opt/vessel_pipeline/logs/data_quality_cron.log
 
 # Confirm cron fired (system cron log; path varies by distro)
-grep -E 'run_wni_pipeline|run_mariapps_pipeline|run_bunker_report_scraper' /var/log/syslog
+grep -E 'run_wni_pipeline|run_mariapps_pipeline|run_bunker_report_scraper|run_data_quality_check' /var/log/syslog
 
 # Temporarily disable one: comment out its line in `crontab -e`
 ```
