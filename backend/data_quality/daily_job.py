@@ -243,9 +243,22 @@ def run_daily_data_quality_check():
     db = SessionLocal()
     try:
         yesterday = date.today() - timedelta(days=1)
+        # Only vessels with an ACTIVE data_quality recipient row are actually
+        # checked/mailed — manager approved a 5-vessel trial first (2026-10),
+        # see TRIAL_VESSELS in import_notification_recipients.py. The other
+        # 9 vessels' recipient rows are seeded but is_active=False, so they're
+        # excluded here entirely rather than checked-but-not-mailed (no point
+        # writing DataQualityFinding rows for a vessel nobody will see).
         vessels = (
             db.query(Vessel)
-            .filter((Vessel.wni_enabled.is_(True)) | (Vessel.mari_enabled.is_(True)))
+            .join(
+                VesselNotificationRecipient,
+                VesselNotificationRecipient.vessel_imo == Vessel.imo_number,
+            )
+            .filter(
+                VesselNotificationRecipient.notif_type == "data_quality",
+                VesselNotificationRecipient.is_active.is_(True),
+            )
             .all()
         )
 

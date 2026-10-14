@@ -41,6 +41,14 @@ RECIPIENTS = {
 
 NOTIF_TYPE = "data_quality"
 
+# Manager approved a 5-vessel trial first (2026-10 WhatsApp reply: "Let's send
+# to Kirti / Tarang / Narmada / Maximus / Polar as trial. Once correctly
+# implemented, will do for all vessels.") — every vessel's recipient row is
+# still seeded (so the other 9 are ready to go), but daily_job.py only
+# checks/mails vessels with is_active=True. Add vessel names here (and
+# re-run this script) to widen the rollout once the trial's confirmed.
+TRIAL_VESSELS = {"AM KIRTI", "AM TARANG", "GCL NARMADA", "AMNSI MAXIMUS", "AMNS POLAR"}
+
 
 def run():
     db = SessionLocal()
@@ -67,10 +75,12 @@ def run():
             row.from_email = FROM_EMAIL
             row.to_emails = emails["to"]
             row.cc_emails = emails["cc"]
+            row.is_active = vessel_name in TRIAL_VESSELS
             loaded += 1
 
         db.commit()
         log.info(f"Loaded/updated {loaded} vessel notification-recipient rows (notif_type={NOTIF_TYPE}).")
+        log.info(f"Active (trial) vessels: {sorted(TRIAL_VESSELS)} — the rest are seeded but inactive until the trial is confirmed.")
         if missing_vessel:
             log.warning(f"No matching vessels row for: {missing_vessel} — check vessel_name spelling against the vessels table.")
     finally:

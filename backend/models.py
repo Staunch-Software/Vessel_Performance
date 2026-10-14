@@ -1959,6 +1959,14 @@ class VesselNotificationRecipient(Base):
     to_emails   = Column(JSONB, nullable=False)   # ["amkirti@ozellar.com", "pavan@ozellar.com"]
     cc_emails   = Column(JSONB, nullable=True)    # ["kunalchandra@ozellar.com", "tmamkirti@ozellar.com"]
 
+    # Manager approved a 5-vessel trial first (2026-10): AM KIRTI, AM TARANG,
+    # GCL NARMADA, AMNSI MAXIMUS, AMNS POLAR — only vessels with is_active=True
+    # are actually checked/mailed by daily_job.py, even though all 14 vessels'
+    # recipient rows are seeded. Flip to True per vessel (or just update the
+    # TRIAL_VESSELS set in import_notification_recipients.py and re-run it) to
+    # roll out to the rest once the trial is confirmed working.
+    is_active   = Column(Boolean, nullable=False, default=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

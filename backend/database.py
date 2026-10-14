@@ -61,6 +61,11 @@ def init_db():
         conn.execute(text(
             'ALTER TABLE cp_vessel_description ADD COLUMN IF NOT EXISTS '
             'requires_cp_remarks_check BOOLEAN DEFAULT FALSE'))
+        # vessel_notification_recipients may already exist (created before
+        # is_active was added to the model) — same idempotent-ALTER need.
+        conn.execute(text(
+            'ALTER TABLE vessel_notification_recipients ADD COLUMN IF NOT EXISTS '
+            'is_active BOOLEAN NOT NULL DEFAULT TRUE'))
 
     # Open database session
     db = SessionLocal()
