@@ -72,6 +72,34 @@ def _dates_to_check(db, vessel_imo, yesterday):
     return sorted(dates)
 
 
+def build_digest_html(vessel_name, entries):
+    """Pure rendering, no DB access — shared by the real job (_send_digest,
+    fed from DataQualityFinding rows) and test_send.py (fed straight from
+    run_checks_for_date's live output, so a template preview can be sent
+    without writing any finding state). `entries`: list of dicts with keys
+    source_id, rule_key, report_date, detail, notify_count."""
+    by_rule = {}
+    for e in entries:
+        by_rule.setdefault(e["rule_key"], []).append(e)
+
+    lines = [
+        f"<h3>Data Quality Alert &mdash; {vessel_name}</h3>",
+        "<p>The following mandatory data is missing or incomplete. Please review and "
+        "correct the noon reports for the listed dates/voyages.</p>",
+    ]
+    for rule_key, es in by_rule.items():
+        lines.append(f"<p><b>{RULE_LABELS.get(rule_key, rule_key)}</b></p><ul>")
+        for e in sorted(es, key=lambda x: x["report_date"]):
+            detail = e.get("detail") or {}
+            extra = detail.get("voyages") or detail.get("logs") or []
+            extra_str = f" (voyages/logs: {', '.join(extra)})" if extra else ""
+            resend_note = " &mdash; <i>reminder, still unresolved</i>" if (e.get("notify_count") or 0) > 0 else ""
+            lines.append(f"<li>{e['source_id'].upper()} &mdash; {e['report_date']}{extra_str}{resend_note}</li>")
+        lines.append("</ul>")
+
+    return "\n".join(lines)
+
+
 def _send_digest(db, vessel_imo, open_rows):
     rec = (
         db.query(VesselNotificationRecipient)
@@ -85,26 +113,15 @@ def _send_digest(db, vessel_imo, open_rows):
     vessel = db.query(Vessel).filter_by(imo_number=vessel_imo).first()
     vessel_name = vessel.vessel_name if vessel else vessel_imo
 
-    by_rule = {}
-    for row in open_rows:
-        by_rule.setdefault(row.rule_key, []).append(row)
-
-    lines = [
-        f"<h3>Data Quality Alert &mdash; {vessel_name}</h3>",
-        "<p>The following mandatory data is missing or incomplete. Please review and "
-        "correct the noon reports for the listed dates/voyages.</p>",
+    entries = [
+        {
+            "source_id": row.source_id, "rule_key": row.rule_key,
+            "report_date": row.report_date, "detail": row.detail,
+            "notify_count": row.notify_count or 0,
+        }
+        for row in open_rows
     ]
-    for rule_key, rows in by_rule.items():
-        lines.append(f"<p><b>{RULE_LABELS.get(rule_key, rule_key)}</b></p><ul>")
-        for row in sorted(rows, key=lambda r: r.report_date):
-            detail = row.detail or {}
-            extra = detail.get("voyages") or detail.get("logs") or []
-            extra_str = f" (voyages/logs: {', '.join(extra)})" if extra else ""
-            resend_note = " &mdash; <i>reminder, still unresolved</i>" if (row.notify_count or 0) > 0 else ""
-            lines.append(f"<li>{row.source_id.upper()} &mdash; {row.report_date}{extra_str}{resend_note}</li>")
-        lines.append("</ul>")
-
-    html = "\n".join(lines)
+    html = build_digest_html(vessel_name, entries)
     ok = send_email(
         subject=f"[Data Quality] {vessel_name} — missing mandatory data",
         html_content=html,
