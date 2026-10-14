@@ -6,8 +6,12 @@
 # previously-open finding's date, to catch late corrections) for the 3
 # confirmed mandatory-field gaps (missing weather, missing CP instruction,
 # missing fuel on a steaming day) and emails a per-vessel digest to the
-# recipients in vessel_notification_recipients. Run AFTER that day's WNI +
-# MariApps scrapes (01:00/01:30) so yesterday's data has actually landed.
+# recipients in vessel_notification_recipients. Scheduled at 14:00 IST
+# (after the 13:00/13:30 WNI+MariApps scrape), not right after the first
+# overnight scrape — a report dated "yesterday" can still be entered into
+# MariApps with some lag during today's business hours, so running too early
+# risked flagging it as missing before it had actually landed (manager
+# request 2026-10: run it in the afternoon, not the middle of the night).
 # Same flock/logging conventions as the other cron runners.
 #
 # Setup on the VM:

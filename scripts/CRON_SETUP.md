@@ -24,12 +24,18 @@ this, only by manually running `python -m backend.main_entry`. This is a
 separate script/cron line, not folded into the MariApps one, so it can be
 scheduled or disabled independently and gets its own log file.
 
-Also schedules the **Data Quality daily check** (client request 2026-10),
-once daily after the 01:00/01:30 WNI+MariApps run has landed yesterday's data:
+Also schedules the **Data Quality daily check** (client request 2026-10), once
+daily in the afternoon rather than right after the first overnight scrape —
+chosen deliberately: a report dated "yesterday" can still be entered into
+MariApps with some lag during today's business hours, so running right after
+just the 01:00/01:30 scrape risked flagging a report as missing when it simply
+hadn't been typed in yet. Running after the 13:00/13:30 scrape instead gives
+"yesterday's" data 7 total scrape attempts (yesterday's own 4 plus today's
+01:00/07:00/13:00 runs) to land before it's checked, versus only 5 at 02:30.
 
 | Pipeline | Time (IST) | Cron hours | Runner |
 |----------|------------|-----------|--------|
-| **Data Quality check** | 02:30 | `30 2` | `run_data_quality_check.sh` |
+| **Data Quality check** | 14:00 | `0 14` | `run_data_quality_check.sh` |
 
 Checks yesterday's reports (plus any older still-open finding's date, to
 catch late corrections) for 3 confirmed mandatory-field gaps — missing
@@ -104,7 +110,7 @@ CRON_TZ=Asia/Kolkata
 0  1,7,13,19 * * * /opt/vessel_pipeline/scripts/run_wni_pipeline.sh
 30 1,7,13,19 * * * /opt/vessel_pipeline/scripts/run_mariapps_pipeline.sh
 0  2          * * * /opt/vessel_pipeline/scripts/run_bunker_report_scraper.sh
-30 2          * * * /opt/vessel_pipeline/scripts/run_data_quality_check.sh
+0  14         * * * /opt/vessel_pipeline/scripts/run_data_quality_check.sh
 ```
 
 Save and exit. Confirm it registered:
@@ -119,8 +125,10 @@ crontab -l
   two scrapers never start on the same minute).
 - `0  2 * * *` → Bunker Report once daily at 02:00 IST, clear of the 01:00/01:30
   WNI+MariApps run.
-- `30 2 * * *` → Data Quality check once daily at 02:30 IST, after the
-  01:00/01:30 WNI+MariApps run so yesterday's data has landed.
+- `0  14 * * *` → Data Quality check once daily at 14:00 IST, after the
+  13:00/13:30 WNI+MariApps run — gives "yesterday's" data 3 same-day scrape
+  attempts (01:00/07:00/13:00) on top of its own day's 4, reducing false
+  "missing" alerts from reports entered with some lag.
 
 ---
 
