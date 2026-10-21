@@ -84,28 +84,32 @@ def _dates_to_check(db, vessel_imo, yesterday):
     return sorted(dates)
 
 
+_CELL = "padding:8px 10px;border-bottom:1px solid #e7ecf2;color:#1a2b3c;font-size:12.5px;vertical-align:top;"
+
+
 def _entry_row_html(e, accent):
     detail = e.get("detail") or {}
     extra = detail.get("voyages") or detail.get("logs") or []
-    extra_html = (
-        f'<span style="color:#5a7fa8;"> &middot; {", ".join(extra)}</span>' if extra else ""
-    )
+    extra_str = ", ".join(extra) if extra else "&mdash;"
     is_reminder = (e.get("notify_count") or 0) > 0
     badge = (
-        '<span style="display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;'
+        '<span style="display:inline-block;padding:1px 8px;border-radius:10px;'
         'font-size:10.5px;font-weight:700;background:rgba(212,160,42,0.15);color:#9a7418;'
-        'border:1px solid rgba(212,160,42,0.35);">REMINDER</span>'
-        if is_reminder else ""
+        'border:1px solid rgba(212,160,42,0.35);white-space:nowrap;">REMINDER</span>'
+        if is_reminder else
+        '<span style="display:inline-block;padding:1px 8px;border-radius:10px;'
+        'font-size:10.5px;font-weight:700;background:rgba(78,203,110,0.15);color:#2f7d45;'
+        'border:1px solid rgba(78,203,110,0.35);white-space:nowrap;">NEW</span>'
     )
     return f"""
       <tr>
-        <td style="padding:8px 0;border-bottom:1px solid #e7ecf2;white-space:nowrap;vertical-align:top;">
+        <td style="{_CELL}white-space:nowrap;">
           <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{accent};margin-right:8px;vertical-align:middle;"></span>
-          <span style="font-weight:600;color:#1a2b3c;font-size:12.5px;">{e['source_id'].upper()}</span>
+          <span style="font-weight:600;vertical-align:middle;">{e['source_id'].upper()}</span>
         </td>
-        <td style="padding:8px 0;border-bottom:1px solid #e7ecf2;color:#1a2b3c;font-size:12.5px;vertical-align:top;">
-          {e['report_date']}{extra_html}{badge}
-        </td>
+        <td style="{_CELL}white-space:nowrap;">{e['report_date']}</td>
+        <td style="{_CELL}">{extra_str}</td>
+        <td style="{_CELL}white-space:nowrap;">{badge}</td>
       </tr>"""
 
 
@@ -141,10 +145,12 @@ def build_digest_html(vessel_name, entries):
                 </td>
               </tr>
             </table>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
-              <tr>
-                <td style="font-size:11px;font-weight:700;color:#8696a8;text-transform:uppercase;letter-spacing:0.03em;padding-bottom:4px;width:90px;">Source</td>
-                <td style="font-size:11px;font-weight:700;color:#8696a8;text-transform:uppercase;letter-spacing:0.03em;padding-bottom:4px;">Date</td>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;border:1px solid #e7ecf2;border-radius:6px;overflow:hidden;">
+              <tr style="background:#f8fafc;">
+                <td style="font-size:11px;font-weight:700;color:#8696a8;text-transform:uppercase;letter-spacing:0.03em;padding:8px 10px;width:90px;">Source</td>
+                <td style="font-size:11px;font-weight:700;color:#8696a8;text-transform:uppercase;letter-spacing:0.03em;padding:8px 10px;width:100px;">Date</td>
+                <td style="font-size:11px;font-weight:700;color:#8696a8;text-transform:uppercase;letter-spacing:0.03em;padding:8px 10px;">Voyage / Log</td>
+                <td style="font-size:11px;font-weight:700;color:#8696a8;text-transform:uppercase;letter-spacing:0.03em;padding:8px 10px;width:90px;">Status</td>
               </tr>
               {rows_html}
             </table>
