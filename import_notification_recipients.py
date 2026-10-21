@@ -23,20 +23,20 @@ FROM_EMAIL = "data@ozellar.com"
 # vessel_name (must match vessels.vessel_name exactly — see mariapps_pipeline.py's
 # VESSEL_LIST for the canonical spellings) -> {"to": [...], "cc": [...]}
 RECIPIENTS = {
-    "AM KIRTI":       {"to": ["amkirti@ozellar.com", "pavan@ozellar.com"],          "cc": ["kunalchandra@ozellar.com", "tmamkirti@ozellar.com"]},
-    "AM TARANG":      {"to": ["amtarang@ozellar.com", "pavan@ozellar.com"],         "cc": ["kunalchandra@ozellar.com", "tmamtarang@ozellar.com"]},
-    "GCL NARMADA":    {"to": ["gclnarmada@ozellar.com", "pavan@ozellar.com"],       "cc": ["kunalchandra@ozellar.com", "tmgclnarmada@ozellar.com"]},
-    "GCL SABARMATI":  {"to": ["gclsabarmati@ozellar.com", "pavan@ozellar.com"],     "cc": ["kunalchandra@ozellar.com", "tmgclsabarmati@ozellar.com"]},
-    "GCL FOS":        {"to": ["gclfos@ozellar.com", "gauravsingh.r@ozellar.com"],   "cc": ["kunalchandra@ozellar.com", "tmgclfos@ozellar.com"]},
-    "GCL YAMUNA":     {"to": ["gclyamuna@ozellar.com", "gauravsingh.r@ozellar.com"],"cc": ["kunalchandra@ozellar.com", "tmgclyamuna@ozellar.com"]},
-    "GCL GANGA":      {"to": ["gclganga@ozellar.com", "gauravsingh.r@ozellar.com"], "cc": ["kunalchandra@ozellar.com", "tmgclganga@ozellar.com"]},
-    "GCL SARASWATI":  {"to": ["gclsaraswati@ozellar.com", "abhinav.s@ozellar.com"], "cc": ["kunalchandra@ozellar.com", "tmgclsaraswati@ozellar.com"]},
-    "AMNS POLAR":     {"to": ["amns.polar@gtmailplus.com", "abhinav.s@ozellar.com"],"cc": ["kunalchandra@ozellar.com", "tmamnspolar@ozellar.com"]},
-    "AMNS TUFMAX":    {"to": ["amnstufmax@ozellar.com", "abhinav.s@ozellar.com"],   "cc": ["kunalchandra@ozellar.com", "tmamnstufmax@ozellar.com"]},
-    "AMNSI MAXIMUS":  {"to": ["amnsimaximus@gtmailplus.com", "Murtuza@ozellar.com"],"cc": ["kunalchandra@ozellar.com", "tmamnsimaximus@ozellar.com"]},
-    "AM UMANG":       {"to": ["amumang@ozellar.com", "Murtuza@ozellar.com"],        "cc": ["kunalchandra@ozellar.com", "tmamumang@ozellar.com"]},
-    "GCL TAPI":       {"to": ["gcltapi@ozellar.com", "Murtuza@ozellar.com"],        "cc": ["kunalchandra@ozellar.com", "tmgcltapi@ozellar.com"]},
-    "AMNSI STALLION":  {"to": ["amnsistallion@gtmailplus.com", "Murtuza@ozellar.com"], "cc": ["kunalchandra@ozellar.com", "tmamnsistallion@ozellar.com"]},
+    "AM KIRTI":       {"to": ["amkirti@ozellar.com", "pavan@ozellar.com", "kunalchandra@ozellar.com"],          "cc": ["tmamkirti@ozellar.com"]},
+    "AM TARANG":      {"to": ["amtarang@ozellar.com", "pavan@ozellar.com", "kunalchandra@ozellar.com"],         "cc": ["tmamtarang@ozellar.com"]},
+    "GCL NARMADA":    {"to": ["gclnarmada@ozellar.com", "pavan@ozellar.com", "kunalchandra@ozellar.com"],       "cc": ["tmgclnarmada@ozellar.com"]},
+    "GCL SABARMATI":  {"to": ["gclsabarmati@ozellar.com", "pavan@ozellar.com", "kunalchandra@ozellar.com"],     "cc": ["tmgclsabarmati@ozellar.com"]},
+    "GCL FOS":        {"to": ["gclfos@ozellar.com", "gauravsingh.r@ozellar.com", "kunalchandra@ozellar.com"],   "cc": ["tmgclfos@ozellar.com"]},
+    "GCL YAMUNA":     {"to": ["gclyamuna@ozellar.com", "gauravsingh.r@ozellar.com", "kunalchandra@ozellar.com"],"cc": ["tmgclyamuna@ozellar.com"]},
+    "GCL GANGA":      {"to": ["gclganga@ozellar.com", "gauravsingh.r@ozellar.com", "kunalchandra@ozellar.com"], "cc": ["tmgclganga@ozellar.com"]},
+    "GCL SARASWATI":  {"to": ["gclsaraswati@ozellar.com", "abhinav.s@ozellar.com", "kunalchandra@ozellar.com"], "cc": ["tmgclsaraswati@ozellar.com"]},
+    "AMNS POLAR":     {"to": ["amns.polar@gtmailplus.com", "abhinav.s@ozellar.com", "kunalchandra@ozellar.com"],"cc": ["tmamnspolar@ozellar.com"]},
+    "AMNS TUFMAX":    {"to": ["amnstufmax@ozellar.com", "abhinav.s@ozellar.com", "kunalchandra@ozellar.com"],   "cc": ["tmamnstufmax@ozellar.com"]},
+    "AMNSI MAXIMUS":  {"to": ["amnsimaximus@gtmailplus.com", "Murtuza@ozellar.com", "kunalchandra@ozellar.com"],"cc": ["tmamnsimaximus@ozellar.com"]},
+    "AM UMANG":       {"to": ["amumang@ozellar.com", "Murtuza@ozellar.com", "kunalchandra@ozellar.com"],        "cc": ["tmamumang@ozellar.com"]},
+    "GCL TAPI":       {"to": ["gcltapi@ozellar.com", "Murtuza@ozellar.com", "kunalchandra@ozellar.com"],        "cc": ["tmgcltapi@ozellar.com"]},
+    "AMNSI STALLION":  {"to": ["amnsistallion@gtmailplus.com", "Murtuza@ozellar.com", "kunalchandra@ozellar.com"], "cc": ["tmamnsistallion@ozellar.com"]},
 }
 
 NOTIF_TYPE = "data_quality"
