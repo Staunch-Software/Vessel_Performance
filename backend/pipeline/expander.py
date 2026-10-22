@@ -450,7 +450,7 @@ _CP_WARRANTY_DIRECT_META = [
     # Emission capsule was scoped down to exactly the Emission Log columns.
     {"col": "mariappsx_cp_warranted_speed_kn",         "display_name": "CP Warranted Speed",       "category": "Performance", "unit": "kn"},
     {"col": "mariappsx_cp_speed_tolerance_kn",         "display_name": "CP Speed Tolerance",       "category": "Performance", "unit": "kn"},
-    {"col": "mariappsx_cp_warranted_consumption_mtday", "display_name": "CP Warranted Consumption", "category": "Performance", "unit": "mt/day"},
+    {"col": "mariappsx_cp_warranted_consumption_mtday", "display_name": "CP Warranted Consumption", "category": "Performance", "unit": "mt"},
     {"col": "mariappsx_cp_consumption_tolerance_pct",  "display_name": "CP Consumption Tolerance", "category": "Performance", "unit": "%"},
 ]
 _CP_WARRANTY_DIRECT_COLS = [m["col"] for m in _CP_WARRANTY_DIRECT_META]
@@ -544,7 +544,7 @@ def _cp_remarks_instruction(raw_json, loading_condition_raw):
     return pick_instruction_for_condition(parsed, loading_condition_raw)
 
 
-def _cp_warranty_extra_fields(conn, vessel_imo, loading_condition_raw, observed_speed_kn, table_cols, cache, instruction=None):
+def _cp_warranty_extra_fields(conn, vessel_imo, loading_condition_raw, observed_speed_kn, table_cols, cache, instruction=None, log_duration_hr=None):
     """Match one report's loading condition + speed against the vessel's Active CP
     sea-passage warranty, picking the nearest-warranted-speed candidate within
     that loading condition. `cache` is a dict the caller owns, keyed by
@@ -559,7 +559,17 @@ def _cp_warranty_extra_fields(conn, vessel_imo, loading_condition_raw, observed_
     instruction. Only Speed/Consumption Tolerance stay sourced from the
     matched candidate either way — remarks never restate a tolerance, that's a
     fixed contract term. Without an instruction (the common case), this is
-    unchanged: everything comes from the nearest-observed-speed match."""
+    unchanged: everything comes from the nearest-observed-speed match.
+
+    `log_duration_hr` (optional) is that report's own "Log Duration (hr)"
+    (VoyageMeta_log_durationh_operational_LF). The warranty/instruction
+    consumption figure is a daily (mt/day) rate, but a single log row can
+    cover anywhere from ~2h (an EOSP/arrival fragment) to 24h (a full Noon at
+    sea day) — manager report 2026-10: a 2h log and a 24h log were both
+    showing the full daily rate, which isn't comparable to that row's actual
+    logged consumption. Prorated to mt-for-this-log via (rate * hr/24);
+    falls back to the plain daily rate when duration is missing/zero, same
+    as before this existed."""
     out = {}
     if not vessel_imo:
         return out
@@ -583,10 +593,29 @@ def _cp_warranty_extra_fields(conn, vessel_imo, loading_condition_raw, observed_
     if "mariappsx_cp_speed_tolerance_kn" in table_cols:
         out["mariappsx_cp_speed_tolerance_kn"] = warranty.get("speed_tolerance_kn")
     if "mariappsx_cp_warranted_consumption_mtday" in table_cols:
-        out["mariappsx_cp_warranted_consumption_mtday"] = instr_cons if instr_cons is not None else warranty.get("total_cons_mt_day")
+        daily_rate = instr_cons if instr_cons is not None else warranty.get("total_cons_mt_day")
+        out["mariappsx_cp_warranted_consumption_mtday"] = _prorate_daily_rate(daily_rate, log_duration_hr)
     if "mariappsx_cp_consumption_tolerance_pct" in table_cols:
         out["mariappsx_cp_consumption_tolerance_pct"] = warranty.get("cons_tolerance_pct")
     return out
+
+
+def _prorate_daily_rate(daily_rate, duration_hr):
+    """(daily_rate * duration_hr / 24), rounded to 3dp. Returns daily_rate
+    unchanged if duration is missing, non-numeric, or <= 0."""
+    if daily_rate is None:
+        return None
+    try:
+        rate = float(daily_rate)
+    except (TypeError, ValueError):
+        return daily_rate
+    try:
+        hr = float(duration_hr)
+    except (TypeError, ValueError):
+        return rate
+    if hr <= 0:
+        return rate
+    return round(rate * hr / 24.0, 3)
 
 
 def _apply_stw_fallback(data_rec: dict) -> dict:
@@ -2027,7 +2056,8 @@ def backfill_mariapps(engine, batch_size: int = 50):
                         **data_rec,
                         **_mariapps_extra_fields(raw_json, table_cols),
                         **_cp_warranty_extra_fields(
-                            conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, cp_warranty_cache, instruction
+                            conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, cp_warranty_cache, instruction,
+                            data_rec.get("VoyageMeta_log_durationh_operational_LF"),
                         ),
                         **fuel_fields,
                         **_emission_log_nav_fields(data_rec, table_cols),
@@ -2146,7 +2176,10 @@ def write_expanded_mariapps(conn, raw_log_id, vessel_imo, log_date,
             "loading_condition": lc,
             **data_rec,
             **_mariapps_extra_fields(raw_json, table_cols),
-            **_cp_warranty_extra_fields(conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, {}, instruction),
+            **_cp_warranty_extra_fields(
+                conn, vessel_imo, lc, _observed_speed_kn(data_rec), table_cols, {}, instruction,
+                data_rec.get("VoyageMeta_log_durationh_operational_LF"),
+            ),
             **fuel_fields,
             **_emission_log_nav_fields(data_rec, table_cols),
             **_mariapps_voyage_no_field(raw_json, table_cols),
