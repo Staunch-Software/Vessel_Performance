@@ -1,0 +1,335 @@
+/* ── Data Discrepancy & Voyage Review — matches the fixed dark navy palette
+   used across the other Emission/Bunker pages (#0e1a2b / #1e3a5f / #c8d8eb),
+   plus a few semantic accents for status + internal/vessel-facing threads. */
+.dqr-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0e1a2b;
+  color: #c8d8eb;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  padding: 16px 18px;
+  box-sizing: border-box;
+}
+
+.dqr-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #1e3a5f;
+  flex-shrink: 0;
+}
+.dqr-eyebrow {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6f8bab;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+}
+.dqr-topbar h1 {
+  font-size: 1.2rem;
+  margin: 0;
+  font-weight: 650;
+  color: #e8f1fb;
+}
+.dqr-topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.dqr-select {
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  color: #c8d8eb;
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+.dqr-icon-btn {
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  color: #c8d8eb;
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.dqr-icon-btn:hover { border-color: #3f6fa8; }
+
+.dqr-workspace {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+@media (max-width: 860px) { .dqr-workspace { grid-template-columns: 1fr; } }
+
+.dqr-queue, .dqr-detail {
+  background: #0a1422;
+  border: 1px solid #1e3a5f;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dqr-queue-head {
+  padding: 11px 14px;
+  border-bottom: 1px solid #1e3a5f;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.dqr-queue-head span:first-child {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6f8bab;
+  font-weight: 700;
+}
+.dqr-queue-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: #9fb6d1;
+  background: #132238;
+  border-radius: 20px;
+  padding: 2px 8px;
+}
+.dqr-queue-list { overflow-y: auto; flex: 1; }
+
+.dqr-item {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 11px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-bottom: 1px solid #16263c;
+  font-family: inherit;
+  color: #c8d8eb;
+}
+.dqr-item:hover { background: #10203a; }
+.dqr-item.active { background: #15314f; box-shadow: inset 3px 0 0 #3f8ef0; }
+.dqr-item-top { display: flex; align-items: center; gap: 8px; }
+.dqr-item-type {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6f8bab;
+}
+.dqr-count-chip {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: #9fb6d1;
+  background: #132238;
+  border-radius: 20px;
+  padding: 1px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dqr-item-vessel { font-size: 0.82rem; font-weight: 650; color: #e8f1fb; }
+.dqr-item-title { font-size: 0.78rem; color: #9fb6d1; }
+.dqr-item-meta { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; color: #6f8bab; }
+.dqr-dot { width: 3px; height: 3px; border-radius: 50%; background: #6f8bab; }
+
+.dqr-badge {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.dqr-badge.open { background: #3a1e1c; color: #e8766d; }
+.dqr-badge.acknowledged { background: #352a13; color: #e3b35a; }
+.dqr-badge.resolved { background: #132c1f; color: #5fcb8d; }
+
+.dqr-empty {
+  padding: 20px 14px;
+  font-size: 0.82rem;
+  color: #6f8bab;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dqr-error { color: #e8766d; }
+.spin { animation: dqr-spin 1s linear infinite; }
+@keyframes dqr-spin { to { transform: rotate(360deg); } }
+
+/* ---- Detail panel ---- */
+.dqr-detail-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6f8bab;
+  font-size: 0.85rem;
+}
+.dqr-detail-head { padding: 16px 18px 14px; border-bottom: 1px solid #1e3a5f; flex-shrink: 0; }
+.dqr-detail-head-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.dqr-detail-head h2 { font-size: 1.05rem; margin: 2px 0 0; font-weight: 650; color: #e8f1fb; }
+.dqr-detail-sub { font-size: 0.78rem; color: #9fb6d1; display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; }
+.dqr-detail-sub b { color: #e8f1fb; font-weight: 600; }
+.dqr-status-select {
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  color: #c8d8eb;
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.dqr-note {
+  margin: 12px 18px 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  font-size: 0.78rem;
+  color: #9fb6d1;
+  flex-shrink: 0;
+}
+.dqr-note b { color: #e8f1fb; }
+
+.dqr-tabs { display: flex; gap: 4px; padding: 12px 18px 0; flex-shrink: 0; }
+.dqr-tab {
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  padding: 7px 4px;
+  cursor: pointer;
+  color: #6f8bab;
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: 18px;
+}
+.dqr-tab.active { color: #e8f1fb; border-bottom-color: #3f8ef0; }
+.dqr-swatch { width: 8px; height: 8px; border-radius: 50%; }
+.dqr-swatch.internal { background: #b49be9; }
+.dqr-swatch.vessel { background: #3f8ef0; }
+.dqr-n {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.66rem;
+  background: #132238;
+  padding: 1px 6px;
+  border-radius: 20px;
+  color: #9fb6d1;
+}
+
+.dqr-banner {
+  margin: 10px 18px 0;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.dqr-banner.internal { background: #241c38; color: #b49be9; }
+.dqr-banner.vessel { background: #132c45; color: #3f8ef0; }
+
+.dqr-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.dqr-system-msg { color: #6f8bab; font-size: 0.78rem; font-style: italic; text-align: center; padding: 16px 0; }
+.dqr-msg { display: flex; gap: 10px; max-width: 88%; }
+.dqr-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #0a1422;
+}
+.dqr-avatar.internal { background: #b49be9; }
+.dqr-avatar.vessel { background: #3f8ef0; }
+.dqr-bubble {
+  background: #132238;
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+.dqr-bubble p { margin: 0; color: #dbe7f5; }
+.dqr-who { font-size: 0.7rem; font-weight: 700; margin-bottom: 3px; display: flex; gap: 6px; align-items: center; color: #e8f1fb; }
+.dqr-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.dqr-tag.internal { background: #241c38; color: #b49be9; }
+.dqr-tag.vessel { background: #132c45; color: #3f8ef0; }
+.dqr-when { font-size: 0.66rem; color: #6f8bab; font-weight: 400; margin-left: auto; }
+
+.dqr-composer {
+  display: flex;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid #1e3a5f;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+.dqr-composer textarea {
+  flex: 1;
+  resize: none;
+  min-height: 38px;
+  max-height: 110px;
+  border-radius: 9px;
+  border: 1px solid #1e3a5f;
+  background: #132238;
+  color: #dbe7f5;
+  font-family: inherit;
+  font-size: 0.83rem;
+  padding: 9px 12px;
+}
+.dqr-composer textarea:focus { outline: 2px solid #3f8ef0; outline-offset: 1px; }
+
+.dqr-btn {
+  border: 1px solid #1e3a5f;
+  background: #132238;
+  color: #c8d8eb;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dqr-btn.primary { background: #1f6fd6; color: #fff; border-color: #1f6fd6; }
+.dqr-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.mono { font-family: 'JetBrains Mono', monospace; }

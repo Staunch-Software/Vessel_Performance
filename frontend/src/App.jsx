@@ -27,6 +27,7 @@ import EuEtsPage from './pages/EuEtsPage'
 import FuelEuPage from './pages/FuelEuPage'
 import BiofuelCalcPage from './pages/BiofuelCalcPage'
 import BunkerReportPage from './pages/BunkerReportPage'
+import DataQualityReviewPage from './pages/DataQualityReviewPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import ColumnConfigPage from './pages/ColumnConfigPage'
@@ -132,6 +133,7 @@ function AvatarMenu({ user, isAdmin, onAdmin, onColumnConfig, onLogout }) {
 const NAV_GROUPS = [
   { id: 'reports', icon: <FileText size={14} />, label: 'Vessel Reports' },
   { id: 'fleet',   icon: <Map      size={14} />, label: 'Fleet Status'   },
+  { id: 'review',  icon: <ScrollText size={14} />, label: 'Data & Voyage Review' },
   {
     id: 'vessel_performance', icon: <BarChart2 size={14} />, label: 'Vessel Performance',
     children: [
@@ -633,6 +635,7 @@ function AuthenticatedApp() {
           {page === 'fueleu' && <FuelEuPage />}
           {page === 'biofuel_calc' && <BiofuelCalcPage />}
           {page === 'bunker' && <BunkerReportPage />}
+          {page === 'review' && <DataQualityReviewPage />}
         </>
       )}
     </div>

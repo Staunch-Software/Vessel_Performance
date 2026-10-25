@@ -493,3 +493,31 @@ export async function fetchFuelEuLegs(imo, year, source) {
   const { data } = await api.get(`/emission/${imo}/fueleu/legs`, { params: { year, source } })
   return data
 }
+
+// ── Data Discrepancy & Voyage Review ────────────────────────────────────
+export async function fetchDataQualityFindings(vesselImo, status) {
+  const params = {}
+  if (vesselImo && vesselImo !== 'all') params.vessel_imo = vesselImo
+  if (status && status !== 'all') params.status = status
+  const { data } = await api.get('/data-quality/findings', { params })
+  return Array.isArray(data) ? data : []
+}
+
+export async function updateDataQualityFindingStatus(findingId, status) {
+  const { data } = await api.patch(`/data-quality/findings/${findingId}`, { status })
+  return data
+}
+
+export async function fetchDataQualityThreads(findingId, channel) {
+  const params = {}
+  if (channel) params.channel = channel
+  const { data } = await api.get(`/data-quality/findings/${findingId}/threads`, { params })
+  return Array.isArray(data) ? data : []
+}
+
+export async function postDataQualityThread(findingId, body, isInternal) {
+  const { data } = await api.post(`/data-quality/findings/${findingId}/threads`, {
+    body, is_internal: isInternal,
+  })
+  return data
+}

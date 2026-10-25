@@ -1997,7 +1997,10 @@ class DataQualityFinding(Base):
     report_date     = Column(Date, nullable=False)          # the calendar day this finding is about
     rule_key        = Column(String(60), nullable=False)    # e.g. 'missing_weather', 'missing_cp_instruction'
     detail          = Column(JSONB, nullable=True)           # e.g. {"log_numbers": ["40/02/27"], "count": 1}
-    status          = Column(String(20), nullable=False, default="open")  # 'open' | 'resolved'
+    # 'open' | 'acknowledged' (vessel/shore has responded, not yet confirmed fixed) | 'resolved'.
+    # No CHECK constraint — free-text column, 'acknowledged' added 2026-10 for the Data
+    # Discrepancy & Voyage Review UI without needing a migration.
+    status          = Column(String(20), nullable=False, default="open")
 
     first_detected_at = Column(DateTime, default=datetime.utcnow)
     last_checked_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -2006,3 +2009,20 @@ class DataQualityFinding(Base):
     notify_count      = Column(Integer, nullable=False, default=0)
 
     __table_args__ = (UniqueConstraint("vessel_imo", "source_id", "report_date", "rule_key", name="uq_dq_finding"),)
+
+
+# Discussion thread on a DataQualityFinding — the "Data Discrepancy & Voyage Review"
+# section (manager request 2026-10, modeled on the Drs module's Defect/Thread pattern).
+# is_internal splits the discussion into a shore-team-only channel and a vessel-facing
+# channel (the latter is what would go out via "Email update"); kept as a flat flag
+# rather than two separate tables since both channels share the same shape.
+class DataQualityThread(Base):
+    __tablename__ = "data_quality_threads"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    finding_id       = Column(Integer, ForeignKey("data_quality_findings.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_user_id   = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    author_name      = Column(String(150), nullable=False)  # denormalized snapshot — survives a deleted user
+    is_internal      = Column(Boolean, nullable=False, default=True, index=True)
+    body             = Column(TEXT, nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
