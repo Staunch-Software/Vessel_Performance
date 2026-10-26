@@ -57,7 +57,7 @@ def fetch_report_rows(db, vessel_imo, report_date, source):
         SELECT a."Voyage_No", a."Loading_Cond", a."Date", a."Distance_nm", a."Duration_h",
                a."BF_Wind", a."Sig_Wave_Ht_m",
                {_FO_EXPR} AS fo_mt, {_DOGO_EXPR} AS dogo_mt,
-               n.log_type AS event_type
+               n.log_type AS event_type, n.log_number AS log_number
         FROM analysis_data a
         {join}
         WHERE a.vessel_imo = :imo AND a.source_id = :src AND a."Date" = :report_date
@@ -71,12 +71,22 @@ def _steaming_sea_passage_rows(db, vessel_imo, report_date, source):
     return [r for r in rows if _is_steaming(r) and _is_sea_passage_event(r)]
 
 
+def _identifier_detail(bad, source):
+    """MariApps identifies a report by its log_number (e.g. "66/03/09") — more
+    specific than the voyage/leg number ("66/03") and what the master actually
+    looks up in MariApps. WNI has no equivalent log-number concept in this
+    digest, so it keeps showing Voyage_No, unchanged."""
+    if source == "mari_apps":
+        return {"logs": sorted({r["log_number"] for r in bad if r.get("log_number")})}
+    return {"voyages": sorted({r["Voyage_No"] for r in bad if r.get("Voyage_No")})}
+
+
 def check_missing_weather(db, vessel_imo, report_date, source):
     rows = _steaming_sea_passage_rows(db, vessel_imo, report_date, source)
     bad = [r for r in rows if r.get("BF_Wind") is None or r.get("Sig_Wave_Ht_m") is None]
     if not bad:
         return None
-    return {"count": len(bad), "voyages": sorted({r["Voyage_No"] for r in bad if r.get("Voyage_No")})}
+    return {"count": len(bad), **_identifier_detail(bad, source)}
 
 
 def check_missing_fuel(db, vessel_imo, report_date, source):
@@ -84,7 +94,7 @@ def check_missing_fuel(db, vessel_imo, report_date, source):
     bad = [r for r in rows if (r.get("fo_mt") or 0) == 0 and (r.get("dogo_mt") or 0) == 0]
     if not bad:
         return None
-    return {"count": len(bad), "voyages": sorted({r["Voyage_No"] for r in bad if r.get("Voyage_No")})}
+    return {"count": len(bad), **_identifier_detail(bad, source)}
 
 
 def check_missing_cp_instruction(db, vessel_imo, report_date):

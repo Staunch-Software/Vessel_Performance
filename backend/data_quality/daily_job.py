@@ -50,6 +50,13 @@ RULE_ACCENT = {
     "missing_fuel": "#e05050",
 }
 
+# Lands the recipient straight on the MariApps Log Approval grid so they don't
+# have to navigate there themselves. WNI has no equivalent single-click
+# destination (no public per-report URL), so this is shown unconditionally —
+# it's still useful context even for a WNI-only finding, since most vessels'
+# findings are mixed-source.
+MARIAPPS_LOG_APPROVAL_URL = "https://smartpal.ozellar.com/PerformancePALApp/Performance/LogApproval"
+
 
 def _upsert_open_finding(db, vessel_imo, source, report_date, rule_key, detail):
     row = (
@@ -181,6 +188,17 @@ def build_digest_html(vessel_name, entries):
                 <tr>
                   <td style="background:#f3f6fa;border-radius:6px;padding:8px 14px;">
                     <span style="font-size:12px;color:#5a7fa8;">{rule_count} issue type{'s' if rule_count != 1 else ''} &middot; {total_findings} finding{'s' if total_findings != 1 else ''} &middot; {total_reports} report{'s' if total_reports != 1 else ''} affected</span>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:14px;">
+                <tr>
+                  <td style="border-radius:6px;" bgcolor="#1f3864">
+                    <a href="{MARIAPPS_LOG_APPROVAL_URL}" target="_blank"
+                       style="display:inline-block;padding:9px 16px;font-size:12.5px;font-weight:600;
+                              color:#ffffff;text-decoration:none;border-radius:6px;">
+                      Open MariApps Noon Report &rarr;
+                    </a>
                   </td>
                 </tr>
               </table>
