@@ -77,7 +77,7 @@ def _normalize_log_date(raw: str) -> str:
 # within this trailing window, regardless of is_already_processed(); older
 # logs keep the fast skip. save_log() then only writes something if the
 # freshly-extracted content actually differs from what's stored.
-RECHECK_WINDOW_DAYS = 14
+RECHECK_WINDOW_DAYS = 30
 
 
 def _is_within_recheck_window(log_date: str, days: int = RECHECK_WINDOW_DAYS) -> bool:
