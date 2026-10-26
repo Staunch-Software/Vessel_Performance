@@ -440,6 +440,7 @@ _MARIAPPS_DIRECT_SENTINEL = _MARIAPPS_DIRECT_COLS[0] if _MARIAPPS_DIRECT_COLS el
 # one-directional import with no circularity risk).
 from ..cp.cp_compliance_v2 import _pick_sea_warranty, _normalize_loading_cond
 from ..cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
+from ..cp.cp_overrides import fetch_cp_overrides, resolve_cp_instruction
 
 _CP_WARRANTY_DIRECT_META = [
     # category="Performance" (not "Emission") — these aren't part of the
@@ -1029,6 +1030,20 @@ def _emission_log_nav_fields(data_rec, table_cols):
         out["emissionx_to_eu_port"] = to_eu
 
     return out
+
+
+def _voyage_no_from_raw(raw_json):
+    """Same source as _mariapps_voyage_no_field, without the table_cols/column-
+    name wrapping — used for the CP override lookup, which keys by voyage_no
+    regardless of whether emissionx_voyage_no exists as a column."""
+    if not isinstance(raw_json, dict):
+        return None
+    excel_data = raw_json.get("Excel_Data")
+    if isinstance(excel_data, dict):
+        leg = excel_data.get("Leg Number")
+        if leg is not None and str(leg).strip() != "":
+            return str(leg).strip()
+    return None
 
 
 def _mariapps_voyage_no_field(raw_json, table_cols):
@@ -2020,6 +2035,7 @@ def backfill_mariapps(engine, batch_size: int = 50):
     cp_warranty_cache = {}  # vessel_imo -> cp_sea_warranty candidates; one query per vessel for the whole run
     bdn_ref_cache = {}      # vessel_imo -> {date: [bdn_ref, ...]}; one query per vessel for the whole run
     cp_remarks_check_cache = {}  # vessel_imo -> requires_cp_remarks_check; one query per vessel for the whole run
+    cp_overrides_cache = {}  # vessel_imo -> fetch_cp_overrides() result; one query per vessel for the whole run
     with engine.connect() as conn:
         table_cols = _get_table_cols(conn, "expanded_mariapps_data")
         total = conn.execute(text("SELECT COUNT(*) FROM raw_mariapps_logs")).scalar()
@@ -2043,6 +2059,12 @@ def backfill_mariapps(engine, batch_size: int = 50):
                     # Determine loading_condition from source data
                     lc = flat.get("loading_condition") or flat.get("op_loading_condition") or None
                     instruction = _cp_remarks_instruction(raw_json, lc)
+                    if vessel_imo not in cp_overrides_cache:
+                        cp_overrides_cache[vessel_imo] = fetch_cp_overrides(conn, vessel_imo, "mari_apps")
+                    instruction = resolve_cp_instruction(
+                        cp_overrides_cache[vessel_imo], _voyage_no_from_raw(raw_json),
+                        str(log_date)[:10] if log_date else None, instruction,
+                    )
 
                     fuel_fields = _emission_log_fuel_fields(conn, "mari_apps", rid, table_cols)
                     record = {
@@ -2165,6 +2187,10 @@ def write_expanded_mariapps(conn, raw_log_id, vessel_imo, log_date,
         data_rec   = _apply_stw_fallback(_map_flat_to_newcols(flat, MARIAPPS_TO_NEWCOL, table_cols))
         lc = flat.get("loading_condition") or flat.get("op_loading_condition") or None
         instruction = _cp_remarks_instruction(raw_json, lc)
+        instruction = resolve_cp_instruction(
+            fetch_cp_overrides(conn, vessel_imo, "mari_apps"), _voyage_no_from_raw(raw_json),
+            str(log_date)[:10] if log_date else None, instruction,
+        )
         fuel_fields = _emission_log_fuel_fields(conn, "mari_apps", raw_log_id, table_cols)
         record = {
             "raw_log_id":        raw_log_id,

@@ -320,6 +320,25 @@ export async function fetchCPPerformance(imo, voyages, source, loadingCond) {
   return data
 }
 
+// ── CP Manual Overrides (manager request 2026-10) ───────────────────────
+export async function fetchCPOverrides(imo, voyageNo, source) {
+  const params = {}
+  if (voyageNo) params.voyage_no = voyageNo
+  if (source && source !== 'all') params.source = source
+  const { data } = await api.get(`/cp-overrides/${imo}`, { params })
+  return Array.isArray(data) ? data : []
+}
+
+export async function saveCPOverride(imo, payload) {
+  const { data } = await api.post(`/cp-overrides/${imo}`, payload)
+  return data
+}
+
+export async function deleteCPOverride(imo, overrideId) {
+  const { data } = await api.delete(`/cp-overrides/${imo}/${overrideId}`)
+  return data
+}
+
 // ── Auth API ─────────────────────────────────────────────────────────────
 
 export async function loginUser(username, password) {

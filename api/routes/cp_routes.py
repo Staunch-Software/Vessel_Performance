@@ -22,6 +22,7 @@ from backend.database import SessionLocal
 from backend.models import Vessel, VesselCPConfig, CPVesselDescription, CPSeaWarranty
 from backend.cp.cp_calculator import compute_cp_voyage_table, not_computable_result
 from backend.cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
+from backend.cp.cp_overrides import fetch_cp_overrides, resolve_cp_instruction
 from backend.voyage_window import find_bosp_eosp_window
 
 log = logging.getLogger(__name__)
@@ -220,18 +221,25 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
         ), {"ids": list(mariapps_ids)}).fetchall()
         extras_by_id = {r[0]: r[1] for r in extra_rows}
 
+    # Manual CP overrides (manager request 2026-10) — same priority chain as
+    # expander.py: day override > voyage override > remarks instruction >
+    # standing warranty match (that last fallback happens in cp_calculator.py
+    # when cp_instruction is still None here). One query for the whole source.
+    overrides = fetch_cp_overrides(db, imo, src)
+
     for r in valid_rows:
-        r["cp_instruction"] = None
+        remarks_instr = None
         remarks = extras_by_id.get(r.get("raw_mariapps_id")) if r.get("raw_mariapps_id") else None
         if remarks:
             parsed = parse_cp_remarks(remarks)
             instr = pick_instruction_for_condition(parsed, r.get("Loading_Cond"))
             if instr:
-                r["cp_instruction"] = {
+                remarks_instr = {
                     "speed_kn": instr["speed_kn"],
                     "total_mt_day": instr["total_mt_day"],
                     "go_mt_day": instr["go_mt_day"],
                 }
+        r["cp_instruction"] = resolve_cp_instruction(overrides, r.get("Voyage_No"), r.get("Date"), remarks_instr)
 
     return valid_rows, excluded_voyages
 

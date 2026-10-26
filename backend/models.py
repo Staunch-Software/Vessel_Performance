@@ -2026,3 +2026,39 @@ class DataQualityThread(Base):
     is_internal      = Column(Boolean, nullable=False, default=True, index=True)
     body             = Column(TEXT, nullable=False)
     created_at       = Column(DateTime, default=datetime.utcnow)
+
+
+# Manual CP speed/consumption correction (manager request 2026-10, prompted by
+# the AMNSI MAXIMUS 62L/02 case — a real scraper gap left one day's remarks
+# missing, which this lets shore correct once confirmed, without waiting on a
+# re-scrape). Slots into the SAME priority chain the remarks instruction
+# already uses — see cp_remarks_parser.py / cp/cp_overrides.py — as a higher-
+# priority source: day override > voyage override > remarks instruction >
+# standing cp_sea_warranty match. log_date NULL = voyage-level (applies to
+# every day of that voyage lacking its own day-level override or remarks
+# instruction); a specific date = applies to just that one day.
+#
+# NOT yet consumed by cp_compliance_v2.py (the CP Description page's pilot
+# compliance evaluator) — that module doesn't read the remarks instruction
+# either yet, a pre-existing gap, not something this feature silently closes.
+class CPManualOverride(Base):
+    __tablename__ = "cp_manual_overrides"
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    vessel_imo     = Column(String(20), ForeignKey("vessels.imo_number", ondelete="CASCADE"), nullable=False, index=True)
+    source_id      = Column(String(50), nullable=False)   # 'wni' | 'mari_apps'
+    voyage_no      = Column(String(50), nullable=False, index=True)
+    log_date       = Column(Date, nullable=True)           # NULL = voyage-level override
+    speed_kn       = Column(Float, nullable=True)
+    total_mt_day   = Column(Float, nullable=True)
+    go_mt_day      = Column(Float, nullable=True)
+    note           = Column(String(500), nullable=True)
+    created_by     = Column(String(150), nullable=True)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Only guards the day-level case — Postgres treats NULL log_date values as
+    # all-distinct, so this does NOT stop duplicate voyage-level rows; the
+    # route's find-or-create logic handles that case instead (see
+    # cp_override_routes.py).
+    __table_args__ = (UniqueConstraint("vessel_imo", "source_id", "voyage_no", "log_date", name="uq_cp_override_day"),)

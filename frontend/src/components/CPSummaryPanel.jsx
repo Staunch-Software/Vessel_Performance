@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Download, Loader2 } from 'lucide-react'
+import { Download, Loader2, SlidersHorizontal } from 'lucide-react'
 import { fetchCPPerformance } from '../api/vesselApi'
 import { generateVoyagePdf } from '../utils/voyagePdfExport'
+import CPOverrideModal from './CPOverrideModal'
 import './CPSummaryPanel.css'
 
 const fmt = (v, d = 2) =>
@@ -189,6 +190,7 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
   const [pdfLoadingVoyage, setPdfLoadingVoyage] = useState(null)
   const [pdfWarning, setPdfWarning] = useState(null)
   const [exporting, setExporting] = useState(false)
+  const [overrideVoyage, setOverrideVoyage] = useState(null)
 
   const rows = data?.results || []
 
@@ -232,16 +234,16 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
 
   const voyageKey = (voyages || []).join(',')
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     if (!imo || !voyages || voyages.length === 0) return
-    let cancelled = false
     setLoading(true); setError(null)
     fetchCPPerformance(imo, voyages, source, loadingCond)
-      .then(d => { if (!cancelled) setData(d) })
-      .catch(e => { if (!cancelled) setError(e?.response?.data?.detail ?? 'CP load failed') })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+      .then(d => setData(d))
+      .catch(e => setError(e?.response?.data?.detail ?? 'CP load failed'))
+      .finally(() => setLoading(false))
   }, [imo, source, voyageKey, loadingCond])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { reload() }, [reload])
 
   if (!imo || !voyages || voyages.length === 0) return null
 
@@ -391,6 +393,14 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
                             ? <Loader2 size={12} className="icon-spin" />
                             : <Download size={12} />}
                         </button>
+                        <button
+                          type="button"
+                          className="cp-dl-btn"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOverrideVoyage({ voyage_no: r.voyage_no, source: r.source || source }) }}
+                          title={`Manual CP override for Voyage ${r.voyage_no}`}
+                        >
+                          <SlidersHorizontal size={12} />
+                        </button>
                         <span>{r.voyage_no}</span>
                       </div>
                     </td>
@@ -439,6 +449,16 @@ export default function CPSummaryPanel({ imo, vesselName, source, voyages, loadi
         <div className="cp-panel-msg">No analysis rows for the selected voyage(s).</div>
       )}
       </div>
+
+      {overrideVoyage && (
+        <CPOverrideModal
+          imo={imo}
+          source={overrideVoyage.source}
+          voyageNo={overrideVoyage.voyage_no}
+          onClose={() => setOverrideVoyage(null)}
+          onSaved={reload}
+        />
+      )}
     </div>
   )
 }
