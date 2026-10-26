@@ -65,6 +65,28 @@ def _normalize_log_date(raw: str) -> str:
             continue
     return date_part
 
+# A master can correct an already-scraped log in MariApps (fix a missing
+# Wave Height, etc.) — is_already_processed() is purely identity-based
+# (log_number|vessel|date), so a plain re-scrape would skip it forever,
+# before even opening the detail tabs, with no way to tell a correction from
+# a true no-op re-visit (confirmed 2026-10 on GCL NARMADA: corrected in
+# MariApps, never reflected here, zero evidence of a dedup-discarded
+# re-scrape — the pipeline just never looked at it again). Re-opening every
+# historical log's detail tabs on every run to check isn't viable (months of
+# history, 6 tabs each), so instead: always re-open and re-extract logs dated
+# within this trailing window, regardless of is_already_processed(); older
+# logs keep the fast skip. save_log() then only writes something if the
+# freshly-extracted content actually differs from what's stored.
+RECHECK_WINDOW_DAYS = 14
+
+
+def _is_within_recheck_window(log_date: str, days: int = RECHECK_WINDOW_DAYS) -> bool:
+    try:
+        d = datetime.strptime(str(log_date).strip(), "%Y-%m-%d").date()
+    except ValueError:
+        return False
+    return (datetime.now().date() - d).days <= days
+
 def _build_excel_index(excel_data_list: list) -> dict:
     index = {}
     for row in excel_data_list:
@@ -237,12 +259,16 @@ def run():
                 if not ui_log_num:
                     continue
 
-                if persistence.is_already_processed(ui_log_num, vessel_name, log_date):
+                recheck = _is_within_recheck_window(log_date)
+                if not recheck and persistence.is_already_processed(ui_log_num, vessel_name, log_date):
                     log.info(f"[SKIP]     Log {ui_log_num} — already in database.")
                     skipped += 1
                     continue
 
-                log.info(f"[FETCH]    Log {ui_log_num}  ({log_date}) — opening detail page...")
+                log.info(
+                    f"[FETCH]    Log {ui_log_num}  ({log_date}) — "
+                    f"{'re-checking for a correction' if recheck else 'opening detail page'}..."
+                )
                 matching_excel_row = excel_index.get(ui_log_num, {})
 
                 detail_page = tab_handler.open_log_tab(row_data)

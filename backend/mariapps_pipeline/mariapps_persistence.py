@@ -232,54 +232,82 @@ class MariAppsPersistenceHandler:
 
             leg_number   = _resolve_voyage_no(header, excel, nested, row_data)
             fingerprint  = _make_fingerprint(log_number, vessel_ref.imo_number, log_date)
-            is_duplicate = db.query(RawMariAppsLog).filter(
+            existing_raw = db.query(RawMariAppsLog).filter(
                 RawMariAppsLog.fingerprint == fingerprint
-            ).first() is not None
+            ).first()
 
             log_type = (
                 nested.get("Log Type") or
                 excel.get("Log Type") or
                 row_data.get("log_type", "UNKNOWN")
             )
+            cleaned_payload = clean_dict(full_payload)
 
-            # DUPLICATE GUARD — checked before inserting a raw row, not after.
-            # Re-scraping an already-staged log used to still insert a fresh
-            # raw_mariapps_logs row every time (just flagged is_duplicate=true
-            # on it), which let the raw table balloon and fed
-            # backfill_mariapps()'s unfiltered full-table replay downstream.
-            # Log the repeat sighting and stop without creating a new row —
-            # the original row already carries this fingerprint.
-            if is_duplicate:
+            # DUPLICATE / CORRECTION GUARD — checked before inserting a raw row.
+            # Identity alone (fingerprint) can't tell "already seen, unchanged"
+            # from "already seen, but the master corrected it in MariApps
+            # since" — both have the same log_number|vessel|date. Compare the
+            # actual content against what's stored: identical -> same cheap
+            # skip as before (no new row, just an audit log entry). Different
+            # -> a real correction was found (only reachable when the caller
+            # re-opens a recent log inside mariapps_pipeline.py's
+            # RECHECK_WINDOW_DAYS, since outside that window a matching
+            # fingerprint is skipped before the detail tabs are even opened)
+            # -> update the existing raw row + its derived rows in place
+            # instead of silently discarding the correction.
+            is_correction = False
+            if existing_raw is not None:
+                if cleaned_payload == existing_raw.raw_json:
+                    db.add(DataQualityLog(
+                        raw_mariapps_id=existing_raw.id,
+                        raw_report_id=None,
+                        source_id="mari_apps",
+                        vessel_name=vessel_name,
+                        vessel_imo=vessel_ref.imo_number,
+                        issue_type="DUPLICATE_REPORT",
+                        event_type=log_type,
+                        report_date=pd.to_datetime(log_date, errors='coerce'),
+                        audit_period=get_audit_label("mari_apps"),
+                    ))
+                    db.commit()
+                    log.info(f"UNCHANGED: Log {log_number} re-checked, no change.")
+                    return True
+
+                is_correction = True
+                existing_raw.raw_json     = cleaned_payload
+                existing_raw.log_type     = log_type
+                existing_raw.leg_number   = leg_number
+                existing_raw.extracted_at = datetime.now()
                 db.add(DataQualityLog(
-                    raw_mariapps_id=None,
+                    raw_mariapps_id=existing_raw.id,
                     raw_report_id=None,
                     source_id="mari_apps",
                     vessel_name=vessel_name,
                     vessel_imo=vessel_ref.imo_number,
-                    issue_type="DUPLICATE_REPORT",
+                    issue_type="REPORT_CORRECTED",
                     event_type=log_type,
                     report_date=pd.to_datetime(log_date, errors='coerce'),
                     audit_period=get_audit_label("mari_apps"),
                 ))
-                db.commit()
-                log.warning(f"DUPLICATE: Log {log_number} skipped.")
-                return True
-
-            # 1. RAW LOG — stores everything as JSONB
-            new_raw = RawMariAppsLog(
-                vessel_imo=vessel_ref.imo_number,
-                source_id="mari_apps",
-                log_number=log_number,
-                vessel_name=vessel_name,
-                log_date=log_date,
-                log_type=log_type,
-                leg_number=leg_number,
-                raw_json=clean_dict(full_payload),
-                fingerprint=fingerprint,
-                is_duplicate=False,
-            )
-            db.add(new_raw)
-            db.flush()
+                raw_id = existing_raw.id
+                db.flush()
+            else:
+                # 1. RAW LOG — stores everything as JSONB
+                new_raw = RawMariAppsLog(
+                    vessel_imo=vessel_ref.imo_number,
+                    source_id="mari_apps",
+                    log_number=log_number,
+                    vessel_name=vessel_name,
+                    log_date=log_date,
+                    log_type=log_type,
+                    leg_number=leg_number,
+                    raw_json=cleaned_payload,
+                    fingerprint=fingerprint,
+                    is_duplicate=False,
+                )
+                db.add(new_raw)
+                db.flush()
+                raw_id = new_raw.id
 
             # Fetch vessel_particulars for KPI calculations
             vp_obj = db.query(VesselParticulars).filter_by(
@@ -300,12 +328,21 @@ class MariAppsPersistenceHandler:
                 excel_data=excel,
                 header_data=header,
             )
-            db.add(MariAppsReportData(
-                **clean_dict(mapped_160),
-                vessel_imo=vessel_ref.imo_number,
-                source_id="mari_apps",
-                raw_report_id=new_raw.id,
-            ))
+            mapped_160_clean = clean_dict(mapped_160)
+            existing_160 = (
+                db.query(MariAppsReportData).filter_by(raw_report_id=raw_id).first()
+                if is_correction else None
+            )
+            if existing_160:
+                for k, v in mapped_160_clean.items():
+                    setattr(existing_160, k, v)
+            else:
+                db.add(MariAppsReportData(
+                    **mapped_160_clean,
+                    vessel_imo=vessel_ref.imo_number,
+                    source_id="mari_apps",
+                    raw_report_id=raw_id,
+                ))
 
             # 4. 57-COLUMN ANALYSIS TABLE
             flat_row = {}
@@ -338,22 +375,34 @@ class MariAppsPersistenceHandler:
             if not mapped_57.get("From_Port"):
                 mapped_57["From_Port"] = _resolve_from_port(header, excel, nested)
 
-            db.add(AnalysisData(
-                **clean_dict(mapped_57),
-                vessel_imo=vessel_ref.imo_number,
-                source_id="mari_apps",
-                raw_mariapps_id=new_raw.id,
-                raw_report_id=None,
-            ))
+            mapped_57_clean = clean_dict(mapped_57)
+            existing_57 = (
+                db.query(AnalysisData).filter_by(raw_mariapps_id=raw_id).first()
+                if is_correction else None
+            )
+            if existing_57:
+                for k, v in mapped_57_clean.items():
+                    setattr(existing_57, k, v)
+            else:
+                db.add(AnalysisData(
+                    **mapped_57_clean,
+                    vessel_imo=vessel_ref.imo_number,
+                    source_id="mari_apps",
+                    raw_mariapps_id=raw_id,
+                    raw_report_id=None,
+                ))
 
             db.commit()
 
             # ── Live-sync to expanded_mariapps_data (non-critical) ───────────
+            # write_expanded_mariapps() upserts by raw_log_id (ON CONFLICT DO
+            # UPDATE), so this is correct for both a fresh insert and a
+            # correction without any branching here.
             try:
                 from ..pipeline.expander import write_expanded_mariapps
                 write_expanded_mariapps(
-                    db, new_raw.id, vessel_ref.imo_number,
-                    log_date, log_type, log_number, clean_dict(full_payload),
+                    db, raw_id, vessel_ref.imo_number,
+                    log_date, log_type, log_number, cleaned_payload,
                 )
                 db.commit()
             except Exception as exc:
@@ -364,7 +413,7 @@ class MariAppsPersistenceHandler:
                 from ..iso19030.runner import run_single
                 from ..models import AnalysisData as _AD
                 ad = db.query(_AD).filter(
-                    _AD.raw_mariapps_id == new_raw.id
+                    _AD.raw_mariapps_id == raw_id
                 ).first()
                 if ad:
                     run_single(ad.id, db)
@@ -388,7 +437,7 @@ class MariAppsPersistenceHandler:
                 log.warning(f"[FROM_PORT_BACKFILL] Failed: {e}")
                 db.rollback()
 
-            log.info(f"SAVED: Log {log_number} | Voyage={leg_number}")
+            log.info(f"{'CORRECTED' if is_correction else 'SAVED'}: Log {log_number} | Voyage={leg_number}")
             return True
 
         except Exception as e:
