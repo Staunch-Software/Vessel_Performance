@@ -17,6 +17,7 @@ from backend.models import (
     NoonReportData, MariAppsReportData, DataQualityLog, RawMariAppsLog, RawNoonReport
 )
 from backend.cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
+from backend.cp.cp_overrides import fetch_cp_overrides, resolve_cp_instruction
 from backend.voyage_window import find_bosp_eosp_window
 
 # --- Dependency to get DB session ---
@@ -510,6 +511,13 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, source: str = None, db: S
             r[0]: {"cpx_remarks": r[1], "me_grade": r[2], "ae_grade": r[3]} for r in rows
         }
 
+    # Manual CP overrides (manager request 2026-10) — same priority chain as
+    # cp_routes.py/expander.py: day override > voyage override > remarks
+    # instruction > standing warranty match. This endpoint can mix wni/
+    # mari_apps rows in one voyage, so cache per source_id rather than
+    # assuming mari_apps like the remarks lookup above does.
+    cp_overrides_cache = {}
+
     out = []
     for row in valid_results:
         ad = row[0]
@@ -559,6 +567,12 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, source: str = None, db: S
                     # format, which never states a GO number at all.
                     "go_mt_day":     instr["go_mt_day"],
                 }
+
+        if ad.source_id not in cp_overrides_cache:
+            cp_overrides_cache[ad.source_id] = fetch_cp_overrides(db, vessel_imo, ad.source_id)
+        cp_instruction = resolve_cp_instruction(
+            cp_overrides_cache[ad.source_id], ad.Voyage_No, ad.Date, cp_instruction,
+        )
 
         out.append({
             "Date": combined_date,
