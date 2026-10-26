@@ -354,7 +354,14 @@ def get_imo_dcs_monthly(
 _LEG_GRADES = ["hfo", "lfo", "mdo", "bio_fuel"]
 
 
-def _imo_dcs_leg_source_rows(db, imo, source, year):
+def _imo_dcs_leg_source_rows(db, imo, source):
+    """No year filter here, deliberately — a leg spanning Dec 31 -> Jan 1
+    must be grouped from its TRUE start, not truncated at a calendar-year
+    boundary (confirmed live: a Dec-started Laden leg showed the wrong
+    Departure Port/Date and understated Distance/Time at Sea/Transport Work
+    when the year filter cut it off mid-leg). Group the vessel's whole
+    history into legs first; the caller then keeps only the legs that
+    overlap the requested year, each with its full, untruncated figures."""
     e_table = _EXPANDED_TABLE[source]
     date_col = _EXPANDED_DATE_COL[source]
     voyage_col = _VOYAGE_COL[source]
@@ -373,10 +380,10 @@ def _imo_dcs_leg_source_rows(db, imo, source, year):
                {_num('emissionx_total_mdo_mt')} AS mdo,
                {_num('emissionx_total_biofuel_mt')} AS bio_fuel
         FROM {e_table} e
-        WHERE e."vessel_imo" = :imo AND EXTRACT(YEAR FROM e."{date_col}") = :year
+        WHERE e."vessel_imo" = :imo
         ORDER BY e."{date_col}"
     """
-    return db.execute(text(sql), {"imo": imo, "year": year}).mappings().all()
+    return db.execute(text(sql), {"imo": imo}).mappings().all()
 
 
 @router.get("/{imo}/imo-dcs/legs")
@@ -391,7 +398,7 @@ def get_imo_dcs_legs(
     particulars = db.query(VesselParticulars).filter(VesselParticulars.vessel_imo == imo).first()
     dwt = particulars.deadweight if particulars else None
 
-    raw_rows = _imo_dcs_leg_source_rows(db, imo, source, year)
+    raw_rows = _imo_dcs_leg_source_rows(db, imo, source)
     if not raw_rows:
         return {"vessel_imo": imo, "year": year, "source": source, "legs": [],
                 "note": "No leg data for this vessel/year/source."}
@@ -407,6 +414,12 @@ def get_imo_dcs_legs(
     legs = []
     for grp in group_into_legs(rows):
         lrows = grp["rows"]
+        # Grouped from the vessel's FULL history (see _imo_dcs_leg_source_rows)
+        # — only keep legs that actually overlap the requested year, but with
+        # their complete, untruncated figures even if part of the leg falls
+        # in the prior year.
+        if not any(r["date"] and r["date"].year == year for r in lrows):
+            continue
         voyage_no, loading_condition = grp["key"]
         first_row, last_row = lrows[0], lrows[-1]
         distance = sum(r["distance_nm"] for r in lrows)
@@ -563,7 +576,10 @@ def set_innovative_tech(imo: str, payload: InnovativeTechPayload, db: Session = 
 # change that number, so there's no separate endpoint for it.
 # ============================================================
 
-def _eu_mrv_leg_source_rows(db, imo, source, year):
+def _eu_mrv_leg_source_rows(db, imo, source):
+    """No year filter — see _imo_dcs_leg_source_rows's docstring for why
+    (leg grouping must see a vessel's full history, not a year-truncated
+    slice)."""
     e_table = _EXPANDED_TABLE[source]
     date_col = _EXPANDED_DATE_COL[source]
     voyage_col = _VOYAGE_COL[source]
@@ -583,10 +599,10 @@ def _eu_mrv_leg_source_rows(db, imo, source, year):
                {_num('emissionx_total_mdo_mt')} AS mdo,
                {_num('emissionx_total_biofuel_mt')} AS bio_fuel
         FROM {e_table} e
-        WHERE e."vessel_imo" = :imo AND EXTRACT(YEAR FROM e."{date_col}") = :year
+        WHERE e."vessel_imo" = :imo
         ORDER BY e."{date_col}"
     """
-    return db.execute(text(sql), {"imo": imo, "year": year}).mappings().all()
+    return db.execute(text(sql), {"imo": imo}).mappings().all()
 
 
 def _eu_mrv_legs_computed(db, imo, source, year):
@@ -595,8 +611,9 @@ def _eu_mrv_legs_computed(db, imo, source, year):
     voyage-category classification, CO2/distance/fuel totals, and the portion
     of that CO2 emitted at berth in an EU port (Art. 10(k) — independent of
     voyage category, computed from NUW rows where the current port is in the
-    EU)."""
-    raw_rows = _eu_mrv_leg_source_rows(db, imo, source, year)
+    EU). Grouped from the vessel's full history, then filtered to legs
+    overlapping `year` — see _imo_dcs_leg_source_rows for why."""
+    raw_rows = _eu_mrv_leg_source_rows(db, imo, source)
     if not raw_rows:
         return None
     rows = [{
@@ -610,6 +627,8 @@ def _eu_mrv_legs_computed(db, imo, source, year):
     legs = []
     for grp in group_into_legs(rows):
         lrows = grp["rows"]
+        if not any(r["date"] and r["date"].year == year for r in lrows):
+            continue
         voyage_no, loading_condition = grp["key"]
         first_row, last_row = lrows[0], lrows[-1]
         distance = sum(r["distance_nm"] for r in lrows)
@@ -743,7 +762,9 @@ def get_eu_mrv_legs(
 # here alongside the EU classification instead of computed twice.
 # ============================================================
 
-def _eu_ets_leg_source_rows(db, imo, source, year):
+def _eu_ets_leg_source_rows(db, imo, source):
+    """No year filter — see _imo_dcs_leg_source_rows's docstring for why.
+    Shared by EU ETS and FuelEU (both group into legs the same way)."""
     e_table = _EXPANDED_TABLE[source]
     date_col = _EXPANDED_DATE_COL[source]
     voyage_col = _VOYAGE_COL[source]
@@ -764,14 +785,14 @@ def _eu_ets_leg_source_rows(db, imo, source, year):
                {_num('emissionx_total_mdo_mt')} AS mdo,
                {_num('emissionx_total_biofuel_mt')} AS bio_fuel
         FROM {e_table} e
-        WHERE e."vessel_imo" = :imo AND EXTRACT(YEAR FROM e."{date_col}") = :year
+        WHERE e."vessel_imo" = :imo
         ORDER BY e."{date_col}"
     """
-    return db.execute(text(sql), {"imo": imo, "year": year}).mappings().all()
+    return db.execute(text(sql), {"imo": imo}).mappings().all()
 
 
 def _eu_ets_legs_computed(db, imo, source, year):
-    raw_rows = _eu_ets_leg_source_rows(db, imo, source, year)
+    raw_rows = _eu_ets_leg_source_rows(db, imo, source)
     if not raw_rows:
         return None
     rows = [{
@@ -788,6 +809,8 @@ def _eu_ets_legs_computed(db, imo, source, year):
     legs = []
     for grp in group_into_legs(rows):
         lrows = grp["rows"]
+        if not any(r["date"] and r["date"].year == year for r in lrows):
+            continue
         voyage_no, loading_condition = grp["key"]
         first_row, last_row = lrows[0], lrows[-1]
         distance = sum(r["distance_nm"] for r in lrows)
@@ -957,7 +980,7 @@ def get_eu_ets_legs(
 # ============================================================
 
 def _fueleu_legs_computed(db, imo, source, year):
-    raw_rows = _eu_ets_leg_source_rows(db, imo, source, year)
+    raw_rows = _eu_ets_leg_source_rows(db, imo, source)
     if not raw_rows:
         return None
     rows = [{
@@ -972,6 +995,8 @@ def _fueleu_legs_computed(db, imo, source, year):
     legs = []
     for grp in group_into_legs(rows):
         lrows = grp["rows"]
+        if not any(r["date"] and r["date"].year == year for r in lrows):
+            continue
         voyage_no, loading_condition = grp["key"]
         first_row, last_row = lrows[0], lrows[-1]
         distance = sum(r["distance_nm"] for r in lrows)
