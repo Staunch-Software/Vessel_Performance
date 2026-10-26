@@ -2313,6 +2313,16 @@ _OP_STATUS_UW_END = {"EOSP"}
 # markers and stay driven by the state machine (EOSP counts as UW per spec).
 _OP_STATUS_FORCE_NUW = {"ARRIVAL REPORT", "DEPARTURE REPORT", "NOON AT PORT"}
 
+# Mirror case, same root cause: a "Noon at sea" report sharing a calendar
+# date with that day's EOSP can sort AFTER it purely on the `id` tiebreak and
+# incorrectly inherit NUW from the state machine (EOSP flips state to NUW for
+# whatever comes next) — confirmed live (2026-10) on AM KIRTI voyage 36/01:
+# a full 24h/310nm "Noon at sea" report landed NUW, undercounting that leg's
+# IMO DCS Time at Sea and miscategorizing its fuel into the In Port bucket
+# instead of At Sea. "Noon at sea" is by definition always underway,
+# regardless of same-day ordering against BOSP/COSP/EOSP.
+_OP_STATUS_FORCE_UW = {"NOON AT SEA"}
+
 
 def _backfill_op_status(engine):
     """Walk each vessel's reports in chronological order (both sources) and
@@ -2356,6 +2366,8 @@ def _backfill_op_status(engine):
                             state = "NUW"
                         elif et in _OP_STATUS_FORCE_NUW:
                             row_status = "NUW"
+                        elif et in _OP_STATUS_FORCE_UW:
+                            row_status = "UW"
                         else:
                             row_status = state
                         updates.append({"id": row_id, "status": row_status})
