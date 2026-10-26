@@ -70,6 +70,19 @@ const fmtDate = (iso) => {
   return `${day} ${months[m]} ${yr}`
 }
 
+// Port fields (sum.From_Port/To_Port) carry the full "City {CODE},Country"
+// string from the source data — fine in a wide table cell, but the cover
+// page's compact voyage-route box (46pt wide) has no wrapping, so the full
+// string ran straight out of its border (found 2026-10 on a long UAE port
+// name). Strip the bracketed code + country for this narrow display only;
+// every other place on the report still shows the full sum.From_Port/To_Port.
+const shortPortLabel = (raw) => {
+  if (!raw) return '—'
+  const idx = raw.indexOf('{')
+  const base = (idx > -1 ? raw.slice(0, idx) : raw).trim()
+  return base || raw.trim()
+}
+
 const fmtDateTime = (iso) => {
   if (!iso || typeof iso !== 'string' || iso.length < 16) return iso || '—'
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -484,7 +497,7 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(180, 20, 20)
-    doc.text('⚠ Some data could not be loaded — this report may be incomplete', W / 2, y + 6, { align: 'center' })
+    doc.text('Some data could not be loaded — this report may be incomplete', W / 2, y + 6, { align: 'center' })
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.text(dataWarning, W / 2, y + 11, { align: 'center' })
@@ -583,7 +596,7 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     doc.rect(14, y, W - 28, noteH, 'FD')
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(150, 100, 0)
-    doc.text('⚠ Data Quality:', 18, y + 4)
+    doc.text('Data Quality:', 18, y + 4)
     doc.setFont('helvetica', 'normal')
     doc.text(msgLines, 18, y + 8, { lineHeightFactor: 1.15 })
     doc.setTextColor(0, 0, 0)
@@ -606,14 +619,26 @@ function buildCoverPage(doc, sum, cpData, vesselName, voyageNo, routeId, reportD
     doc.line(60, y + 7, 60, y + 33) 
     doc.line(110, y + 7, 110, y + 33)
     
-    // Left col (Voyage route)
+    // Left col (Voyage route) — 46pt-wide column, no wrapping, so a long
+    // port label is shortened to just the city name (shortPortLabel) and
+    // then hard-capped with an ellipsis as a safety net for any name still
+    // too wide to fit on one line, rather than letting it run past the border.
+    const routeColMaxW = 42
+    const fitPortLabel = (raw) => {
+      const short = shortPortLabel(raw)
+      let label = short
+      while (label.length > 1 && doc.getTextWidth(label) > routeColMaxW) {
+        label = label.slice(0, -1)
+      }
+      return label === short ? label : label.replace(/\s+$/, '') + '…'
+    }
     doc.setFont('helvetica', 'bold')
     doc.text('(1)', 37, y + 13, { align: 'center' })
-    doc.text(sum.From_Port || '—', 37, y + 18, { align: 'center' })
+    doc.text(fitPortLabel(sum.From_Port), 37, y + 18, { align: 'center' })
     doc.setFont('helvetica', 'normal')
     doc.text('to', 37, y + 22, { align: 'center' })
     doc.setFont('helvetica', 'bold')
-    doc.text(sum.To_Port || '—', 37, y + 26, { align: 'center' })
+    doc.text(fitPortLabel(sum.To_Port), 37, y + 26, { align: 'center' })
     doc.text('(Economical speed)', 37, y + 30, { align: 'center' })
     
     // Time col - Lost/Saved
@@ -1383,7 +1408,7 @@ function buildPositionPages(doc, sum, seriesRows, cpData, vesselName, routeId, r
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(6.5)
         doc.setTextColor(150, 100, 0)
-        doc.text('⚠ Data Quality:', 14, y)
+        doc.text('Data Quality:', 14, y)
         doc.setFont('helvetica', 'normal')
         const msg = wq.allMissing
           ? `Weather data (Wind/Wave) missing for all ${wq.total} reports — shown as "—" below; those rows still default to Good Weather in the absence of a reading.`
