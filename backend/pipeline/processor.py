@@ -42,32 +42,41 @@ def save_to_db(vessel_name_raw, raw_data_dict, file_name):
         # 3. CHECK IF DUPLICATE
         is_duplicate = db.query(RawNoonReport).filter(RawNoonReport.fingerprint == fingerprint).first() is not None
 
-        # 4. SAVE RAW (The Staging layer - always save)
-        raw_rec = RawNoonReport(
-            vessel_imo=vessel.imo_number, 
-            source_id="wni",
-            raw_json=cleaned_json, 
-            file_name=file_name, 
-            fingerprint=fingerprint
-        )
-        db.add(raw_rec)
-        db.flush() 
-
-        
         if is_duplicate:
-            # LOG TO QUALITY TABLE AND STOP
+            # Don't insert another raw_noon_reports row for a report we've
+            # already staged — the WNI scraper re-downloads overlapping date
+            # windows on every run, and inserting a fresh row every time let
+            # raw_noon_reports balloon to ~188x its real size for some vessels
+            # (confirmed 2026-10: 77,710 rows for only 413 distinct reports),
+            # which in turn fed backfill_wni()'s unfiltered full-table replay
+            # and fanned expanded_wni_data out the same way. Just log the
+            # repeat sighting to DataQualityLog (no raw_report_id — no row was
+            # created) and stop; the original row already carries this
+            # fingerprint and audit trail.
             db.add(DataQualityLog(
-                raw_report_id=raw_rec.id,
+                raw_report_id=None,
                 source_id="wni",
-                vessel_name=vessel.vessel_name, 
+                vessel_name=vessel.vessel_name,
                 vessel_imo=vessel.imo_number,
-                issue_type="DUPLICATE_REPORT", 
+                issue_type="DUPLICATE_REPORT",
                 event_type=cleaned_json.get('Event Type'),
-                report_date=pd.to_datetime(cleaned_json.get('Date'), errors='coerce'),  
+                report_date=pd.to_datetime(cleaned_json.get('Date'), errors='coerce'),
                 audit_period=get_audit_label("wni") # FIXED: Passed "wni" string directly
             ))
             db.commit()
             return "duplicate"
+
+        # 4. SAVE RAW (The Staging layer)
+        raw_rec = RawNoonReport(
+            vessel_imo=vessel.imo_number,
+            source_id="wni",
+            raw_json=cleaned_json,
+            file_name=file_name,
+            fingerprint=fingerprint,
+            is_duplicate=False,
+        )
+        db.add(raw_rec)
+        db.flush()
 
         # 5. SAVE NOON REPORT (160 Columns)
         noon_data = map_row(cleaned_json).to_dict()

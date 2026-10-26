@@ -2038,15 +2038,26 @@ def backfill_mariapps(engine, batch_size: int = 50):
     cp_overrides_cache = {}  # vessel_imo -> fetch_cp_overrides() result; one query per vessel for the whole run
     with engine.connect() as conn:
         table_cols = _get_table_cols(conn, "expanded_mariapps_data")
-        total = conn.execute(text("SELECT COUNT(*) FROM raw_mariapps_logs")).scalar()
-        log.info(f"Backfilling expanded_mariapps_data ({total} rows) …")
+        # is_duplicate = false excludes re-scraped repeats of an
+        # already-staged log (see processor.py/mariapps_persistence.py) —
+        # without this filter, every duplicate raw row (each with its own id)
+        # fans out into its own expanded_mariapps_data row via the
+        # raw_log_id upsert key below, confirmed 2026-10 inflating
+        # expanded_mariapps_data/expanded_wni_data row counts and every SUM
+        # built from them (distance, fuel, hours). COALESCE covers rows
+        # persisted before is_duplicate was reliably set on every insert path.
+        total = conn.execute(text(
+            "SELECT COUNT(*) FROM raw_mariapps_logs WHERE COALESCE(is_duplicate, false) = false"
+        )).scalar()
+        log.info(f"Backfilling expanded_mariapps_data ({total} non-duplicate rows) …")
 
         processed = errors = 0
         offset = 0
         while True:
             rows = conn.execute(text(
                 "SELECT id, vessel_imo, log_date, log_type, log_number, raw_json "
-                "FROM raw_mariapps_logs ORDER BY id LIMIT :lim OFFSET :off"
+                "FROM raw_mariapps_logs WHERE COALESCE(is_duplicate, false) = false "
+                "ORDER BY id LIMIT :lim OFFSET :off"
             ), {"lim": batch_size, "off": offset}).fetchall()
             if not rows:
                 break
@@ -2108,14 +2119,34 @@ def backfill_wni(engine, batch_size: int = 50):
     """Re-populate expanded_wni_data from raw_noon_reports using new column names."""
     with engine.connect() as conn:
         table_cols = _get_table_cols(conn, "expanded_wni_data")
-        total = conn.execute(text("SELECT COUNT(*) FROM raw_noon_reports")).scalar()
-        log.info(f"Backfilling expanded_wni_data ({total} rows) …")
+        # is_duplicate = false — see the matching comment in backfill_mariapps()
+        # above. Without this filter, re-scraped repeats of an already-staged
+        # report (each its own raw_noon_reports row/id) each produce their own
+        # expanded_wni_data row via the raw_report_id upsert key below —
+        # confirmed 2026-10 on AM KIRTI: 77,710 raw rows for only 413 distinct
+        # reports fanned out to 46,382 expanded_wni_data rows for 2026 alone,
+        # inflating every SUM built from it ~100x (distance, fuel, hours).
+        #
+        # source_id = 'wni' — raw_noon_reports is meant to be WNI-only, but
+        # confirmed 2026-10 that it also holds stray source_id='Wartsila FOS'
+        # rows with a placeholder raw_json (a pre-existing, separate data
+        # pollution bug — see CLAUDE.md's note on import_polar_wartsila.py
+        # creating that DataSource outside the normal seeded list). Those
+        # rows aren't WNI data and were never meant to feed expanded_wni_data;
+        # filtering them out here avoids wasted per-row error-log noise. The
+        # per-row try/except below already prevented them from corrupting the
+        # backfill — this just stops them from being attempted at all.
+        total = conn.execute(text(
+            "SELECT COUNT(*) FROM raw_noon_reports WHERE COALESCE(is_duplicate, false) = false AND source_id = 'wni'"
+        )).scalar()
+        log.info(f"Backfilling expanded_wni_data ({total} non-duplicate WNI rows) …")
 
         processed = errors = 0
         offset = 0
         while True:
             rows = conn.execute(text(
                 "SELECT id, vessel_imo, raw_json FROM raw_noon_reports "
+                "WHERE COALESCE(is_duplicate, false) = false AND source_id = 'wni' "
                 "ORDER BY id LIMIT :lim OFFSET :off"
             ), {"lim": batch_size, "off": offset}).fetchall()
             if not rows:
@@ -2300,35 +2331,49 @@ def _backfill_op_status(engine):
                 f'SELECT DISTINCT vessel_imo FROM {table} WHERE vessel_imo IS NOT NULL'
             )).fetchall()]
             updated = 0
+            failed_vessels = []
             for imo in vessels:
-                rows = conn.execute(text(
-                    f'SELECT id, "{type_col}" FROM {table} '
-                    f'WHERE vessel_imo = :imo ORDER BY "{date_col}" ASC, id ASC'
-                ), {"imo": imo}).fetchall()
+                # Commit (and isolate failures) per vessel, not once at the end
+                # of the whole table — confirmed 2026-10 that one vessel's row
+                # set erroring/timing out mid-loop left the single end-of-table
+                # commit never reached, silently blanking emissionx_op_status
+                # for EVERY vessel on that source, including healthy ones.
+                try:
+                    rows = conn.execute(text(
+                        f'SELECT id, "{type_col}" FROM {table} '
+                        f'WHERE vessel_imo = :imo ORDER BY "{date_col}" ASC, id ASC'
+                    ), {"imo": imo}).fetchall()
 
-                state = "NUW"
-                updates = []
-                for row_id, event_type in rows:
-                    et = str(event_type or "").strip().upper()
-                    if et in _OP_STATUS_UW_START:
-                        state = "UW"
-                        row_status = "UW"
-                    elif et in _OP_STATUS_UW_END:
-                        row_status = "UW"
-                        state = "NUW"
-                    elif et in _OP_STATUS_FORCE_NUW:
-                        row_status = "NUW"
-                    else:
-                        row_status = state
-                    updates.append({"id": row_id, "status": row_status})
+                    state = "NUW"
+                    updates = []
+                    for row_id, event_type in rows:
+                        et = str(event_type or "").strip().upper()
+                        if et in _OP_STATUS_UW_START:
+                            state = "UW"
+                            row_status = "UW"
+                        elif et in _OP_STATUS_UW_END:
+                            row_status = "UW"
+                            state = "NUW"
+                        elif et in _OP_STATUS_FORCE_NUW:
+                            row_status = "NUW"
+                        else:
+                            row_status = state
+                        updates.append({"id": row_id, "status": row_status})
 
-                if updates:
-                    conn.execute(text(
-                        f'UPDATE {table} SET emissionx_op_status = :status WHERE id = :id'
-                    ), updates)
-                    updated += len(updates)
-            conn.commit()
-            log.info(f"Op. Status backfill: {table} — {updated} rows across {len(vessels)} vessels.")
+                    if updates:
+                        conn.execute(text(
+                            f'UPDATE {table} SET emissionx_op_status = :status WHERE id = :id'
+                        ), updates)
+                        updated += len(updates)
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    failed_vessels.append(imo)
+                    log.exception(f"Op. Status backfill failed for vessel {imo} on {table} — skipping, other vessels unaffected.")
+            log.info(
+                f"Op. Status backfill: {table} — {updated} rows across {len(vessels) - len(failed_vessels)} vessels"
+                + (f" ({len(failed_vessels)} vessel(s) failed: {failed_vessels})" if failed_vessels else "") + "."
+            )
 
 
 # ---------------------------------------------------------------------------

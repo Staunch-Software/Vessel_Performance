@@ -242,26 +242,16 @@ class MariAppsPersistenceHandler:
                 row_data.get("log_type", "UNKNOWN")
             )
 
-            # 1. RAW LOG — stores everything as JSONB
-            new_raw = RawMariAppsLog(
-                vessel_imo=vessel_ref.imo_number,
-                source_id="mari_apps",
-                log_number=log_number,
-                vessel_name=vessel_name,
-                log_date=log_date,
-                log_type=log_type,
-                leg_number=leg_number,
-                raw_json=clean_dict(full_payload),
-                fingerprint=fingerprint,
-                is_duplicate=is_duplicate,
-            )
-            db.add(new_raw)
-            db.flush()
-
-            # 2. DUPLICATE GUARD
+            # DUPLICATE GUARD — checked before inserting a raw row, not after.
+            # Re-scraping an already-staged log used to still insert a fresh
+            # raw_mariapps_logs row every time (just flagged is_duplicate=true
+            # on it), which let the raw table balloon and fed
+            # backfill_mariapps()'s unfiltered full-table replay downstream.
+            # Log the repeat sighting and stop without creating a new row —
+            # the original row already carries this fingerprint.
             if is_duplicate:
                 db.add(DataQualityLog(
-                    raw_mariapps_id=new_raw.id,
+                    raw_mariapps_id=None,
                     raw_report_id=None,
                     source_id="mari_apps",
                     vessel_name=vessel_name,
@@ -274,6 +264,22 @@ class MariAppsPersistenceHandler:
                 db.commit()
                 log.warning(f"DUPLICATE: Log {log_number} skipped.")
                 return True
+
+            # 1. RAW LOG — stores everything as JSONB
+            new_raw = RawMariAppsLog(
+                vessel_imo=vessel_ref.imo_number,
+                source_id="mari_apps",
+                log_number=log_number,
+                vessel_name=vessel_name,
+                log_date=log_date,
+                log_type=log_type,
+                leg_number=leg_number,
+                raw_json=clean_dict(full_payload),
+                fingerprint=fingerprint,
+                is_duplicate=False,
+            )
+            db.add(new_raw)
+            db.flush()
 
             # Fetch vessel_particulars for KPI calculations
             vp_obj = db.query(VesselParticulars).filter_by(
