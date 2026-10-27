@@ -10,13 +10,13 @@ import './EmissionPage.css'
 // "do NOT modify unless regulation is amended" note).
 
 const CF_TABLE = [
-  ['HFO', 3.114, 40.2, 'MEPC.364(79)'],
+  ['HFO', 3.114, 40.5, 'MEPC.364(79)'],
   ['LFO', 3.151, 41.0, 'VLSFO (0.5% S)'],
   ['MDO/MGO', 3.206, 42.7, ''],
   ['LNG', 2.750, 49.1, ''],
   ['Methanol', 1.375, 19.9, ''],
   ['LPG', 3.030, 46.0, ''],
-  ['Biodiesel (FAME)', 2.834, 37.2, 'Same combustion Cf as fossil equivalent'],
+  ['Biodiesel (FAME)', 2.834, 37.0, 'Same combustion Cf as fossil equivalent'],
   ['Bio-LNG', 2.750, 49.1, 'Same combustion Cf as fossil equivalent'],
   ['Bio-methanol', 1.375, 19.9, 'Same combustion Cf as fossil equivalent'],
   ['e-Diesel (RFNBO)', 3.206, 42.7, 'Zero WtT credit; same combustion Cf'],
@@ -24,13 +24,13 @@ const CF_TABLE = [
 ]
 
 const WTW_TABLE = [
-  ['HFO', 91.16, 1, 40.2, ''],
-  ['LFO', 91.16, 1, 41.0, ''],
-  ['MDO/MGO', 91.76, 1, 42.7, ''],
+  ['HFO', 91.74, 1, 40.5, ''],
+  ['LFO', 91.39, 1, 41.0, ''],
+  ['MDO/MGO', 90.77, 1, 42.7, ''],
   ['LNG', 0, 1, 49.1, 'Engine-dependent: 76.08–89.20 (see engine table)'],
   ['Methanol', 103.15, 1, 19.9, ''],
   ['LPG', 73.6, 1, 46.0, ''],
-  ['Biodiesel (FAME)', 16.38, 1, 37.2, 'Certified sustainable — Annex II Table 1'],
+  ['Biodiesel (FAME)', 16.38, 1, 37.0, 'Certified sustainable — Annex II Table 1'],
   ['Bio-methanol', 13.14, 1, 19.9, ''],
   ['e-Diesel (RFNBO)', 6.58, 2, 42.7, '2x reward through 2033 — Art. 9(1)(b)'],
   ['e-Methanol (RFNBO)', 6.48, 2, 19.9, '2x reward through 2033 — Art. 9(1)(b)'],
@@ -38,8 +38,8 @@ const WTW_TABLE = [
 
 const CII_Z_FACTORS = [
   [2023, '5%', 'MEPC.338(76)'], [2024, '7%', 'MEPC.338(76)'], [2025, '9%', 'MEPC.338(76)'],
-  [2026, '11%', 'MEPC.338(76)'], [2027, '14.28%', 'MEPC.400(83)'], [2028, '20.41%', 'MEPC.400(83)'],
-  [2029, '26.53%', 'MEPC.400(83)'], [2030, '32.65%', 'MEPC.400(83)'],
+  [2026, '11%', 'MEPC.338(76)'], [2027, '13.625%', 'MEPC.400(83)'], [2028, '16.25%', 'MEPC.400(83)'],
+  [2029, '18.875%', 'MEPC.400(83)'], [2030, '21.5%', 'MEPC.400(83)'],
 ]
 
 const FUELEU_TARGETS = [

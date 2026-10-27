@@ -41,7 +41,7 @@ ch4_n2o_co2e_t() below is shared by both EU MRV and EU ETS (from scope-year
 # separate copy here (lowercase grade keys, matching this fleet's
 # analysis_data naming) rather than cross-importing between otherwise
 # independent calculator modules; keep all three in sync if ever revised.
-LCV_MJ_PER_KG = {"hfo": 40.2, "lfo": 41.0, "mdo": 42.7, "bio_fuel": 37.2}
+LCV_MJ_PER_KG = {"hfo": 40.5, "lfo": 41.0, "mdo": 42.7, "bio_fuel": 37.0}
 
 CH4_EF_KG_PER_TJ = 7.0   # RefConstants Section 2 (Del. Reg. 2023/2776 / IPCC 2006)
 N2O_EF_KG_PER_TJ = 2.0   # RefConstants Section 4 (Del. Reg. 2023/2776 / IPCC 2006)
@@ -52,7 +52,7 @@ def ghg_energy_tj(fuel_mt):
     """Total energy (TJ) for a fuel-by-grade dict — the base of the
     energy-based CH4/N2O method below (and cross-checks against
     fueleu_calculator's own per-leg energy figure, just in TJ not MJ)."""
-    return sum((fuel_mt.get(g) or 0) * LCV_MJ_PER_KG.get(g, 40.2) * 1000 / 1_000_000 for g in fuel_mt)
+    return sum((fuel_mt.get(g) or 0) * LCV_MJ_PER_KG.get(g, 40.5) * 1000 / 1_000_000 for g in fuel_mt)
 
 
 def ch4_n2o_co2e_t(fuel_mt):

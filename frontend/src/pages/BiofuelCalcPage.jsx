@@ -360,7 +360,7 @@ export default function BiofuelCalcPage() {
         <div className="bf-methodology">
           <div><b>Blended Cf:</b> Cf_blend = Σ(mᵢ × Cfᵢ) / Σ(mᵢ) — mass-weighted (biogenic Cf = 0 for CII).</div>
           <div><b>Volume vs Mass:</b> B24 = 24% by volume (industry convention); the regulation uses mass fractions — select Vol% or Mass% per BDN; a Vol% entry is converted automatically.</div>
-          <div><b>FuelEU (WtW):</b> Biodiesel WtW = 16.38 vs. HFO/LFO 91.16, MDO 91.76 gCO2e/MJ — energy-weighted blend.</div>
+          <div><b>FuelEU (WtW):</b> Biodiesel WtW = 16.38 vs. HFO 91.74, LFO 91.39, MDO 90.77 gCO2e/MJ — energy-weighted blend.</div>
         </div>
 
         {loading && <div className="bf-empty"><Loader2 size={16} className="icon-spin" /> Loading…</div>}
@@ -458,9 +458,9 @@ export default function BiofuelCalcPage() {
           <div><b>IMO DCS:</b> Reports fuel consumption in tonnes by type/consumer/status — no Cf calculation at DCS level.</div>
           <div><b>CII/AER (Reg. 28):</b> Uses DCS data for AER = CO2/(DWT×Dist). Cf_bio = 0 for sustainable biofuel — use Cf Blend. B24 ≈ 19% CII reduction.</div>
           <div><b>EU MRV/ETS:</b> Biofuel CO2 (Cf=2.834) calculated in the IMO DCS pages — all regimes treat biogenic CO2 as zero or separate.</div>
-          <div><b>FuelEU:</b> WtW approach — Biodiesel WtW = 16.38 vs HFO 91.16 gCO2e/MJ. B24 blend ≈ 19% WtW reduction — use WtW Blend.</div>
+          <div><b>FuelEU:</b> WtW approach — Biodiesel WtW = 16.38 vs HFO 91.74 gCO2e/MJ. B24 blend ≈ 19% WtW reduction — use WtW Blend.</div>
           <div><b>Sustainability:</b> Biofuel must meet EU RED II/III sustainability criteria for FuelEU WtW credit and for CII Cf_bio=0 credit.</div>
-          <div><b>FAME sources:</b> UCOME (used cooking oil), TME (tallow), RME (rapeseed), SME (soybean), PME (palm) — all share Cf=2.834, LCV=37.2, WtW=16.38.</div>
+          <div><b>FAME sources:</b> UCOME (used cooking oil), TME (tallow), RME (rapeseed), SME (soybean), PME (palm) — all share Cf=2.834, LCV=37.0, WtW=16.38.</div>
         </div>
 
         <div className="bf-note">

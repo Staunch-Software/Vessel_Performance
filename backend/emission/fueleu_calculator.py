@@ -25,7 +25,10 @@ values published in Reg. (EU) 2023/1805 Annex II (same table the client's
 Unified_Emissions_2026_v6 workbook cites in its RefConstants sheet, Section
 5, and that backend/emission/biofuel_calculator.py already uses verbatim —
 see WTW_BASE_G_PER_MJ below):
-    HFO: 91.16   LFO: 91.16   MDO/MGO: 91.76   gCO2e/MJ
+    HFO: 91.7442   LFO: 91.3924   MDO/MGO: 90.7674   gCO2e/MJ
+(corrected per the client's Emission Reference Check, Meena: 91.16 is the 2020
+FuelEU baseline, not HFO/LFO's WtW; MDO's 91.76 was a typo for 90.77. HFO =
+13.5 WtT + TtW at LCV 40.5 MJ/kg.)
 This replaces an earlier, cruder approximation (Tank-to-Wake Cf plus a flat
 13.5 gCO2eq/MJ RED II Well-to-Tank adder) that was in the right ballpark
 (~91 for HFO) but not the cited Annex II figure itself — now that the exact
@@ -39,7 +42,7 @@ Two things this still does NOT model, unchanged from before:
   - Biofuel, absent Proof-of-Sustainability documentation in THIS schema's
     consumption records (analysis_data only carries a total "biofuel_mt"
     figure, with no link back to a specific bunker stem's PoS), is counted
-    at its FOSSIL-EQUIVALENT WtW factor (here: MDO's 91.76) — this is not a
+    at its FOSSIL-EQUIVALENT WtW factor (here: MDO's 90.77) — this is not a
     shortcut, it is literally the Art. 9(1) fallback rule: biofuel with no
     certified sustainability/GHG-savings evidence attached must be reported
     at the default fossil value for its fuel category. Biofuel Calc (see
@@ -102,8 +105,8 @@ REDUCTION_SCHEDULE = [
 # match the client workbook's dropdown; kept lowercase here to match this
 # fleet's analysis_data grade naming — same numbers, keep both in sync if
 # either is ever revised).
-LCV_MJ_PER_KG = {"hfo": 40.2, "lfo": 41.0, "mdo": 42.7, "bio_fuel": 37.2}
-WTW_BASE_G_PER_MJ = {"hfo": 91.16, "lfo": 91.16, "mdo": 91.76}
+LCV_MJ_PER_KG = {"hfo": 40.5, "lfo": 41.0, "mdo": 42.7, "bio_fuel": 37.0}
+WTW_BASE_G_PER_MJ = {"hfo": 91.7442, "lfo": 91.3924, "mdo": 90.7674}
 
 PENALTY_RATE_EUR_PER_T = 2400.0   # Art. 23(2)
 PENALTY_ENERGY_REF_MJ_PER_T = 41000.0  # Art. 23(2) VLSFO-equivalent reference energy content
@@ -128,7 +131,7 @@ def leg_wtw(fuel_mt):
     for grade, mt in fuel_mt.items():
         if not mt:
             continue
-        lcv = LCV_MJ_PER_KG.get(grade, 40.2)
+        lcv = LCV_MJ_PER_KG.get(grade, 40.5)
         wtw_factor = WTW_BASE_G_PER_MJ["mdo"] if grade == "bio_fuel" else WTW_BASE_G_PER_MJ.get(grade, WTW_BASE_G_PER_MJ["hfo"])
         mass_kg = mt * 1000
         e_mj = mass_kg * lcv

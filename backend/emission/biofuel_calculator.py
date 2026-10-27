@@ -16,11 +16,12 @@ SOURCE CONSTANTS (RefConstants sheet, same workbook):
   Section 1 (Cf, MEPC.364(79) / Del.Reg.2023/2776), row 6-8:
       HFO Cf=3.114  LFO Cf=3.151  MDO/MGO Cf=3.206   (== cii_calculator.CF_TABLE)
   Section 5 (WtW defaults, FuelEU Reg. 2023/1805 Annex II), row 66-68, 72:
-      HFO WtW=91.16  LFO WtW=91.16  MDO/MGO WtW=91.76  gCO2e/MJ
-      Biodiesel(FAME) WtW=16.38 gCO2e/MJ, LCV=37.2 MJ/kg — "Certified
+      HFO WtW=91.7442  LFO WtW=91.3924  MDO/MGO WtW=90.7674  gCO2e/MJ
+      (corrected per Emission Reference Check, Meena — was 91.16/91.16/91.76)
+      Biodiesel(FAME) WtW=16.38 gCO2e/MJ (pending Meena's PoS answer), LCV=37.0 MJ/kg — "Certified
       sustainable — Annex II Table 1"; this is a FIXED reference value on
       the sheet, not conditioned on any per-stem sustainability check.
-  LCV (MJ/kg), same rows as above: HFO=40.2  LFO=41.0  MDO/MGO=42.7
+  LCV (MJ/kg), same rows as above: HFO=40.5  LFO=41.0  MDO/MGO=42.7
   Section 10: "Cf_blend = Σ(mᵢ × Cfᵢ) / Σ(mᵢ)" — mass-weighted; for CII,
   Cf_bio = 0 (MEPC.1/Circ.905-Rev.1), so only the fossil share of the blend
   contributes to Cf_blend.
@@ -33,10 +34,10 @@ field is kept for labeling only and does not change any calculation below.
 """
 
 CF_BASE = {"HFO": 3.114, "LFO": 3.151, "MDO": 3.206}       # RefConstants Section 1
-LCV_BASE = {"HFO": 40.2, "LFO": 41.0, "MDO": 42.7}          # RefConstants Section 1 / 5
-WTW_BASE = {"HFO": 91.16, "LFO": 91.16, "MDO": 91.76}       # RefConstants Section 5
+LCV_BASE = {"HFO": 40.5, "LFO": 41.0, "MDO": 42.7}          # Annex II, per Emission Reference Check
+WTW_BASE = {"HFO": 91.7442, "LFO": 91.3924, "MDO": 90.7674}  # Annex II, per Emission Reference Check
 
-LCV_BIO = 37.2    # RefConstants row 72 (Biodiesel/FAME)
+LCV_BIO = 37.0    # Annex II / PoS (Biodiesel/FAME), per Emission Reference Check
 WTW_BIO = 16.38   # RefConstants row 72 (Biodiesel/FAME)
 CF_BIO = 0.0      # MEPC.1/Circ.905-Rev.1 — biogenic CO2 not counted for CII
 
