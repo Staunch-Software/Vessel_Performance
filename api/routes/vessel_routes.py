@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
@@ -18,7 +18,12 @@ from backend.models import (
 )
 from backend.cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
 from backend.cp.cp_overrides import fetch_cp_overrides, resolve_cp_instruction
-from backend.voyage_window import find_bosp_eosp_window
+from backend.voyage_window import find_bosp_eosp_window, nearest_preceding_bosp
+
+# See nearest_preceding_bosp's doc comment / cp_routes.py's _LOOKBACK_DAYS —
+# same bounded look-behind, same reasoning, kept as its own constant here
+# since this file doesn't share cp_routes.py's module scope.
+_VOYAGE_LOOKBACK_DAYS = 10
 
 # --- Dependency to get DB session ---
 def get_db():
@@ -472,6 +477,42 @@ def get_voyage_series(voyage_no: str, vessel_imo: str, source: str = None, db: S
     # generated for an in-progress voyage. Only the case where a real window
     # DOES exist is now guaranteed to match cp_routes.py exactly.
     window = find_bosp_eosp_window(dated)
+    if window is None and dated:
+        # Confirmed 2026-10 (AMNSI MAXIMUS 59B/01-pattern): a collapsed
+        # window here is frequently NOT a real gap — the true departure
+        # BOSP got logged under the PREVIOUS voyage number, invisible to
+        # this voyage_no-filtered query. Look for it within a bounded
+        # window before retrying (see nearest_preceding_bosp's doc
+        # comment and cp_routes.py, which has the identical fix for the
+        # live CP Performance table).
+        first_dt, _, first_row = dated[0]
+        eosps_here = [dt for dt, et, _ in dated if "EOSP" in et]
+        if eosps_here:
+            first_date = first_row[0].Date
+            lb_q = db.query(
+                AnalysisData, NoonReportData, MariAppsReportData
+            ).outerjoin(
+                NoonReportData, AnalysisData.raw_report_id == NoonReportData.raw_report_id
+            ).outerjoin(
+                MariAppsReportData, AnalysisData.raw_mariapps_id == MariAppsReportData.raw_report_id
+            ).filter(
+                AnalysisData.vessel_imo == str(vessel_imo),
+                AnalysisData.Date <= first_date,
+                AnalysisData.Date >= first_date - timedelta(days=_VOYAGE_LOOKBACK_DAYS),
+            )
+            if source:
+                lb_q = lb_q.filter(AnalysisData.source_id == source)
+            lb_results = lb_q.order_by(AnalysisData.Date.desc(), AnalysisData.Time_UTC.desc()).limit(10).all()
+            lb_dated = [(f"{r[0].Date}T{r[0].Time_UTC or '00:00'}", _ltype(r), r) for r in lb_results]
+            preceding = nearest_preceding_bosp(lb_dated, first_dt)
+            if preceding is not None:
+                dep_dt0, dep_row0 = preceding
+                # Relabel in-memory only (never committed) — still tagged
+                # with the OLD voyage number in the DB, that's the bug.
+                dep_row0[0].Voyage_No = str(voyage_no)
+                dated = [(dep_dt0, _ltype(dep_row0), dep_row0)] + dated
+                window = find_bosp_eosp_window(dated)
+
     if window is not None:
         dep_record, arr_record, dep_dt, arr_dt = window
     else:
@@ -710,6 +751,52 @@ def get_voyage_summary(voyage_no: str, vessel_imo: str, source: str = None, db: 
     # there's no valid window yet.
     dated = [(f"{r.Date}T{r.Time_UTC or '00:00'}", ("BOSP" if r in bosps else ("EOSP" if r in eosps else "")), r) for r in records]
     window = find_bosp_eosp_window(dated)
+    if window is None and eosps:
+        # Same look-behind fix as /voyage/series and cp_routes.py — the
+        # true departure BOSP is frequently logged under the PREVIOUS
+        # voyage number (confirmed 2026-10, AMNSI MAXIMUS 59B/01-pattern),
+        # invisible to this voyage_no-filtered query. Only attempted when
+        # this voyage DOES have an EOSP (eosps non-empty) — a genuinely
+        # ongoing voyage with no EOSP at all is left to the existing
+        # fallback below, unchanged.
+        first_dt, _, first_row = dated[0]
+        lb_q = db.query(
+            AnalysisData,
+            NoonReportData.log_type.label("wni_type"),
+            RawMariAppsLog.log_type.label("mari_type"),
+            NoonReportData.log_date.label("wni_date"),
+            RawMariAppsLog.log_date.label("mari_date"),
+        ).outerjoin(
+            NoonReportData, AnalysisData.raw_report_id == NoonReportData.raw_report_id
+        ).outerjoin(
+            RawMariAppsLog, AnalysisData.raw_mariapps_id == RawMariAppsLog.id
+        ).filter(
+            AnalysisData.vessel_imo == str(vessel_imo),
+            AnalysisData.Date <= first_row.Date,
+            AnalysisData.Date >= first_row.Date - timedelta(days=_VOYAGE_LOOKBACK_DAYS),
+        )
+        if source:
+            lb_q = lb_q.filter(AnalysisData.source_id == source)
+        lb_query_results = lb_q.order_by(AnalysisData.Date.desc(), AnalysisData.Time_UTC.desc()).limit(10).all()
+
+        lb_dated = []
+        for r, wni_type, mari_type, wni_date, mari_date in lb_query_results:
+            local_date_str = str(wni_date)[:10] if wni_date else (str(mari_date)[:10] if mari_date else (r.Date.isoformat() if r.Date else None))
+            r._local_date_str = local_date_str
+            ltype = (wni_type or mari_type or "").upper()
+            lb_dated.append((f"{r.Date}T{r.Time_UTC or '00:00'}", ltype, r))
+
+        preceding = nearest_preceding_bosp(lb_dated, first_dt)
+        if preceding is not None:
+            dep_dt0, dep_row0 = preceding
+            # Relabel in-memory only (never committed) — still tagged with
+            # the OLD voyage number in the DB, that's the bug.
+            dep_row0.Voyage_No = str(voyage_no)
+            records = [dep_row0] + records
+            dated = [(dep_dt0, "BOSP", dep_row0)] + dated
+            bosps = [dep_row0] + bosps
+            window = find_bosp_eosp_window(dated)
+
     if window is not None:
         dep_record, arr_record, dep_dt, arr_dt = window
     else:

@@ -12,6 +12,7 @@ warranty values that drive CP compliance monitoring.
 """
 
 import logging
+from datetime import timedelta
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,7 +24,7 @@ from backend.models import Vessel, VesselCPConfig, CPVesselDescription, CPSeaWar
 from backend.cp.cp_calculator import compute_cp_voyage_table, not_computable_result
 from backend.cp.cp_remarks_parser import parse_cp_remarks, pick_instruction_for_condition
 from backend.cp.cp_overrides import fetch_cp_overrides, resolve_cp_instruction
-from backend.voyage_window import find_bosp_eosp_window
+from backend.voyage_window import find_bosp_eosp_window, nearest_preceding_bosp
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/cp", tags=["cp"])
@@ -127,6 +128,45 @@ _SOURCE_SQL = {
 }
 
 
+_LOOKBACK_DAYS = 10  # see nearest_preceding_bosp's doc comment
+
+
+def _fetch_preceding_bosp_rows(db, imo, source, before_date):
+    """Small, date-bounded context fetch for nearest_preceding_bosp() — same
+    per-source join as _rows_for_source, but filtered by date instead of
+    Voyage_No, and restricted to BOSP/COSP rows within _LOOKBACK_DAYS before
+    the voyage's own first row. Never returns rows already reachable via the
+    normal vlist-filtered query (this is strictly a fallback lookup)."""
+    # Date-only bound (inclusive of before_date itself — the true BOSP is
+    # frequently logged the SAME calendar date as this voyage's first row,
+    # just earlier that day, e.g. 15:12 vs. 23:18). The precise, time-aware
+    # "strictly before" cut is left to nearest_preceding_bosp() in Python,
+    # which compares full date+time strings — this query only needs to be a
+    # superset, bounded by _LOOKBACK_DAYS so it never reaches further back
+    # than a short port-call gap.
+    join, src = _SOURCE_SQL[source]
+    sql = f"""
+        SELECT a."Date", a."Time_UTC", a."Voyage_No", a."Loading_Cond", a."From_Port", a."To_Port",
+               a."Distance_nm", a."Duration_h", a."SOG_kn", a."STW_kn", a."BF_Wind",
+               a."Sig_Wave_Ht_m", a."Current_Spd_kn", a.source_id, a.raw_mariapps_id,
+               {_FO_EXPR} AS fo_mt, {_DOGO_EXPR} AS dogo_mt,
+               n.log_type AS event_type
+        FROM analysis_data a
+        {join}
+        WHERE a.vessel_imo = :imo AND a.source_id = :src
+          AND a."Date" <= :before_date
+          AND a."Date" >= :lookback_date
+          AND UPPER(n.log_type) ~ 'BOSP|COSP'
+        ORDER BY a."Date" DESC, a."Time_UTC" DESC
+        LIMIT 5
+    """
+    rows = db.execute(text(sql), {
+        "imo": imo, "src": src, "before_date": before_date,
+        "lookback_date": before_date - timedelta(days=_LOOKBACK_DAYS),
+    }).mappings().all()
+    return [dict(r) for r in rows]
+
+
 def _rows_for_source(db, imo, source, vlist, loading_cond=None):
     join, src = _SOURCE_SQL[source]
     sql = f"""
@@ -193,13 +233,45 @@ def _rows_for_source(db, imo, source, vlist, loading_cond=None):
         if window is None:
             # dep_dt landed AT OR AFTER arr_dt — no BOSP precedes this
             # voyage's own EOSP, so the range collapsed to nothing useful
-            # (see find_bosp_eosp_window's doc comment).
-            excluded_voyages[v_no] = (
-                "No valid departure-to-arrival window found for this voyage "
-                "(its EOSP predates any usable departure record — likely a "
-                "port-call gap rather than a real passage)."
+            # (see find_bosp_eosp_window's doc comment). Before giving up:
+            # confirmed 2026-10 (AMNSI MAXIMUS 59B/01-pattern) this is often
+            # NOT a real port-call gap — the true departure BOSP got logged
+            # under the PREVIOUS voyage number, invisible to this voyage's
+            # own vlist-filtered rows. Look for it within a bounded window
+            # and retry once before excluding. If found, fold it into this
+            # voyage's own row set too, so it's included (Departure Port
+            # etc. should come from it) — it's never double-counted because
+            # it's already excluded from its OWN (previous) voyage's totals
+            # as a trailing post-EOSP row, so today it's silently dropped
+            # entirely rather than counted twice.
+            first_dt, _, first_row = dated[0]
+            lookback_rows = _fetch_preceding_bosp_rows(db, imo, src, first_row["Date"])
+            preceding = nearest_preceding_bosp(
+                [(f"{r['Date']}T{r['Time_UTC'] or '00:00'}", r["event_type"], r) for r in lookback_rows],
+                first_dt,
             )
-            continue
+            if preceding is not None:
+                dep_dt0, dep_row0 = preceding
+                # Relabel to the voyage it's actually opening — it's still
+                # tagged with the OLD voyage number in the DB (that's the
+                # whole bug), and compute_cp_voyage_table() re-groups rows
+                # by Voyage_No independently of this function, so leaving
+                # the stale label would silently put it back in the wrong
+                # voyage's bucket downstream. Loading_Cond is left as-is:
+                # it's usually already correct at this boundary row (see
+                # nearest_preceding_bosp's doc comment), and cp_calculator's
+                # own _dominant_condition() is a majority vote anyway, so one
+                # row can't flip a segment's matched warranty either way.
+                dep_row0 = {**dep_row0, "Voyage_No": v_no}
+                dated = [(dep_dt0, dep_row0["event_type"], dep_row0)] + dated
+                window = find_bosp_eosp_window(dated)
+            if window is None:
+                excluded_voyages[v_no] = (
+                    "No valid departure-to-arrival window found for this voyage "
+                    "(its EOSP predates any usable departure record — likely a "
+                    "port-call gap rather than a real passage)."
+                )
+                continue
         _, _, dep_dt, arr_dt = window
 
         voyage_rows = [r for dt, _, r in dated if dep_dt <= dt <= arr_dt]
