@@ -60,7 +60,13 @@ def _render(imo, name, voyage_no, source, out_dir):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         try:
-            page = browser.new_page(viewport={"width": 1400, "height": 1000})
+            # ignore_https_errors: on the VM nginx redirects http://localhost to
+            # HTTPS, whose cert is for the public hostname, not "localhost"
+            # (ERR_CERT_COMMON_NAME_INVALID). We only ever load our own frontend.
+            context = browser.new_context(
+                viewport={"width": 1400, "height": 1000}, ignore_https_errors=True
+            )
+            page = context.new_page()
             page.set_default_timeout(RENDER_TIMEOUT_S * 1000)
             page.goto(f"{FRONTEND_URL.rstrip('/')}/?pdf_render=1", wait_until="networkidle")
             page.wait_for_function("typeof window.__vpGenerateVoyagePdf === 'function'")
