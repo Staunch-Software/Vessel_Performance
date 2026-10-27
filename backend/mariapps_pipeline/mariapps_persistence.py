@@ -438,6 +438,23 @@ class MariAppsPersistenceHandler:
                 db.rollback()
 
             log.info(f"{'CORRECTED' if is_correction else 'SAVED'}: Log {log_number} | Voyage={leg_number}")
+
+            # ── Voyage-completion mail (manager request 2026-10, AMNS fleet) ──
+            # Only for a genuinely NEW EOSP (not a correction re-save of one
+            # already processed — that would re-notify on every recheck-window
+            # pass). Silently no-ops for any vessel without an active
+            # voyage_completion recipient row (see import_voyage_completion_
+            # recipients.py) — currently just the 4 AMNS-prefixed vessels.
+            if not is_correction and "EOSP" in str(log_type).upper():
+                try:
+                    from .voyage_completion_mail import maybe_send_voyage_completion_mail
+                    maybe_send_voyage_completion_mail(
+                        db, vessel_ref.imo_number, vessel_name, log_number, leg_number, log_date,
+                        from_port=mapped_57_clean.get("From_Port"),
+                    )
+                except Exception as exc:
+                    log.warning(f"Voyage-completion mail check failed (non-critical): {exc}")
+
             return True
 
         except Exception as e:

@@ -207,7 +207,7 @@ def send_email_smtp(subject, html_content, recipients, cc_recipients=None, attac
                         encoders.encode_base64(part)
                         part.add_header(
                             'Content-Disposition',
-                            f'attachment; filename={os.path.basename(file_path)}'
+                            'attachment', filename=os.path.basename(file_path)
                         )
                         msg.attach(part)
         

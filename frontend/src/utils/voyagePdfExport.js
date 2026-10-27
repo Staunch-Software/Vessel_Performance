@@ -1778,7 +1778,7 @@ function buildCPMethodologyPages(doc, routeId, reportDate, voyageNo) {
  *   shows this on its cover page, but callers should surface it too (e.g.
  *   an alert) since a user watching only the download might miss it.
  */
-export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyageNos, source, loadingCond, onProgress }) {
+export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyageNos, source, loadingCond, onProgress, returnData = false }) {
   onProgress?.('Fetching voyage summary…')
 
   // ── 1. Fetch all data in parallel ────────────────────────────────────────
@@ -1888,6 +1888,12 @@ export async function generateVoyagePdf({ vesselImo, vesselName, voyageNo, voyag
   }
 
   // ── 6. Save ──────────────────────────────────────────────────────────────
+  // returnData: used by the headless server-side render (voyage-completion
+  // mail) — hand back the PDF as base64 instead of triggering a download.
+  if (returnData) {
+    const dataUri = doc.output('datauristring')
+    return { filename, pages: totalPages, dataWarning, base64: dataUri.split('base64,')[1] }
+  }
   onProgress?.(`Saving ${filename}…`)
   doc.save(filename)
 
