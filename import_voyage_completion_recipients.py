@@ -1,15 +1,20 @@
 # ===========================================================================
 # import_voyage_completion_recipients.py
 #
-# One-off (idempotent — safe to re-run) loader for the new "voyage_completion"
-# notif_type on vessel_notification_recipients — manager request 2026-10,
-# AMNS fleet only. Reuses each vessel's existing data_quality TO/CC lists
-# (import_notification_recipients.py) as the base, plus 2 extra addresses
-# that should get ONLY the voyage-completion mail, added to TO.
+# Idempotent (safe to re-run) loader for the "voyage_completion" notif_type on
+# vessel_notification_recipients. Every vessel that has an ACTIVE data_quality
+# recipient row (import_notification_recipients.py) gets a voyage_completion
+# row with the SAME TO/CC/From, copied from the DB at run time — i.e. the
+# voyage-completion mail goes to the same actual recipients as the Data
+# Quality mail, for the whole fleet.
 #
-# Same convention as import_notification_recipients.py: wipes and reloads
-# this notif_type's rows rather than merging field-by-field, so re-running
-# after an email-list change always reflects exactly this file's contents.
+# The only difference: the 4 AMNS-prefixed vessels also get 2 AMNS client
+# addresses (manager request 2026-10) added to TO, for this mail only.
+#
+# Re-running re-copies the data_quality lists, so after changing a vessel's
+# data_quality recipients, re-run this to carry the change over. A vessel is
+# only mailed if it is MariApps-scraped and its voyage meets the data
+# threshold (see backend/mariapps_pipeline/voyage_completion_mail.py).
 #
 # Run from repo root: python -m import_voyage_completion_recipients
 # ===========================================================================
@@ -21,62 +26,64 @@ from backend.models import Vessel, VesselNotificationRecipient
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(message)s")
 log = logging.getLogger(__name__)
 
-FROM_EMAIL = "data@ozellar.com"
 NOTIF_TYPE = "voyage_completion"
+SOURCE_TYPE = "data_quality"
 
-# Voyage-completion-only recipients (manager request 2026-10) — added to TO
-# for all 4 AMNS vessels, on top of each vessel's existing data_quality list.
-EXTRA_TO = ["ashish.bhatnagar@amns.in", "anuj.kaushik@amns.in"]
+# Voyage-completion-only recipients (manager request 2026-10), AMNS vessels.
+AMNS_EXTRA_TO = ["ashish.bhatnagar@amns.in", "anuj.kaushik@amns.in"]
 
-# Base TO/CC lists copied from import_notification_recipients.py's RECIPIENTS
-# dict for the 4 AMNS-prefixed vessels — kept as a separate copy here
-# (not cross-imported) since this notif_type's list is meant to evolve
-# independently of the data_quality one.
-RECIPIENTS = {
-    "AMNS POLAR":    {"to": ["amns.polar@gtmailplus.com", "abhinav.s@ozellar.com", "kunalchandra@ozellar.com", "meenakshy@ozellar.com"], "cc": ["tmamnspolar@ozellar.com", "techdevops@ozellar.com"]},
-    "AMNS TUFMAX":   {"to": ["amnstufmax@ozellar.com", "abhinav.s@ozellar.com", "kunalchandra@ozellar.com", "meenakshy@ozellar.com"],    "cc": ["tmamnstufmax@ozellar.com", "techdevops@ozellar.com"]},
-    "AMNSI MAXIMUS": {"to": ["amnsimaximus@gtmailplus.com", "Murtuza@ozellar.com", "kunalchandra@ozellar.com", "meenakshy@ozellar.com"], "cc": ["tmamnsimaximus@ozellar.com", "techdevops@ozellar.com"]},
-    "AMNSI STALLION":{"to": ["amnsistallion@gtmailplus.com", "Murtuza@ozellar.com", "kunalchandra@ozellar.com", "meenakshy@ozellar.com"],"cc": ["tmamnsistallion@ozellar.com", "techdevops@ozellar.com"]},
-    # TEMPORARY live-trigger check (2026-10-28): GCL GANGA's voyage completes in
-    # ~2 days; techdevops ONLY (no vessel/client addresses, no EXTRA_TO) so the
-    # real trigger can be proven without mailing anyone else. Replace with the
-    # real TO/CC (and drop "no_extra") once confirmed.
-    "GCL GANGA":     {"to": ["techdevops@ozellar.com"], "cc": [], "no_extra": True},
-}
+
+def _dedupe(addrs):
+    seen, out = set(), []
+    for a in addrs:
+        k = a.strip().lower()
+        if k and k not in seen:
+            seen.add(k)
+            out.append(a.strip())
+    return out
 
 
 def run():
     db = SessionLocal()
-    loaded, missing_vessel = 0, []
+    loaded = 0
     try:
-        for vessel_name, emails in RECIPIENTS.items():
-            vessel = db.query(Vessel).filter(Vessel.vessel_name == vessel_name).first()
-            if not vessel:
-                missing_vessel.append(vessel_name)
-                continue
+        sources = (
+            db.query(VesselNotificationRecipient)
+            .filter(VesselNotificationRecipient.notif_type == SOURCE_TYPE,
+                    VesselNotificationRecipient.is_active.is_(True))
+            .all()
+        )
+        for src in sources:
+            vessel = db.query(Vessel).filter(Vessel.imo_number == src.vessel_imo).first()
+            name = vessel.vessel_name if vessel else src.vessel_imo
+
+            to = list(src.to_emails or [])
+            if vessel and vessel.vessel_name.upper().startswith("AMNS"):
+                to += AMNS_EXTRA_TO
 
             row = (
                 db.query(VesselNotificationRecipient)
                 .filter(
-                    VesselNotificationRecipient.vessel_imo == vessel.imo_number,
+                    VesselNotificationRecipient.vessel_imo == src.vessel_imo,
                     VesselNotificationRecipient.notif_type == NOTIF_TYPE,
                 )
                 .first()
             )
             if row is None:
-                row = VesselNotificationRecipient(vessel_imo=vessel.imo_number, notif_type=NOTIF_TYPE)
+                row = VesselNotificationRecipient(vessel_imo=src.vessel_imo, notif_type=NOTIF_TYPE)
                 db.add(row)
 
-            row.from_email = FROM_EMAIL
-            row.to_emails = emails["to"] + ([] if emails.get("no_extra") else EXTRA_TO)
-            row.cc_emails = emails["cc"]
+            row.from_email = src.from_email
+            row.to_emails = _dedupe(to)
+            row.cc_emails = _dedupe(list(src.cc_emails or []))
             row.is_active = True
             loaded += 1
+            log.info(f"{name}: TO={row.to_emails} CC={row.cc_emails}")
 
         db.commit()
         log.info(f"Loaded/updated {loaded} vessel_notification_recipients rows (notif_type={NOTIF_TYPE}).")
-        if missing_vessel:
-            log.warning(f"No matching vessels row for: {missing_vessel} — check vessel_name spelling against the vessels table.")
+        if loaded == 0:
+            log.warning("No active data_quality recipient rows found — run import_notification_recipients first.")
     finally:
         db.close()
 
