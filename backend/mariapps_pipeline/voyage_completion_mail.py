@@ -19,12 +19,12 @@ import html
 import logging
 import os
 import shutil
+from datetime import date
 from pathlib import Path
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models import AnalysisData, VesselNotificationRecipient
+from ..models import VesselNotificationRecipient
 from ..reporting.email_service import send_email
 from .voyage_report_pdf import render_voyage_pdf
 
@@ -44,21 +44,28 @@ MIN_DISTANCE_NM = float(os.getenv("VOYAGE_MAIL_MIN_DISTANCE_NM", "50"))
 MIN_DURATION_H = float(os.getenv("VOYAGE_MAIL_MIN_DURATION_H", "12"))
 
 
-def voyage_data_summary(vessel_imo, voyage_no):
-    """(distance_nm, duration_h, qualifies) for the report's sea-passage window.
-    Uses its own short-lived session: get_voyage_summary relabels rows
-    in memory (never to be committed), so it must not share the caller's."""
+def _get_summary(vessel_imo, voyage_no):
+    """The report's own /voyage/summary dict ({} on failure). Uses its own
+    short-lived session: get_voyage_summary relabels rows in memory (never to
+    be committed), so it must not share the caller's."""
     from api.routes.vessel_routes import get_voyage_summary
     from ..database import SessionLocal
 
     s = SessionLocal()
     try:
-        summ = get_voyage_summary(str(voyage_no), str(vessel_imo), "mari_apps", s)
+        return get_voyage_summary(str(voyage_no), str(vessel_imo), "mari_apps", s)
     except Exception:
-        return 0.0, 0.0, False
+        return {}
     finally:
         s.rollback()
         s.close()
+
+
+def voyage_data_summary(vessel_imo, voyage_no):
+    """(distance_nm, duration_h, qualifies) for the report's sea-passage window."""
+    summ = _get_summary(vessel_imo, voyage_no)
+    if not summ:
+        return 0.0, 0.0, False
     dist = float(summ.get("Distance_nm") or 0)
     dur = float(summ.get("Duration_h") or 0)
     return dist, dur, (dist >= MIN_DISTANCE_NM and dur >= MIN_DURATION_H)
@@ -68,24 +75,22 @@ def _fmt_date(d):
     return d.strftime("%d %b %Y") if d else "—"
 
 
-def _voyage_facts(db: Session, vessel_imo, voyage_no, from_port):
-    """Ports + first/last report date of this voyage's MariApps rows."""
-    q = db.query(AnalysisData).filter(
-        AnalysisData.vessel_imo == vessel_imo,
-        AnalysisData.Voyage_No == voyage_no,
-        AnalysisData.source_id == "mari_apps",
-    )
-    start, end = db.query(func.min(AnalysisData.Date), func.max(AnalysisData.Date)).filter(
-        AnalysisData.vessel_imo == vessel_imo,
-        AnalysisData.Voyage_No == voyage_no,
-        AnalysisData.source_id == "mari_apps",
-    ).one()
-    to_row = q.filter(AnalysisData.To_Port.isnot(None)).order_by(AnalysisData.Date.desc()).first()
+def _parse_date(s):
+    try:
+        return date.fromisoformat(str(s)[:10]) if s else None
+    except ValueError:
+        return None
+
+
+def _voyage_facts(vessel_imo, voyage_no, from_port):
+    """Ports + departure/arrival dates taken from the report's own BOSP->EOSP
+    window (/voyage/summary), so the mail always agrees with the attached PDF."""
+    summ = _get_summary(vessel_imo, voyage_no)
     return {
-        "from_port": (from_port or "").strip(),
-        "to_port": (to_row.To_Port or "").strip() if to_row else "",
-        "start": start,
-        "end": end,
+        "from_port": (summ.get("From_Port") or from_port or "").strip(),
+        "to_port": (summ.get("To_Port") or "").strip(),
+        "start": _parse_date(summ.get("Departure_Time")),
+        "end": _parse_date(summ.get("Arrival_Date")),
     }
 
 
@@ -206,7 +211,7 @@ def maybe_send_voyage_completion_mail(db: Session, vessel_imo, vessel_name, log_
             return False
         to_list, cc_list, tag = rec.to_emails, rec.cc_emails, ""
 
-    facts = _voyage_facts(db, vessel_imo, voyage_no, from_port)
+    facts = _voyage_facts(vessel_imo, voyage_no, from_port)
 
     pdf_path = render_voyage_pdf(vessel_imo, vessel_name, voyage_no)
     if not pdf_path:
