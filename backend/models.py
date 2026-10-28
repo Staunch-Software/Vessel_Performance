@@ -1909,6 +1909,26 @@ class MariAppsBunkerReport(Base):
 # (matched by the API layer if at all, not a DB foreign key), matching the
 # sheet's plain "BDN #" column — a stem can be logged before the matching
 # bunker report row is scraped, or for a vessel with none scraped at all.
+class BiofuelPoS(Base):
+    """A Proof of Sustainability record, held separately from the bunker stems
+    it covers (client review, Meena 2026-10): a PoS is issued per consignment,
+    not per vessel or per delivery, so one PoS can serve several stems —
+    possibly on different vessels — via BiofuelBunkerStem.pos_id +
+    pos_allocated_mt, and the sum of allocations may not exceed quantity_mt."""
+    __tablename__ = "biofuel_pos"
+
+    id                 = Column(Integer, primary_key=True, autoincrement=True)
+    pos_reference      = Column(String(100), nullable=False, index=True)   # certificate / consignment number
+    supplier           = Column(String(255), nullable=True)
+    biofuel_type       = Column(String(100), nullable=False, default="FAME Biodiesel")  # 'FAME Biodiesel' | 'Bio-methanol'
+    emission_intensity = Column(Float, nullable=False)                    # "E" on the PoS, gCO2e/MJ — NOT WtW; WtW = E + 1.48 (FAME) / + 2.74 (bio-methanol)
+    quantity_mt        = Column(Float, nullable=False)                    # biofuel quantity the PoS covers
+    notes              = Column(String(500), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class BiofuelBunkerStem(Base):
     __tablename__ = "biofuel_bunker_stems"
 
@@ -1935,6 +1955,11 @@ class BiofuelBunkerStem(Base):
     rho_base       = Column(Float, nullable=True)                    # sheet col H, kg/m3 — only needed when input_basis='Vol%'
     rho_bio        = Column(Float, nullable=True)                    # sheet col I, kg/m3 — only needed when input_basis='Vol%'
     quantity_mt    = Column(Float, nullable=False)                   # sheet col R "Total Qty (MT)"
+
+    # Optional link to the PoS covering this stem's biofuel portion; no link =
+    # FuelEU Art. 10(1)(a) fallback (least favourable fossil pathway, HFO).
+    pos_id           = Column(Integer, ForeignKey("biofuel_pos.id", ondelete="SET NULL"), nullable=True, index=True)
+    pos_allocated_mt = Column(Float, nullable=True)                  # mt of the PoS quantity allocated to this stem
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

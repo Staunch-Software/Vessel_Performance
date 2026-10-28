@@ -42,12 +42,13 @@ Two things this still does NOT model, unchanged from before:
   - Biofuel, absent Proof-of-Sustainability documentation in THIS schema's
     consumption records (analysis_data only carries a total "biofuel_mt"
     figure, with no link back to a specific bunker stem's PoS), is counted
-    at its FOSSIL-EQUIVALENT WtW factor (here: MDO's 90.77) — this is not a
-    shortcut, it is literally the Art. 9(1) fallback rule: biofuel with no
-    certified sustainability/GHG-savings evidence attached must be reported
-    at the default fossil value for its fuel category. Biofuel Calc (see
-    biofuel_calculator.py) DOES carry the certified 16.38 gCO2e/MJ figure
-    per bunker stem — but reconciling a stem against which day's
+    at its FOSSIL-EQUIVALENT WtW factor (here: HFO's 91.74, the conservative
+    default per the client's Emission Reference Check) — this is not a
+    shortcut, it is the Art. 10(1)(a) fallback rule: biofuel with no
+    certified sustainability/GHG-savings evidence attached is priced on the
+    least favourable fossil pathway for its fuel type. Biofuel Calc (see
+    biofuel_calculator.py) prices each stem from its linked PoS
+    (WtW = E + 1.48 for FAME) — but reconciling a stem against which day's
     consumption actually burned it is not yet wired up (same FIFO
     lot-windowing problem BDN Ref already solves for MariApps, not yet
     extended to biofuel specifically — see that module's docstring).
@@ -105,8 +106,41 @@ REDUCTION_SCHEDULE = [
 # match the client workbook's dropdown; kept lowercase here to match this
 # fleet's analysis_data grade naming — same numbers, keep both in sync if
 # either is ever revised).
-LCV_MJ_PER_KG = {"hfo": 40.5, "lfo": 41.0, "mdo": 42.7, "bio_fuel": 37.0}
+LCV_MJ_PER_KG = {"hfo": 40.5, "lfo": 41.0, "mdo": 42.7, "bio_fuel": 37.0,
+                 "lpg_propane": 46.0, "lpg_butane": 46.0}
 WTW_BASE_G_PER_MJ = {"hfo": 91.7442, "lfo": 91.3924, "mdo": 90.7674}
+
+# LPG (Annex II, per Meena's Emission Reference Check): WtT 7.8 gCO2e/MJ, LCV
+# 0.046 MJ/g, CO2 3.030 (butane) / 3.000 (propane) g/g. Annex II marks LPG's
+# CH4/N2O as TBM and requires the highest default of the fuel class where a
+# cell is TBM — 0.00005 g/g CH4 and 0.00018 g/g N2O — so a CO2-only figure
+# (the old 73.6) is not permitted. FuelEU converts CH4/N2O with AR4 (25 / 298).
+LPG_WTT_G_PER_MJ = 7.8
+LPG_LCV_MJ_PER_G = 0.046
+LPG_CO2_G_PER_G = {"lpg_propane": 3.000, "lpg_butane": 3.030}
+LPG_CH4_G_PER_G = 0.00005
+LPG_N2O_G_PER_G = 0.00018
+GWP_FUELEU_AR4 = {"ch4": 25, "n2o": 298}
+
+
+def lpg_wtw(grade):
+    """WtW gCO2e/MJ for pure 'lpg_propane' or 'lpg_butane' (≈74.21 / ≈74.86)."""
+    ttw_g_per_g = (LPG_CO2_G_PER_G[grade] + LPG_CH4_G_PER_G * GWP_FUELEU_AR4["ch4"]
+                   + LPG_N2O_G_PER_G * GWP_FUELEU_AR4["n2o"])
+    return LPG_WTT_G_PER_MJ + ttw_g_per_g / LPG_LCV_MJ_PER_G
+
+
+def lpg_blend(propane_mass_pct):
+    """Propane/butane blend by MASS (0-100 % propane). Both fuels share the
+    same LCV, so mass- and energy-weighting coincide. Returns
+    {'wtw': gCO2e/MJ, 'cf': t-CO2/t-fuel}."""
+    p = min(max(propane_mass_pct, 0.0), 100.0) / 100.0
+    wtw = p * lpg_wtw("lpg_propane") + (1 - p) * lpg_wtw("lpg_butane")
+    cf = p * LPG_CO2_G_PER_G["lpg_propane"] + (1 - p) * LPG_CO2_G_PER_G["lpg_butane"]
+    return {"wtw": wtw, "cf": cf}
+
+
+WTW_BASE_G_PER_MJ.update({g: lpg_wtw(g) for g in ("lpg_propane", "lpg_butane")})
 
 PENALTY_RATE_EUR_PER_T = 2400.0   # Art. 23(2)
 PENALTY_ENERGY_REF_MJ_PER_T = 41000.0  # Art. 23(2) VLSFO-equivalent reference energy content
@@ -123,8 +157,9 @@ def ghg_limit(year):
 def leg_wtw(fuel_mt):
     """fuel_mt: {'hfo': mt, 'lfo': mt, 'mdo': mt, 'bio_fuel': mt}. Returns
     (wtw_g_co2eq, energy_mj) for one leg/report, using the exact Annex II
-    WtW default per fuel (WTW_BASE_G_PER_MJ). Biofuel is priced at MDO's
-    WtW factor (Art. 9(1) no-Proof-of-Sustainability fallback — see module
+    WtW default per fuel (WTW_BASE_G_PER_MJ). Biofuel is priced at HFO's
+    WtW factor — the Art. 10(1)(a) no-Proof-of-Sustainability fallback (least
+    favourable fossil pathway, HFO as the conservative default; see module
     docstring)."""
     wtw_g = 0.0
     energy_mj = 0.0
@@ -132,7 +167,7 @@ def leg_wtw(fuel_mt):
         if not mt:
             continue
         lcv = LCV_MJ_PER_KG.get(grade, 40.5)
-        wtw_factor = WTW_BASE_G_PER_MJ["mdo"] if grade == "bio_fuel" else WTW_BASE_G_PER_MJ.get(grade, WTW_BASE_G_PER_MJ["hfo"])
+        wtw_factor = WTW_BASE_G_PER_MJ["hfo"] if grade == "bio_fuel" else WTW_BASE_G_PER_MJ.get(grade, WTW_BASE_G_PER_MJ["hfo"])
         mass_kg = mt * 1000
         e_mj = mass_kg * lcv
         wtw_g += wtw_factor * e_mj

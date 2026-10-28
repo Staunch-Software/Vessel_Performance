@@ -147,6 +147,7 @@ thead .bf-col-calc { color: #6bc47f; }
   border-radius: 6px;
   overflow: auto;
   background: #0c1826;
+  flex-shrink: 0; /* .bf-body is a fixed-height flex column — without this a table gets squashed to ~1px once two tables share the page */
 }
 .bf-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 11.5px; white-space: nowrap; }
 .bf-table thead th {

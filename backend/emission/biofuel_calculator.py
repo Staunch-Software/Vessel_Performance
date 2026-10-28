@@ -2,11 +2,12 @@
 Biofuel Calc — 1:1 rebuild of the "Biofuel_Calc" worksheet in the client's
 Unified_Emissions_2026_v6 - Final.xlsx (sheet cells cited throughout below).
 Every formula here is copied from that sheet's cell formulas, not
-re-derived — this module intentionally does NOT implement any of the
-Proof-of-Sustainability / fossil-equivalent-fallback logic used elsewhere
-in this codebase (see the old git history of this file / fueleu_calculator.py
-for that approach) — the client's sheet has no such gate: any biofuel
-entered is credited at the fixed values below, always. Match the sheet.
+re-derived, EXCEPT the biofuel WtW: the sheet's fixed 16.38 was replaced after
+the client's Emission Reference Check (Meena, 2026-10) — a PoS gives the
+emission intensity E per consignment and WtW = E + 1.48 (FAME) / + 2.74
+(bio-methanol); with no PoS, FuelEU Art. 10(1)(a) applies the least favourable
+fossil pathway (HFO 91.7442 as the conservative default). See pos_wtw() and
+stem_calc() below.
 
 Pure calculation helpers — no DB access. All SQL/aggregation lives in
 biofuel_routes.py.
@@ -18,9 +19,8 @@ SOURCE CONSTANTS (RefConstants sheet, same workbook):
   Section 5 (WtW defaults, FuelEU Reg. 2023/1805 Annex II), row 66-68, 72:
       HFO WtW=91.7442  LFO WtW=91.3924  MDO/MGO WtW=90.7674  gCO2e/MJ
       (corrected per Emission Reference Check, Meena — was 91.16/91.16/91.76)
-      Biodiesel(FAME) WtW=16.38 gCO2e/MJ (pending Meena's PoS answer), LCV=37.0 MJ/kg — "Certified
-      sustainable — Annex II Table 1"; this is a FIXED reference value on
-      the sheet, not conditioned on any per-stem sustainability check.
+      Biodiesel(FAME) LCV=37.0 MJ/kg. Its WtW is per PoS (E + 1.48), not a
+      fixed sheet value any more.
   LCV (MJ/kg), same rows as above: HFO=40.5  LFO=41.0  MDO/MGO=42.7
   Section 10: "Cf_blend = Σ(mᵢ × Cfᵢ) / Σ(mᵢ)" — mass-weighted; for CII,
   Cf_bio = 0 (MEPC.1/Circ.905-Rev.1), so only the fossil share of the blend
@@ -38,8 +38,25 @@ LCV_BASE = {"HFO": 40.5, "LFO": 41.0, "MDO": 42.7}          # Annex II, per Emis
 WTW_BASE = {"HFO": 91.7442, "LFO": 91.3924, "MDO": 90.7674}  # Annex II, per Emission Reference Check
 
 LCV_BIO = 37.0    # Annex II / PoS (Biodiesel/FAME), per Emission Reference Check
-WTW_BIO = 16.38   # RefConstants row 72 (Biodiesel/FAME)
 CF_BIO = 0.0      # MEPC.1/Circ.905-Rev.1 — biogenic CO2 not counted for CII
+
+# Biofuel WtW is NOT a fixed number. Per the client's Emission Reference Check
+# (Meena, 2026-10) a Proof of Sustainability gives the emission intensity "E"
+# per consignment, and WtW = E + a fixed adder by biofuel type. This replaces
+# the earlier fixed 16.38 (the old RefConstants "Certified sustainable" row).
+POS_WTW_ADDER = {"FAME Biodiesel": 1.48, "Bio-methanol": 2.74}
+
+# No PoS -> FuelEU Art. 10(1)(a): least favourable fossil pathway for the fuel
+# type. HFO is the conservative default unless the verifier confirms otherwise.
+WTW_NO_POS_DEFAULT = WTW_BASE["HFO"]
+
+
+def pos_wtw(biofuel_type, emission_intensity):
+    """WtW (gCO2e/MJ) of a PoS-covered biofuel: E + adder. None if the type has no adder."""
+    adder = POS_WTW_ADDER.get(biofuel_type)
+    if adder is None or emission_intensity is None:
+        return None
+    return emission_intensity + adder
 
 
 def bio_pct_by_mass(input_basis, bio_pct, rho_base, rho_bio):
@@ -60,19 +77,40 @@ def bio_pct_by_mass(input_basis, bio_pct, rho_base, rho_bio):
     return None
 
 
-def stem_calc(base_fuel_grade, input_basis, bio_pct, rho_base, rho_bio, quantity_mt):
+def stem_calc(base_fuel_grade, input_basis, bio_pct, rho_base, rho_bio, quantity_mt,
+              pos_wtw_value=None, pos_allocated_mt=None):
     """Returns the sheet's per-row green (calculated) cells: J, K, L, M, N,
-    O, P, Q, S, T — for one bunker stem row."""
+    O, P, Q, S, T — for one bunker stem row.
+
+    pos_wtw_value / pos_allocated_mt: WtW of the linked PoS and the mass of
+    its quantity allocated to this stem. The bio portion covered by the
+    allocation is priced at the PoS WtW; any uncovered bio portion (or all of
+    it, with no PoS) at the HFO fossil default — never double-counted."""
     grade = base_fuel_grade if base_fuel_grade in CF_BASE else "HFO"
     cf_base = CF_BASE[grade]
     lcv_base = LCV_BASE[grade]
     wtw_base = WTW_BASE[grade]
 
     j = bio_pct_by_mass(input_basis, bio_pct, rho_base, rho_bio)
+    bio_mt = quantity_mt * j if (quantity_mt is not None and j is not None) else None
+
+    if pos_wtw_value is not None and bio_mt:
+        covered = min(max(pos_allocated_mt or 0, 0), bio_mt) / bio_mt
+    else:
+        covered = 0.0
+    wtw_bio = covered * pos_wtw_value + (1 - covered) * WTW_NO_POS_DEFAULT if pos_wtw_value is not None else WTW_NO_POS_DEFAULT
+    if covered >= 0.9999:
+        wtw_bio_source = "PoS"
+    elif covered > 0:
+        wtw_bio_source = "Partial PoS + HFO default"
+    else:
+        wtw_bio_source = "No PoS (HFO default)"
+
     if j is None:
         return {
             "bio_pct_by_mass": None, "cf_base": cf_base, "cf_blend": None,
-            "lcv_base": lcv_base, "lcv_bio": LCV_BIO, "wtw_base": wtw_base, "wtw_bio": WTW_BIO,
+            "lcv_base": lcv_base, "lcv_bio": LCV_BIO, "wtw_base": wtw_base, "wtw_bio": round(wtw_bio, 4),
+            "wtw_bio_source": wtw_bio_source, "pos_coverage_pct": round(covered * 100, 2),
             "wtw_blend": None, "fossil_portion_mt": None, "bio_portion_mt": None,
         }
 
@@ -83,7 +121,7 @@ def stem_calc(base_fuel_grade, input_basis, bio_pct, rho_base, rho_bio, quantity
     energy_fossil = (1 - j) * lcv_base
     energy_bio = j * LCV_BIO
     denom = energy_fossil + energy_bio
-    wtw_blend = (energy_fossil * wtw_base + energy_bio * WTW_BIO) / denom if denom else None
+    wtw_blend = (energy_fossil * wtw_base + energy_bio * wtw_bio) / denom if denom else None
 
     fossil_portion_mt = quantity_mt * (1 - j) if quantity_mt is not None else None  # col S
     bio_portion_mt = quantity_mt * j if quantity_mt is not None else None            # col T
@@ -91,7 +129,8 @@ def stem_calc(base_fuel_grade, input_basis, bio_pct, rho_base, rho_bio, quantity
     return {
         "bio_pct_by_mass": round(j * 100, 4),  # surfaced back in sheet-native percentage terms
         "cf_base": cf_base, "cf_blend": round(cf_blend, 6) if cf_blend is not None else None,
-        "lcv_base": lcv_base, "lcv_bio": LCV_BIO, "wtw_base": wtw_base, "wtw_bio": WTW_BIO,
+        "lcv_base": lcv_base, "lcv_bio": LCV_BIO, "wtw_base": wtw_base, "wtw_bio": round(wtw_bio, 4),
+        "wtw_bio_source": wtw_bio_source, "pos_coverage_pct": round(covered * 100, 2),
         "wtw_blend": round(wtw_blend, 6) if wtw_blend is not None else None,
         "fossil_portion_mt": round(fossil_portion_mt, 3) if fossil_portion_mt is not None else None,
         "bio_portion_mt": round(bio_portion_mt, 3) if bio_portion_mt is not None else None,

@@ -20,12 +20,18 @@ from datetime import date, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from backend.database import SessionLocal
-from backend.models import BiofuelBunkerStem, Vessel, MariAppsBunkerReport
-from backend.emission.biofuel_calculator import stem_calc, weighted_summary, CF_BASE
+from backend.models import BiofuelBunkerStem, BiofuelPoS, Vessel, MariAppsBunkerReport
+from backend.emission.biofuel_calculator import (
+    stem_calc, weighted_summary, CF_BASE, pos_wtw, POS_WTW_ADDER,
+)
+
+# Float tolerance when comparing allocated mass against a PoS / stem quantity.
+_QTY_TOL = 0.001
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/biofuel", tags=["biofuel"])
@@ -52,6 +58,17 @@ class StemPayload(BaseModel):
     rho_base: Optional[float] = None
     rho_bio: Optional[float] = None
     quantity_mt: float
+    pos_id: Optional[int] = None
+    pos_allocated_mt: Optional[float] = None
+
+
+class PoSPayload(BaseModel):
+    pos_reference: str
+    supplier: Optional[str] = None
+    biofuel_type: str = "FAME Biodiesel"
+    emission_intensity: float
+    quantity_mt: float
+    notes: Optional[str] = None
 
 
 def _validate(payload: StemPayload):
@@ -67,8 +84,10 @@ def _validate(payload: StemPayload):
         raise HTTPException(status_code=400, detail="quantity_mt must be positive.")
 
 
-def _row_with_calc(row: BiofuelBunkerStem):
-    calc = stem_calc(row.base_fuel_grade, row.input_basis, row.bio_pct, row.rho_base, row.rho_bio, row.quantity_mt)
+def _row_with_calc(row: BiofuelBunkerStem, pos: Optional[BiofuelPoS] = None):
+    pw = pos_wtw(pos.biofuel_type, pos.emission_intensity) if pos else None
+    calc = stem_calc(row.base_fuel_grade, row.input_basis, row.bio_pct, row.rho_base, row.rho_bio,
+                     row.quantity_mt, pw, row.pos_allocated_mt)
     return {
         "id": row.id, "vessel_imo": row.vessel_imo, "bunker_report_id": row.bunker_report_id,
         "bdn_number": row.bdn_number,
@@ -76,8 +95,72 @@ def _row_with_calc(row: BiofuelBunkerStem):
         "port": row.port, "base_fuel_grade": row.base_fuel_grade, "biofuel_type": row.biofuel_type,
         "input_basis": row.input_basis, "bio_pct": row.bio_pct,
         "rho_base": row.rho_base, "rho_bio": row.rho_bio, "quantity_mt": row.quantity_mt,
+        "pos_id": row.pos_id, "pos_allocated_mt": row.pos_allocated_mt,
+        "pos_reference": pos.pos_reference if pos else None,
         **calc,
     }
+
+
+def _pos_for(db: Session, rows):
+    ids = {r.pos_id for r in rows if r.pos_id is not None}
+    if not ids:
+        return {}
+    return {p.id: p for p in db.query(BiofuelPoS).filter(BiofuelPoS.id.in_(ids)).all()}
+
+
+def _allocated_totals(db: Session):
+    """{pos_id: (allocated_mt, stem_count)} across every vessel's stems."""
+    q = (
+        db.query(BiofuelBunkerStem.pos_id, func.coalesce(func.sum(BiofuelBunkerStem.pos_allocated_mt), 0.0),
+                 func.count(BiofuelBunkerStem.id))
+        .filter(BiofuelBunkerStem.pos_id.isnot(None))
+        .group_by(BiofuelBunkerStem.pos_id)
+    )
+    return {pid: (alloc, n) for pid, alloc, n in q.all()}
+
+
+def _pos_row(p: BiofuelPoS, allocated: float = 0.0, stem_count: int = 0):
+    return {
+        "id": p.id, "pos_reference": p.pos_reference, "supplier": p.supplier,
+        "biofuel_type": p.biofuel_type, "emission_intensity": p.emission_intensity,
+        "wtw": round(pos_wtw(p.biofuel_type, p.emission_intensity), 4),
+        "quantity_mt": p.quantity_mt, "notes": p.notes,
+        "allocated_mt": round(allocated, 3), "remaining_mt": round(p.quantity_mt - allocated, 3),
+        "stem_count": stem_count,
+    }
+
+
+def _resolve_pos_link(payload: StemPayload, db: Session, stem_id: Optional[int] = None) -> StemPayload:
+    """Validate the stem's PoS link: type match, allocation within this stem's
+    own bio portion, and total allocations across all stems within the PoS
+    quantity (so one PoS can serve several stems without double counting).
+    An omitted allocation defaults to the stem's whole bio portion."""
+    if payload.pos_id is None:
+        return payload.model_copy(update={"pos_allocated_mt": None})
+    pos = db.query(BiofuelPoS).filter(BiofuelPoS.id == payload.pos_id).first()
+    if not pos:
+        raise HTTPException(status_code=404, detail=f"No PoS record with id {payload.pos_id}.")
+    if pos.biofuel_type != payload.biofuel_type:
+        raise HTTPException(status_code=400, detail=f"PoS {pos.pos_reference} is {pos.biofuel_type}; the stem's biofuel type is {payload.biofuel_type}.")
+    bio_mt = stem_calc(payload.base_fuel_grade, payload.input_basis, payload.bio_pct, payload.rho_base,
+                       payload.rho_bio, payload.quantity_mt)["bio_portion_mt"]
+    if not bio_mt:
+        raise HTTPException(status_code=400, detail="This stem has no biofuel portion to allocate a PoS to (Bio % is 0).")
+    alloc = payload.pos_allocated_mt if payload.pos_allocated_mt is not None else round(bio_mt, 3)
+    if alloc <= 0:
+        raise HTTPException(status_code=400, detail="pos_allocated_mt must be positive.")
+    if alloc > bio_mt + _QTY_TOL:
+        raise HTTPException(status_code=400, detail=f"Allocated {alloc} mt exceeds this stem's biofuel portion ({round(bio_mt, 3)} mt).")
+    q = db.query(func.coalesce(func.sum(BiofuelBunkerStem.pos_allocated_mt), 0.0)).filter(BiofuelBunkerStem.pos_id == pos.id)
+    if stem_id is not None:
+        q = q.filter(BiofuelBunkerStem.id != stem_id)
+    others = q.scalar() or 0.0
+    if others + alloc > pos.quantity_mt + _QTY_TOL:
+        raise HTTPException(
+            status_code=400,
+            detail=f"PoS {pos.pos_reference} covers {pos.quantity_mt} mt and {round(others, 3)} mt is already allocated to other stems — only {round(pos.quantity_mt - others, 3)} mt remains.",
+        )
+    return payload.model_copy(update={"pos_allocated_mt": alloc})
 
 
 # imo_fuel_grade on a scraped bunker report is free text from the MariApps
@@ -153,7 +236,8 @@ def list_stems(imo: str, db: Session = Depends(get_db)):
         .order_by(BiofuelBunkerStem.delivery_date.desc().nullslast(), BiofuelBunkerStem.id.desc())
         .all()
     )
-    stems = [_row_with_calc(r) for r in rows]
+    pos_map = _pos_for(db, rows)
+    stems = [_row_with_calc(r, pos_map.get(r.pos_id)) for r in rows]
     summary = weighted_summary([
         {"quantity_mt": s["quantity_mt"], "cf_blend": s["cf_blend"], "wtw_blend": s["wtw_blend"],
          "fossil_portion_mt": s["fossil_portion_mt"], "bio_portion_mt": s["bio_portion_mt"]}
@@ -188,6 +272,7 @@ def create_stem(payload: StemPayload, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"No vessel with IMO {payload.vessel_imo}.")
     payload = _apply_bunker_report_link(payload, db)
     _validate(payload)
+    payload = _resolve_pos_link(payload, db)
     if payload.bunker_report_id is not None:
         existing = db.query(BiofuelBunkerStem).filter(BiofuelBunkerStem.bunker_report_id == payload.bunker_report_id).first()
         if existing:
@@ -196,7 +281,7 @@ def create_stem(payload: StemPayload, db: Session = Depends(get_db)):
     db.add(row)
     db.commit()
     db.refresh(row)
-    return _row_with_calc(row)
+    return _row_with_calc(row, _pos_for(db, [row]).get(row.pos_id))
 
 
 @router.patch("/stems/{stem_id}")
@@ -206,11 +291,73 @@ def update_stem(stem_id: int, payload: StemPayload, db: Session = Depends(get_db
     row = db.query(BiofuelBunkerStem).filter(BiofuelBunkerStem.id == stem_id).first()
     if not row:
         raise HTTPException(status_code=404, detail=f"No biofuel stem with id {stem_id}.")
+    payload = _resolve_pos_link(payload, db, stem_id=stem_id)
     for k, v in payload.model_dump().items():
         setattr(row, k, v)
     db.commit()
     db.refresh(row)
-    return _row_with_calc(row)
+    return _row_with_calc(row, _pos_for(db, [row]).get(row.pos_id))
+
+
+# ── Proof of Sustainability records ────────────────────────────────────────
+# Held separately from stems and shared across vessels: one consignment's PoS
+# can back several stems via BiofuelBunkerStem.pos_id/pos_allocated_mt.
+
+def _validate_pos(payload: PoSPayload):
+    if not payload.pos_reference.strip():
+        raise HTTPException(status_code=400, detail="pos_reference is required.")
+    if payload.biofuel_type not in POS_WTW_ADDER:
+        raise HTTPException(status_code=400, detail=f"biofuel_type must be one of {list(POS_WTW_ADDER)}.")
+    if payload.quantity_mt <= 0:
+        raise HTTPException(status_code=400, detail="quantity_mt must be positive.")
+
+
+@router.get("/pos")
+def list_pos(db: Session = Depends(get_db)):
+    totals = _allocated_totals(db)
+    rows = db.query(BiofuelPoS).order_by(BiofuelPoS.id.desc()).all()
+    return [_pos_row(p, *totals.get(p.id, (0.0, 0))) for p in rows]
+
+
+@router.post("/pos")
+def create_pos(payload: PoSPayload, db: Session = Depends(get_db)):
+    _validate_pos(payload)
+    row = BiofuelPoS(**payload.model_dump())
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _pos_row(row)
+
+
+@router.patch("/pos/{pos_id}")
+def update_pos(pos_id: int, payload: PoSPayload, db: Session = Depends(get_db)):
+    _validate_pos(payload)
+    row = db.query(BiofuelPoS).filter(BiofuelPoS.id == pos_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"No PoS record with id {pos_id}.")
+    allocated, n = _allocated_totals(db).get(pos_id, (0.0, 0))
+    if payload.quantity_mt < allocated - _QTY_TOL:
+        raise HTTPException(status_code=400, detail=f"{round(allocated, 3)} mt is already allocated to stems — quantity cannot go below that.")
+    if payload.biofuel_type != row.biofuel_type and n:
+        raise HTTPException(status_code=400, detail="Biofuel type can't change while stems are linked to this PoS.")
+    for k, v in payload.model_dump().items():
+        setattr(row, k, v)
+    db.commit()
+    db.refresh(row)
+    return _pos_row(row, allocated, n)
+
+
+@router.delete("/pos/{pos_id}")
+def delete_pos(pos_id: int, db: Session = Depends(get_db)):
+    row = db.query(BiofuelPoS).filter(BiofuelPoS.id == pos_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"No PoS record with id {pos_id}.")
+    _, n = _allocated_totals(db).get(pos_id, (0.0, 0))
+    if n:
+        raise HTTPException(status_code=409, detail=f"{n} stem(s) are linked to this PoS — unlink them first.")
+    db.delete(row)
+    db.commit()
+    return {"deleted": pos_id}
 
 
 @router.delete("/stems/{stem_id}")

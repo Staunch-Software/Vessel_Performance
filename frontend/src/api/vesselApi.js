@@ -226,6 +226,26 @@ export async function deleteBiofuelStem(id) {
   return data
 }
 
+export async function fetchBiofuelPoS() {
+  const { data } = await api.get('/biofuel/pos')
+  return Array.isArray(data) ? data : []
+}
+
+export async function createBiofuelPoS(payload) {
+  const { data } = await api.post('/biofuel/pos', payload)
+  return data
+}
+
+export async function updateBiofuelPoS(id, payload) {
+  const { data } = await api.patch(`/biofuel/pos/${id}`, payload)
+  return data
+}
+
+export async function deleteBiofuelPoS(id) {
+  const { data } = await api.delete(`/biofuel/pos/${id}`)
+  return data
+}
+
 // ── ISO 19030 ─────────────────────────────────────────────────────────────────
 export async function fetchISOConfig(imo) {
   const { data } = await api.get(`/iso19030/${imo}/config`)

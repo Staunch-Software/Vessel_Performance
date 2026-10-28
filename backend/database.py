@@ -66,6 +66,14 @@ def init_db():
         conn.execute(text(
             'ALTER TABLE vessel_notification_recipients ADD COLUMN IF NOT EXISTS '
             'is_active BOOLEAN NOT NULL DEFAULT TRUE'))
+        # biofuel_bunker_stems predates the PoS link (biofuel_pos is created
+        # by create_all above, so the FK target exists by the time this runs).
+        conn.execute(text(
+            'ALTER TABLE biofuel_bunker_stems ADD COLUMN IF NOT EXISTS '
+            'pos_id INTEGER REFERENCES biofuel_pos(id) ON DELETE SET NULL'))
+        conn.execute(text(
+            'ALTER TABLE biofuel_bunker_stems ADD COLUMN IF NOT EXISTS '
+            'pos_allocated_mt DOUBLE PRECISION'))
 
     # Open database session
     db = SessionLocal()
