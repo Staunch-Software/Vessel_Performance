@@ -69,7 +69,16 @@ def _render(imo, name, voyage_no, source, out_dir):
             page = context.new_page()
             page.set_default_timeout(RENDER_TIMEOUT_S * 1000)
             page.goto(f"{FRONTEND_URL.rstrip('/')}/?pdf_render=1", wait_until="networkidle")
-            page.wait_for_function("typeof window.__vpGenerateVoyagePdf === 'function'")
+            try:
+                page.wait_for_function(
+                    "typeof window.__vpGenerateVoyagePdf === 'function'", timeout=30000
+                )
+            except Exception:
+                raise RuntimeError(
+                    f"Render hook not found at {page.url} (page title: {page.title()!r}). "
+                    f"VOYAGE_PDF_FRONTEND_URL={FRONTEND_URL} is probably answered by a "
+                    "different nginx site, or the deployed frontend build is stale."
+                )
             result = page.evaluate(
                 "args => window.__vpGenerateVoyagePdf(args)",
                 {
