@@ -8,8 +8,9 @@
 # voyage-completion mail goes to the same actual recipients as the Data
 # Quality mail, for the whole fleet.
 #
-# The only difference: the 4 AMNS-prefixed vessels also get 2 AMNS client
-# addresses (manager request 2026-10) added to TO, for this mail only.
+# The 4 AMNS-prefixed vessels are SKIPPED: they were seeded earlier with their
+# final lists (data_quality + 2 AMNS client addresses, manager request
+# 2026-10) and are not touched by this script any more.
 #
 # Re-running re-copies the data_quality lists, so after changing a vessel's
 # data_quality recipients, re-run this to carry the change over. A vessel is
@@ -28,10 +29,6 @@ log = logging.getLogger(__name__)
 
 NOTIF_TYPE = "voyage_completion"
 SOURCE_TYPE = "data_quality"
-
-# Voyage-completion-only recipients (manager request 2026-10), AMNS vessels.
-AMNS_EXTRA_TO = ["ashish.bhatnagar@amns.in", "anuj.kaushik@amns.in"]
-
 
 def _dedupe(addrs):
     seen, out = set(), []
@@ -57,9 +54,13 @@ def run():
             vessel = db.query(Vessel).filter(Vessel.imo_number == src.vessel_imo).first()
             name = vessel.vessel_name if vessel else src.vessel_imo
 
-            to = list(src.to_emails or [])
+            # The 4 AMNS vessels were seeded earlier with their final lists
+            # (data_quality + AMNS client addresses) — leave those rows untouched.
             if vessel and vessel.vessel_name.upper().startswith("AMNS"):
-                to += AMNS_EXTRA_TO
+                log.info(f"{name}: AMNS vessel, existing voyage_completion row left unchanged.")
+                continue
+
+            to = list(src.to_emails or [])
 
             row = (
                 db.query(VesselNotificationRecipient)
