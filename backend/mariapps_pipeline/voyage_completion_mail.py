@@ -138,7 +138,7 @@ def _build_html(vessel_name, voyage_no, facts, has_attachment):
         )
 
     return f"""
-<div style="background:#f4f6fa;padding:24px 12px;font-family:Segoe UI,Arial,sans-serif;">
+<div style="background:#f4f6fa;padding:24px 12px;font-family:Aptos,Arial,Helvetica,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
          style="max-width:580px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
     <tr><td style="background:#F15A29;padding:22px 28px;">
