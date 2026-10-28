@@ -136,6 +136,31 @@ def send_email_azure_ad(subject, html_content, recipients, cc_recipients=None, a
             "saveToSentItems": "true"
         }
         
+        # ---- STEP 2b: Attach files (Graph fileAttachment, base64 inline) ----
+        # Inline attachments are only valid up to ~3 MB per request; larger
+        # files would need a draft + upload session, which isn't implemented.
+        if attachments:
+            import base64
+            graph_attachments, total_bytes = [], 0
+            for file_path in attachments:
+                if not os.path.exists(file_path):
+                    log.warning(f"Attachment not found, skipped: {file_path}")
+                    continue
+                with open(file_path, "rb") as f:
+                    raw = f.read()
+                total_bytes += len(raw)
+                graph_attachments.append({
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    "name": os.path.basename(file_path),
+                    "contentType": "application/pdf" if file_path.lower().endswith(".pdf")
+                                   else "application/octet-stream",
+                    "contentBytes": base64.b64encode(raw).decode("ascii"),
+                })
+            if total_bytes > 3 * 1024 * 1024:
+                log.warning(f"Attachments total {total_bytes/1e6:.1f} MB; Graph inline limit is ~3 MB — send may fail.")
+            if graph_attachments:
+                email_msg["message"]["attachments"] = graph_attachments
+
         # ---- STEP 3: Send Email via Microsoft Graph API ----
         endpoint = f"https://graph.microsoft.com/v1.0/users/{EmailConfig.MAIL_FROM}/sendMail"
         headers = {
