@@ -120,18 +120,18 @@ def _build_html(vessel_name, voyage_no, facts, has_attachment):
     if has_attachment:
         notice = (
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            'style="margin-top:20px;background:#f1f5fb;border:1px solid #d6e0f0;border-radius:8px;">'
-            '<tr><td style="padding:14px 16px;font-size:13.5px;color:#1f3864;">'
+            'style="margin-top:20px;background:#effaf4;border:1px solid #bfe6d1;border-left:4px solid #00904C;border-radius:8px;">'
+            '<tr><td style="padding:14px 16px;font-size:13.5px;color:#00683a;">'
             '<strong>&#128206; Voyage Audit Report attached (PDF)</strong><br>'
-            '<span style="font-size:12px;color:#5b6b85;">Speed &amp; weather analysis, fuel consumption '
+            '<span style="font-size:12px;color:#4f7a66;">Speed &amp; weather analysis, fuel consumption '
             'and charter-party performance for this voyage.</span>'
             '</td></tr></table>'
         )
     else:
         notice = (
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            'style="margin-top:20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">'
-            '<tr><td style="padding:14px 16px;font-size:13px;color:#9a3412;">'
+            'style="margin-top:20px;background:#fff4ef;border:1px solid #f9c9b6;border-left:4px solid #F15A29;border-radius:8px;">'
+            '<tr><td style="padding:14px 16px;font-size:13px;color:#a63a14;">'
             'The Voyage Audit Report could not be generated automatically. '
             'Please download it from Logbook+.'
             '</td></tr></table>'
@@ -141,20 +141,22 @@ def _build_html(vessel_name, voyage_no, facts, has_attachment):
 <div style="background:#f4f6fa;padding:24px 12px;font-family:Segoe UI,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
          style="max-width:580px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
-    <tr><td style="background:#1f3864;padding:22px 28px;">
-      <div style="font-size:11px;letter-spacing:1.2px;color:#9db4dc;text-transform:uppercase;">Voyage Completion</div>
+    <tr><td style="background:#F15A29;padding:22px 28px;">
+      <div style="font-size:11px;letter-spacing:1.2px;color:#ffe1d4;text-transform:uppercase;">Voyage Completion</div>
       <div style="font-size:22px;font-weight:700;color:#ffffff;margin-top:4px;">{e(str(vessel_name))}</div>
     </td></tr>
     <tr><td style="padding:24px 28px 26px;">
-      <p style="margin:0 0 14px;font-size:14px;color:#334155;">
-        The voyage below has been completed. Summary details:
+      <span style="display:inline-block;background:#00904C;color:#ffffff;font-size:11px;font-weight:700;
+                   letter-spacing:.8px;padding:4px 10px;border-radius:12px;">&#10003; VOYAGE COMPLETED</span>
+      <p style="margin:14px 0 14px;font-size:14px;color:#334155;">
+        Summary of the completed voyage:
       </p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
         {''.join(rows)}
       </table>
       {notice}
     </td></tr>
-    <tr><td style="padding:14px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+    <tr><td style="padding:14px 28px;background:#f8fafc;border-top:3px solid #00904C;">
       <span style="font-size:11px;color:#8696a8;">Automated message from the Vessel Performance system.</span>
     </td></tr>
   </table>
