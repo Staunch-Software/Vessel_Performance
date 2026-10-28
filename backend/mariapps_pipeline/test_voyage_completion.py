@@ -38,10 +38,10 @@ def run(to_addr, vessel_name=None):
         # rule as the real mail), skipping short port shifts.
         row = None
         for cand in q.order_by(RawMariAppsLog.log_date.desc()).limit(200):
-            n, dist, ok = voyage_data_summary(db, cand[0].vessel_imo, cand[0].leg_number)
+            dist, dur, ok = voyage_data_summary(cand[0].vessel_imo, cand[0].leg_number)
             if ok:
                 row = cand
-                log.info(f"Voyage {cand[0].leg_number}: {n} reports, {dist:.0f} nm")
+                log.info(f"Voyage {cand[0].leg_number}: sea passage {dist:.0f} nm / {dur:.1f} h")
                 break
         if not row:
             log.error("No EOSP found whose voyage meets the minimum data threshold.")

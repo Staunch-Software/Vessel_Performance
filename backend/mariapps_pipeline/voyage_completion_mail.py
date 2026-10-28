@@ -32,20 +32,32 @@ log = logging.getLogger(__name__)
 
 # A voyage must have real data behind it to be worth a report: short port
 # shifts (e.g. a 30-min BOSP->EOSP move, 0 nm) produce an empty Voyage Audit
-# Report. Both thresholds env-overridable.
+# Report. Measured over the SAME BOSP->EOSP window the report itself uses
+# (/voyage/summary), not every row carrying the voyage number — later in-port
+# days under the same number would otherwise make an empty report look big.
+# Both thresholds env-overridable.
 MIN_DISTANCE_NM = float(os.getenv("VOYAGE_MAIL_MIN_DISTANCE_NM", "50"))
-MIN_REPORTS = int(os.getenv("VOYAGE_MAIL_MIN_REPORTS", "3"))
+MIN_DURATION_H = float(os.getenv("VOYAGE_MAIL_MIN_DURATION_H", "12"))
 
 
-def voyage_data_summary(db: Session, vessel_imo, voyage_no):
-    """(report_count, total_distance_nm, qualifies) for this voyage's MariApps rows."""
-    n, dist = db.query(func.count(AnalysisData.id), func.coalesce(func.sum(AnalysisData.Distance_nm), 0)).filter(
-        AnalysisData.vessel_imo == vessel_imo,
-        AnalysisData.Voyage_No == voyage_no,
-        AnalysisData.source_id == "mari_apps",
-    ).one()
-    dist = float(dist or 0)
-    return n, dist, (n >= MIN_REPORTS and dist >= MIN_DISTANCE_NM)
+def voyage_data_summary(vessel_imo, voyage_no):
+    """(distance_nm, duration_h, qualifies) for the report's sea-passage window.
+    Uses its own short-lived session: get_voyage_summary relabels rows
+    in memory (never to be committed), so it must not share the caller's."""
+    from api.routes.vessel_routes import get_voyage_summary
+    from ..database import SessionLocal
+
+    s = SessionLocal()
+    try:
+        summ = get_voyage_summary(str(voyage_no), str(vessel_imo), "mari_apps", s)
+    except Exception:
+        return 0.0, 0.0, False
+    finally:
+        s.rollback()
+        s.close()
+    dist = float(summ.get("Distance_nm") or 0)
+    dur = float(summ.get("Duration_h") or 0)
+    return dist, dur, (dist >= MIN_DISTANCE_NM and dur >= MIN_DURATION_H)
 
 
 def _fmt_date(d):
@@ -114,11 +126,11 @@ def maybe_send_voyage_completion_mail(db: Session, vessel_imo, vessel_name, log_
     test_to: preview mode (test_voyage_completion.py) — send ONLY to this
     address, ignore the stored recipient rows entirely (no TO/CC to the real
     list), and tag the subject [TEST]."""
-    n_reports, dist_nm, qualifies = voyage_data_summary(db, vessel_imo, voyage_no)
+    dist_nm, dur_h, qualifies = voyage_data_summary(vessel_imo, voyage_no)
     if not qualifies:
         log.info(
-            f"Voyage-completion mail skipped for {vessel_name} {voyage_no}: only {n_reports} report(s), "
-            f"{dist_nm:.0f} nm (needs >= {MIN_REPORTS} reports and >= {MIN_DISTANCE_NM:.0f} nm)."
+            f"Voyage-completion mail skipped for {vessel_name} {voyage_no}: sea passage is "
+            f"{dist_nm:.0f} nm / {dur_h:.1f} h (needs >= {MIN_DISTANCE_NM:.0f} nm and >= {MIN_DURATION_H:.0f} h)."
         )
         return False
 
