@@ -22,14 +22,14 @@ gaps — see expander.py's per-column data-source audit) so gets the full
 3-way classification wherever both sides are known.
 
 ============================================================================
-CH4 / N2O — this module's docstring long claimed the amended Regulation's
-CH4/N2O scope, but the calculation itself only ever produced CO2 until this
-was cross-checked against the client's Unified_Emissions_2026_v6 workbook
-(EU_MRV sheet row 18-21) and found to be a real, silent gap. Now implemented
-per that sheet's own method, energy-based per IPCC 2006 (RefConstants
-Sections 2 & 4 — same client workbook, sheet RefConstants):
-    CH4 EF = 7.0 kg/TJ     N2O EF = 2.0 kg/TJ   (HFO/LFO/MDO/Biodiesel share
-    these two figures — only LNG differs, and this fleet burns none)
+CH4 / N2O — mass-based tank-to-wake emission factors from the Del. Reg. (EU)
+2023/2776 table, as supplied by the client (Meena, 2026-10, from the table the
+verifier also uses):
+    CH4 EF = 0.00005 gCH4/gFuel     N2O EF = 0.00018 gN2O/gFuel
+    (identical for HFO, LFO and MDO/MGO; this fleet burns no LNG/LPG)
+This replaced an energy-based IPCC 2006 method (7.0 / 2.0 kg/TJ) taken from
+the client's older RefConstants sheet — the verifier uses the regulation's
+mass-based values, so the calculation now follows them.
 Converted to CO2e using GWP100 from IPCC AR5: CH4=28, N2O=265 — per the
 client's Emission Reference Check (Meena, 2026-10): AR5 is right for EU MRV /
 EU ETS. (The older RefConstants Section 6 had AR4 25/298 here; FuelEU
@@ -38,32 +38,21 @@ ch4_n2o_co2e_t() below is shared by both EU MRV and EU ETS (from scope-year
 2026, per Dir. 2003/87/EC Art. 3ga(1) — see eu_ets_calculator.py).
 """
 
-# LCV (MJ/kg) — RefConstants Sections 1/5. Same figures as
-# fueleu_calculator.LCV_MJ_PER_KG / biofuel_calculator.LCV_BASE — kept as a
-# separate copy here (lowercase grade keys, matching this fleet's
-# analysis_data naming) rather than cross-importing between otherwise
-# independent calculator modules; keep all three in sync if ever revised.
-LCV_MJ_PER_KG = {"hfo": 40.5, "lfo": 41.0, "mdo": 42.7, "bio_fuel": 37.0}
-
-CH4_EF_KG_PER_TJ = 7.0   # RefConstants Section 2 (Del. Reg. 2023/2776 / IPCC 2006)
-N2O_EF_KG_PER_TJ = 2.0   # RefConstants Section 4 (Del. Reg. 2023/2776 / IPCC 2006)
+# g of CH4 / N2O per g of fuel (= t per t) — Del. Reg. (EU) 2023/2776 table.
+# The table gives one pair for HFO, LFO and MDO/MGO; it lists nothing for FAME
+# biofuel, so bio_fuel uses the same fossil-class pair (flagged assumption).
+CH4_EF_G_PER_G = {"hfo": 0.00005, "lfo": 0.00005, "mdo": 0.00005, "bio_fuel": 0.00005}
+N2O_EF_G_PER_G = {"hfo": 0.00018, "lfo": 0.00018, "mdo": 0.00018, "bio_fuel": 0.00018}
 GWP_EU_AR5 = {"ch4": 28, "n2o": 265}  # EU MRV / EU ETS use AR5 (Emission Reference Check); FuelEU uses AR4 (25/298)
 
 
-def ghg_energy_tj(fuel_mt):
-    """Total energy (TJ) for a fuel-by-grade dict — the base of the
-    energy-based CH4/N2O method below (and cross-checks against
-    fueleu_calculator's own per-leg energy figure, just in TJ not MJ)."""
-    return sum((fuel_mt.get(g) or 0) * LCV_MJ_PER_KG.get(g, 40.5) * 1000 / 1_000_000 for g in fuel_mt)
-
-
 def ch4_n2o_co2e_t(fuel_mt):
-    """Returns (ch4_co2e_t, n2o_co2e_t) for a fuel-by-grade dict, per the
-    EU_MRV sheet's own row 18-21 method (see module docstring)."""
-    energy_tj = ghg_energy_tj(fuel_mt)
-    ch4_kg = energy_tj * CH4_EF_KG_PER_TJ
-    n2o_kg = energy_tj * N2O_EF_KG_PER_TJ
-    return (ch4_kg / 1000 * GWP_EU_AR5["ch4"], n2o_kg / 1000 * GWP_EU_AR5["n2o"])
+    """Returns (ch4_co2e_t, n2o_co2e_t) for a fuel-by-grade dict (tonnes of
+    each grade): mass x mass-based emission factor x AR5 GWP. An unknown
+    grade falls back to the HFO factors."""
+    ch4_t = sum((fuel_mt.get(g) or 0) * CH4_EF_G_PER_G.get(g, CH4_EF_G_PER_G["hfo"]) for g in fuel_mt)
+    n2o_t = sum((fuel_mt.get(g) or 0) * N2O_EF_G_PER_G.get(g, N2O_EF_G_PER_G["hfo"]) for g in fuel_mt)
+    return (ch4_t * GWP_EU_AR5["ch4"], n2o_t * GWP_EU_AR5["n2o"])
 
 EU_VOYAGE_CATEGORIES = {
     "between_eu", "to_eu", "from_eu", "outside_eu",

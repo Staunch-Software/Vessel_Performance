@@ -710,7 +710,7 @@ def get_eu_mrv(
         "totals": {
             "total_co2_mt": round(total_co2, 3),
             # CH4/N2O per Reg. 2015/757 as amended by Reg. 2023/957 (Art. 5)
-            # — energy-based, AR5 GWP. See eu_mrv_calculator.ch4_n2o_co2e_t.
+            # — mass-based Del. Reg. 2023/2776 factors, AR5 GWP. See eu_mrv_calculator.ch4_n2o_co2e_t.
             "total_ch4_co2e_mt": round(total_ch4_co2e, 4),
             "total_n2o_co2e_mt": round(total_n2o_co2e, 4),
             "total_co2e_mt": round(total_co2 + total_ch4_co2e + total_n2o_co2e, 3),

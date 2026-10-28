@@ -48,12 +48,14 @@ const WTW_TABLE = [
   ['e-Methanol (RFNBO)', 'per RFNBO certificate', 2, 19.9, '2x reward through 2033 — Art. 9(1)(b)'],
 ]
 
-// CH4 / N2O factors (Del. Reg. 2023/2776 context) and the GWP sets the regimes use.
+// CH4 / N2O tank-to-wake factors (mass-based, Del. Reg. 2023/2776 table supplied
+// by the client / the verifier) and the GWP sets the regimes use.
 const GHG_FACTORS = [
-  ['CH₄ emission factor (energy-based)', '7.0 kg/TJ', 'As used by this app’s EU MRV calculator (IPCC 2006 default)'],
-  ['N₂O emission factor (energy-based)', '2.0 kg/TJ', 'As used by this app’s EU MRV calculator (IPCC 2006 default)'],
-  ['LPG CH₄ (TBM → highest default)', '0.00005 g/g fuel', 'Reg. 2023/1805 Annex II'],
-  ['LPG N₂O (TBM → highest default)', '0.00018 g/g fuel', 'Reg. 2023/1805 Annex II'],
+  ['CH₄ EF — HFO / LFO / MDO-MGO', '0.00005 gCH₄/gFuel', 'Del. Reg. (EU) 2023/2776 · used by EU MRV / EU ETS'],
+  ['N₂O EF — HFO / LFO / MDO-MGO', '0.00018 gN₂O/gFuel', 'Del. Reg. (EU) 2023/2776 · used by EU MRV / EU ETS'],
+  ['LNG — CH₄ EF / N₂O EF', '0 / 0.00011 g/gFuel', 'Del. Reg. (EU) 2023/2776'],
+  ['LNG — CH₄ slip Cslip (% of fuel mass)', 'Otto dual-fuel medium speed 3.1 · Otto dual-fuel slow speed 1.7 · Diesel dual-fuel slow speed 0.2 · Lean-burn spark-ignited 2.6', 'Del. Reg. (EU) 2023/2776'],
+  ['LPG (butane / propane) — CH₄, N₂O', 'TBM → highest default of the class: 0.00005 / 0.00018 g/gFuel', 'Del. Reg. (EU) 2023/2776 · Reg. 2023/1805 Annex II'],
   ['GWP100 — AR5', 'CH₄ 28 · N₂O 265', 'IMO (MEPC.376(80)); EU MRV / EU ETS'],
   ['GWP100 — AR4', 'CH₄ 25 · N₂O 298', 'FuelEU Maritime'],
 ]
