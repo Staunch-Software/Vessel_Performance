@@ -12,6 +12,7 @@
 #   python -m backend.mariapps_pipeline.test_voyage_completion techdevops@ozellar.com
 #   python -m backend.mariapps_pipeline.test_voyage_completion techdevops@ozellar.com "AMNS POLAR"
 #   python -m backend.mariapps_pipeline.test_voyage_completion techdevops@ozellar.com "AMNSI MAXIMUS" "60B/01"
+#   python -m backend.mariapps_pipeline.test_voyage_completion --list 5     # recent EOSPs, sends nothing
 # ===========================================================================
 import logging
 import sys
@@ -24,6 +25,32 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(
 log = logging.getLogger(__name__)
 
 DEFAULT_TO = "techdevops@ozellar.com"
+
+
+def list_recent(days=5):
+    """Print every MariApps EOSP of the last `days` days (all vessels) with
+    its sea passage and whether it meets the mail threshold — to pick
+    vessel + voyage for a run. Sends nothing."""
+    from datetime import date, timedelta
+
+    cutoff = str(date.today() - timedelta(days=days))
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(RawMariAppsLog, Vessel)
+            .join(Vessel, Vessel.imo_number == RawMariAppsLog.vessel_imo)
+            .filter(RawMariAppsLog.log_type.ilike("%EOSP%"), RawMariAppsLog.log_date >= cutoff)
+            .order_by(RawMariAppsLog.log_date.desc())
+            .all()
+        )
+        if not rows:
+            print(f"No MariApps EOSP logs in the last {days} day(s).")
+        for raw, v in rows:
+            dist, dur, ok = voyage_data_summary(raw.vessel_imo, raw.leg_number)
+            print(f'{raw.log_date}  {v.vessel_name!r:20}  voyage {raw.leg_number!r:12}  '
+                  f'{dist:7.0f} nm / {dur:6.1f} h  {"MAIL" if ok else "skipped (too short)"}')
+    finally:
+        db.close()
 
 
 def run(to_addr, vessel_name=None, voyage_no=None):
@@ -62,6 +89,9 @@ def run(to_addr, vessel_name=None, voyage_no=None):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--list":
+        list_recent(int(sys.argv[2]) if len(sys.argv) > 2 else 5)
+        sys.exit(0)
     run(
         sys.argv[1] if len(sys.argv) > 1 else DEFAULT_TO,
         sys.argv[2] if len(sys.argv) > 2 else None,
