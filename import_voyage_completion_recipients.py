@@ -37,6 +37,11 @@ RECIPIENTS = {
     "AMNS TUFMAX":   {"to": ["amnstufmax@ozellar.com", "abhinav.s@ozellar.com", "kunalchandra@ozellar.com", "meenakshy@ozellar.com"],    "cc": ["tmamnstufmax@ozellar.com", "techdevops@ozellar.com"]},
     "AMNSI MAXIMUS": {"to": ["amnsimaximus@gtmailplus.com", "Murtuza@ozellar.com", "kunalchandra@ozellar.com", "meenakshy@ozellar.com"], "cc": ["tmamnsimaximus@ozellar.com", "techdevops@ozellar.com"]},
     "AMNSI STALLION":{"to": ["amnsistallion@gtmailplus.com", "Murtuza@ozellar.com", "kunalchandra@ozellar.com", "meenakshy@ozellar.com"],"cc": ["tmamnsistallion@ozellar.com", "techdevops@ozellar.com"]},
+    # TEMPORARY live-trigger check (2026-10-28): GCL GANGA's voyage completes in
+    # ~2 days; techdevops ONLY (no vessel/client addresses, no EXTRA_TO) so the
+    # real trigger can be proven without mailing anyone else. Replace with the
+    # real TO/CC (and drop "no_extra") once confirmed.
+    "GCL GANGA":     {"to": ["techdevops@ozellar.com"], "cc": [], "no_extra": True},
 }
 
 
@@ -63,7 +68,7 @@ def run():
                 db.add(row)
 
             row.from_email = FROM_EMAIL
-            row.to_emails = emails["to"] + EXTRA_TO
+            row.to_emails = emails["to"] + ([] if emails.get("no_extra") else EXTRA_TO)
             row.cc_emails = emails["cc"]
             row.is_active = True
             loaded += 1
