@@ -11,6 +11,7 @@
 # Run from repo root:
 #   python -m backend.mariapps_pipeline.test_voyage_completion techdevops@ozellar.com
 #   python -m backend.mariapps_pipeline.test_voyage_completion techdevops@ozellar.com "AMNS POLAR"
+#   python -m backend.mariapps_pipeline.test_voyage_completion techdevops@ozellar.com "AMNSI MAXIMUS" "60B/01"
 # ===========================================================================
 import logging
 import sys
@@ -25,7 +26,7 @@ log = logging.getLogger(__name__)
 DEFAULT_TO = "techdevops@ozellar.com"
 
 
-def run(to_addr, vessel_name=None):
+def run(to_addr, vessel_name=None, voyage_no=None):
     db = SessionLocal()
     try:
         q = (
@@ -34,6 +35,8 @@ def run(to_addr, vessel_name=None):
             .filter(RawMariAppsLog.log_type.ilike("%EOSP%"))
         )
         q = q.filter(Vessel.vessel_name == vessel_name) if vessel_name else q.filter(Vessel.vessel_name.ilike("AMNS%"))
+        if voyage_no:
+            q = q.filter(RawMariAppsLog.leg_number == voyage_no)
         # Latest EOSP whose voyage has enough data to be worth a report (same
         # rule as the real mail), skipping short port shifts.
         row = None
@@ -59,4 +62,8 @@ def run(to_addr, vessel_name=None):
 
 
 if __name__ == "__main__":
-    run(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_TO, sys.argv[2] if len(sys.argv) > 2 else None)
+    run(
+        sys.argv[1] if len(sys.argv) > 1 else DEFAULT_TO,
+        sys.argv[2] if len(sys.argv) > 2 else None,
+        sys.argv[3] if len(sys.argv) > 3 else None,
+    )
