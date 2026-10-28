@@ -43,11 +43,11 @@ NOTIF_TYPE = "data_quality"
 
 # Manager approved a 5-vessel trial first (2026-10 WhatsApp reply: "Let's send
 # to Kirti / Tarang / Narmada / Maximus / Polar as trial. Once correctly
-# implemented, will do for all vessels.") — every vessel's recipient row is
-# still seeded (so the other 9 are ready to go), but daily_job.py only
-# checks/mails vessels with is_active=True. Add vessel names here (and
-# re-run this script) to widen the rollout once the trial's confirmed.
-TRIAL_VESSELS = {"AM KIRTI", "AM TARANG", "GCL NARMADA", "AMNSI MAXIMUS", "AMNS POLAR"}
+# implemented, will do for all vessels.") — trial confirmed 2026-10, rolled
+# out fleet-wide: every vessel in RECIPIENTS is now active. Kept as a named
+# set (rather than always-True) so a future partial rollback/rollout is a
+# one-line change here, same as the original trial was.
+TRIAL_VESSELS = set(RECIPIENTS.keys())
 
 
 def run():
