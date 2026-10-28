@@ -30,8 +30,10 @@ per that sheet's own method, energy-based per IPCC 2006 (RefConstants
 Sections 2 & 4 — same client workbook, sheet RefConstants):
     CH4 EF = 7.0 kg/TJ     N2O EF = 2.0 kg/TJ   (HFO/LFO/MDO/Biodiesel share
     these two figures — only LNG differs, and this fleet burns none)
-Converted to CO2e using the EU's own AR4 GWP (Reg. 2015/757 uses AR4, not
-IMO's AR5 used for CII/DCS): CH4=25, N2O=298 (RefConstants Section 6).
+Converted to CO2e using GWP100 from IPCC AR5: CH4=28, N2O=265 — per the
+client's Emission Reference Check (Meena, 2026-10): AR5 is right for EU MRV /
+EU ETS. (The older RefConstants Section 6 had AR4 25/298 here; FuelEU
+Maritime is the regime that uses AR4 — see fueleu_calculator.py.)
 ch4_n2o_co2e_t() below is shared by both EU MRV and EU ETS (from scope-year
 2026, per Dir. 2003/87/EC Art. 3ga(1) — see eu_ets_calculator.py).
 """
@@ -45,7 +47,7 @@ LCV_MJ_PER_KG = {"hfo": 40.5, "lfo": 41.0, "mdo": 42.7, "bio_fuel": 37.0}
 
 CH4_EF_KG_PER_TJ = 7.0   # RefConstants Section 2 (Del. Reg. 2023/2776 / IPCC 2006)
 N2O_EF_KG_PER_TJ = 2.0   # RefConstants Section 4 (Del. Reg. 2023/2776 / IPCC 2006)
-GWP_EU_AR4 = {"ch4": 25, "n2o": 298}  # RefConstants Section 6 — EU MRV/ETS use AR4, not IMO's AR5
+GWP_EU_AR5 = {"ch4": 28, "n2o": 265}  # EU MRV / EU ETS use AR5 (Emission Reference Check); FuelEU uses AR4 (25/298)
 
 
 def ghg_energy_tj(fuel_mt):
@@ -61,7 +63,7 @@ def ch4_n2o_co2e_t(fuel_mt):
     energy_tj = ghg_energy_tj(fuel_mt)
     ch4_kg = energy_tj * CH4_EF_KG_PER_TJ
     n2o_kg = energy_tj * N2O_EF_KG_PER_TJ
-    return (ch4_kg / 1000 * GWP_EU_AR4["ch4"], n2o_kg / 1000 * GWP_EU_AR4["n2o"])
+    return (ch4_kg / 1000 * GWP_EU_AR5["ch4"], n2o_kg / 1000 * GWP_EU_AR5["n2o"])
 
 EU_VOYAGE_CATEGORIES = {
     "between_eu", "to_eu", "from_eu", "outside_eu",

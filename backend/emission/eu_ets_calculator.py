@@ -33,7 +33,7 @@ Section 9): CO2 only for scope-years 2024-2025, but CO2 + CH4 + N2O from
 2026 onward — this was a real gap here (this module used to compute CO2
 only, unconditionally, for every year). ghg_scope_covers_ch4_n2o() below
 gates that, and the CH4/N2O figures themselves are computed by
-eu_mrv_calculator.ch4_n2o_co2e_t() (same EU AR4 GWP method, shared rather
+eu_mrv_calculator.ch4_n2o_co2e_t() (same AR5 GWP method, shared rather
 than duplicated — Art. 3ga points at the MRV Regulation's methodology).
 
 TWO SEPARATE MONEY FIGURES, not one — this was conflated here previously:
