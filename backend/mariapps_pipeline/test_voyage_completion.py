@@ -17,7 +17,7 @@ import sys
 
 from ..database import SessionLocal
 from ..models import AnalysisData, RawMariAppsLog, Vessel
-from .voyage_completion_mail import maybe_send_voyage_completion_mail
+from .voyage_completion_mail import maybe_send_voyage_completion_mail, voyage_data_summary
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(message)s")
 log = logging.getLogger(__name__)
@@ -34,9 +34,17 @@ def run(to_addr, vessel_name=None):
             .filter(RawMariAppsLog.log_type.ilike("%EOSP%"))
         )
         q = q.filter(Vessel.vessel_name == vessel_name) if vessel_name else q.filter(Vessel.vessel_name.ilike("AMNS%"))
-        row = q.order_by(RawMariAppsLog.log_date.desc()).first()
+        # Latest EOSP whose voyage has enough data to be worth a report (same
+        # rule as the real mail), skipping short port shifts.
+        row = None
+        for cand in q.order_by(RawMariAppsLog.log_date.desc()).limit(200):
+            n, dist, ok = voyage_data_summary(db, cand[0].vessel_imo, cand[0].leg_number)
+            if ok:
+                row = cand
+                log.info(f"Voyage {cand[0].leg_number}: {n} reports, {dist:.0f} nm")
+                break
         if not row:
-            log.error("No ingested MariApps EOSP log found for that vessel.")
+            log.error("No EOSP found whose voyage meets the minimum data threshold.")
             return
         raw, vessel = row
         ad = db.query(AnalysisData).filter_by(raw_mariapps_id=raw.id).first()
