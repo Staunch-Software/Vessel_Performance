@@ -19,6 +19,7 @@ import html
 import logging
 import os
 import shutil
+from pathlib import Path
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -28,6 +29,9 @@ from ..reporting.email_service import send_email
 from .voyage_report_pdf import render_voyage_pdf
 
 log = logging.getLogger(__name__)
+
+LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "ozellar_logo.png"
+LOGO_CID = "ozellar_logo"
 
 
 # A voyage must have real data behind it to be worth a report: short port
@@ -137,10 +141,21 @@ def _build_html(vessel_name, voyage_no, facts, has_attachment):
             '</td></tr></table>'
         )
 
+    # Logo sits on a white band (it is orange/green on transparent, so it would
+    # vanish on the orange header). Referenced by CID — see inline_images in
+    # maybe_send_voyage_completion_mail.
+    logo_row = (
+        '<tr><td style="background:#ffffff;padding:18px 28px 16px;border-bottom:1px solid #eef2f7;">'
+        f'<img src="cid:{LOGO_CID}" width="140" alt="Ozellar Marine" '
+        'style="display:block;border:0;height:auto;"></td></tr>'
+        if LOGO_PATH.exists() else ""
+    )
+
     return f"""
 <div style="background:#f4f6fa;padding:24px 12px;font-family:Aptos,Arial,Helvetica,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
          style="max-width:580px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+    {logo_row}
     <tr><td style="background:#F15A29;padding:22px 28px;">
       <div style="font-size:11px;letter-spacing:1.2px;color:#ffe1d4;text-transform:uppercase;">Voyage Completion</div>
       <div style="font-size:22px;font-weight:700;color:#ffffff;margin-top:4px;">{e(str(vessel_name))}</div>
@@ -204,6 +219,7 @@ def maybe_send_voyage_completion_mail(db: Session, vessel_imo, vessel_name, log_
             recipients=to_list,
             cc_recipients=cc_list,
             attachments=[pdf_path] if pdf_path else None,
+            inline_images={LOGO_CID: str(LOGO_PATH)} if LOGO_PATH.exists() else None,
         )
     finally:
         if pdf_path:

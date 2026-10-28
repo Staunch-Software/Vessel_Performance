@@ -14,6 +14,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
+from email.mime.image import MIMEImage
 from email import encoders
 import logging
 from dotenv import load_dotenv
@@ -78,7 +79,7 @@ class EmailConfig:
 # AZURE AD EMAIL SENDER (Microsoft 365)
 # ============================================================
 
-def send_email_azure_ad(subject, html_content, recipients, cc_recipients=None, attachments=None):
+def send_email_azure_ad(subject, html_content, recipients, cc_recipients=None, attachments=None, inline_images=None):
     """
     Send email using Azure AD OAuth 2.0 (Microsoft 365)
     
@@ -161,6 +162,24 @@ def send_email_azure_ad(subject, html_content, recipients, cc_recipients=None, a
             if graph_attachments:
                 email_msg["message"]["attachments"] = graph_attachments
 
+        # ---- STEP 2c: Inline images (referenced in the HTML as cid:<id>) ----
+        if inline_images:
+            import base64
+            inline = email_msg["message"].setdefault("attachments", [])
+            for cid, path in inline_images.items():
+                if not os.path.exists(path):
+                    log.warning(f"Inline image not found, skipped: {path}")
+                    continue
+                with open(path, "rb") as f:
+                    inline.append({
+                        "@odata.type": "#microsoft.graph.fileAttachment",
+                        "name": os.path.basename(path),
+                        "contentType": "image/png" if path.lower().endswith(".png") else "image/jpeg",
+                        "contentBytes": base64.b64encode(f.read()).decode("ascii"),
+                        "isInline": True,
+                        "contentId": cid,
+                    })
+
         # ---- STEP 3: Send Email via Microsoft Graph API ----
         endpoint = f"https://graph.microsoft.com/v1.0/users/{EmailConfig.MAIL_FROM}/sendMail"
         headers = {
@@ -189,7 +208,7 @@ def send_email_azure_ad(subject, html_content, recipients, cc_recipients=None, a
 # SMTP EMAIL SENDER (Gmail, etc.)
 # ============================================================
 
-def send_email_smtp(subject, html_content, recipients, cc_recipients=None, attachments=None):
+def send_email_smtp(subject, html_content, recipients, cc_recipients=None, attachments=None, inline_images=None):
     """
     Send email using standard SMTP
     
@@ -236,6 +255,15 @@ def send_email_smtp(subject, html_content, recipients, cc_recipients=None, attac
                         )
                         msg.attach(part)
         
+        # ---- STEP 3b: Inline images (referenced in the HTML as cid:<id>) ----
+        for cid, path in (inline_images or {}).items():
+            if os.path.exists(path):
+                with open(path, 'rb') as f:
+                    img = MIMEImage(f.read())
+                img.add_header('Content-ID', f'<{cid}>')
+                img.add_header('Content-Disposition', 'inline', filename=os.path.basename(path))
+                msg.attach(img)
+
         # ---- STEP 4: Connect to SMTP Server ----
         with smtplib.SMTP(EmailConfig.MAIL_HOST, EmailConfig.MAIL_PORT) as server:
             server.starttls()  # Enable TLS encryption
@@ -261,7 +289,7 @@ def send_email_smtp(subject, html_content, recipients, cc_recipients=None, attac
 # UNIFIED EMAIL SENDER (AUTO-DETECT METHOD)
 # ============================================================
 
-def send_email(subject, html_content, recipients=None, cc_recipients=None, attachments=None):
+def send_email(subject, html_content, recipients=None, cc_recipients=None, attachments=None, inline_images=None):
     """
     Send email using available method (Azure AD or SMTP)
     Auto-detects which method to use based on configuration
@@ -293,11 +321,11 @@ def send_email(subject, html_content, recipients=None, cc_recipients=None, attac
     # ---- AUTO-DETECT EMAIL METHOD ----
     if EmailConfig.is_azure_ad_configured():
         log.info("Using Azure AD (Microsoft 365) for email")
-        return send_email_azure_ad(subject, html_content, recipients, cc_recipients, attachments)
+        return send_email_azure_ad(subject, html_content, recipients, cc_recipients, attachments, inline_images)
     
     elif EmailConfig.is_smtp_configured():
         log.info("Using SMTP for email")
-        return send_email_smtp(subject, html_content, recipients, cc_recipients, attachments)
+        return send_email_smtp(subject, html_content, recipients, cc_recipients, attachments, inline_images)
     
     else:
         log.error("❌ No email configuration found. Please configure Azure AD or SMTP in .env file")
