@@ -46,8 +46,12 @@ VESSEL_LIST = [
     "AMNSI MAXIMUS", "GCL YAMUNA",
 ]
 
-# --- Previous ranges (uncomment to reuse) ---
-FROM_DATE = "01-JUN-2026"
+# Start of the scrape window. For a catch-up run set MARIAPPS_FROM_DATE instead
+# of editing this file, e.g.:
+#   MARIAPPS_FROM_DATE=01-JAN-2026 python -m backend.mariapps_pipeline.mariapps_pipeline
+# The same date also bounds the per-vessel Excel export written at the end.
+FROM_DATE = (config.MARIAPPS_FROM_DATE or "01-JUN-2026").upper()
+datetime.strptime(FROM_DATE, "%d-%b-%Y")   # fail fast on a malformed override
 TO_DATE = datetime.now().strftime("%d-%b-%Y")   # today (dynamic)
 
 # ---------------------------------------------------------------------------

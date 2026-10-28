@@ -71,6 +71,11 @@ class Config:
     MARIAPPS_USERNAME = os.getenv("MARIAPPS_USERNAME")
     MARIAPPS_PASSWORD = os.getenv("MARIAPPS_PASSWORD")
 
+    # Optional per-run override of the scrape window start (DD-MON-YYYY, e.g.
+    # 01-JAN-2026) so a catch-up run needs no code edit. Unset = the default
+    # set in mariapps_pipeline.py.
+    MARIAPPS_FROM_DATE = os.getenv("MARIAPPS_FROM_DATE")
+
     # =========================================================
     # EYEGAUGE  (Sea Vision  —  tb-rest-client SDK, Option 2)
     # =========================================================
