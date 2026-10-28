@@ -85,8 +85,14 @@ def _voyage_facts(db: Session, vessel_imo, voyage_no, from_port):
     }
 
 
+def _tidy_port(p):
+    """'Paradip port {INPPT},India' -> 'Paradip port (INPPT), India'."""
+    return " ".join(p.replace("{", "(").replace("}", ")").replace(",", ", ").split())
+
+
 def _build_html(vessel_name, voyage_no, facts, has_attachment):
     e = html.escape
+    facts = {**facts, "from_port": _tidy_port(facts["from_port"]), "to_port": _tidy_port(facts["to_port"])}
     route = ""
     if facts["from_port"] and facts["to_port"]:
         route = f"{e(facts['from_port'])} to {e(facts['to_port'])}"
@@ -95,26 +101,63 @@ def _build_html(vessel_name, voyage_no, facts, has_attachment):
     elif facts["to_port"]:
         route = f"To {e(facts['to_port'])}"
 
-    rows = [f"<p style=\"margin:0 0 6px;\">Voyage: <strong>{e(str(voyage_no or '—'))}</strong></p>"]
-    if route:
-        rows.append(f"<p style=\"margin:0 0 6px;\">Route: <strong>{route}</strong></p>")
-    if facts["start"] or facts["end"]:
-        rows.append(
-            f"<p style=\"margin:0 0 6px;\">Period: <strong>{_fmt_date(facts['start'])} – "
-            f"{_fmt_date(facts['end'])}</strong></p>"
+    def row(label, value):
+        return (
+            '<tr>'
+            f'<td style="padding:9px 0;width:92px;font-size:12px;color:#64748b;'
+            f'text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #eef2f7;">{label}</td>'
+            f'<td style="padding:9px 0;font-size:14px;color:#0f172a;font-weight:600;'
+            f'border-bottom:1px solid #eef2f7;">{value}</td>'
+            '</tr>'
         )
-    closing = (
-        "The Voyage Audit Report is attached."
-        if has_attachment
-        else "The Voyage Audit Report could not be generated automatically; "
-             "please download it from Logbook+."
-    )
+
+    rows = [row("Voyage", e(str(voyage_no or "—")))]
+    if route:
+        rows.append(row("Route", route.replace(" to ", " &rarr; ")))
+    if facts["start"] or facts["end"]:
+        rows.append(row("Period", f"{_fmt_date(facts['start'])} &ndash; {_fmt_date(facts['end'])}"))
+
+    if has_attachment:
+        notice = (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="margin-top:20px;background:#f1f5fb;border:1px solid #d6e0f0;border-radius:8px;">'
+            '<tr><td style="padding:14px 16px;font-size:13.5px;color:#1f3864;">'
+            '<strong>&#128206; Voyage Audit Report attached (PDF)</strong><br>'
+            '<span style="font-size:12px;color:#5b6b85;">Speed &amp; weather analysis, fuel consumption '
+            'and charter-party performance for this voyage.</span>'
+            '</td></tr></table>'
+        )
+    else:
+        notice = (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="margin-top:20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">'
+            '<tr><td style="padding:14px 16px;font-size:13px;color:#9a3412;">'
+            'The Voyage Audit Report could not be generated automatically. '
+            'Please download it from Logbook+.'
+            '</td></tr></table>'
+        )
+
     return f"""
-<div style="font-family:Arial,sans-serif;font-size:14px;color:#334155;max-width:560px;">
-  <p style="margin:0 0 14px;">Voyage completed for <strong>{e(str(vessel_name))}</strong>.</p>
-  {''.join(rows)}
-  <p style="margin:14px 0 0;">{closing}</p>
-  <p style="margin:18px 0 0;font-size:11px;color:#8696a8;">Automated message from the Vessel Performance system.</p>
+<div style="background:#f4f6fa;padding:24px 12px;font-family:Segoe UI,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+         style="max-width:580px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+    <tr><td style="background:#1f3864;padding:22px 28px;">
+      <div style="font-size:11px;letter-spacing:1.2px;color:#9db4dc;text-transform:uppercase;">Voyage Completion</div>
+      <div style="font-size:22px;font-weight:700;color:#ffffff;margin-top:4px;">{e(str(vessel_name))}</div>
+    </td></tr>
+    <tr><td style="padding:24px 28px 26px;">
+      <p style="margin:0 0 14px;font-size:14px;color:#334155;">
+        The voyage below has been completed. Summary details:
+      </p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        {''.join(rows)}
+      </table>
+      {notice}
+    </td></tr>
+    <tr><td style="padding:14px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+      <span style="font-size:11px;color:#8696a8;">Automated message from the Vessel Performance system.</span>
+    </td></tr>
+  </table>
 </div>"""
 
 
