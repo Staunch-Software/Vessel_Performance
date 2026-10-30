@@ -55,7 +55,9 @@ const GHG_FACTORS = [
   ['N₂O EF — HFO / LFO / MDO-MGO', '0.00018 gN₂O/gFuel', 'Del. Reg. (EU) 2023/2776 · used by EU MRV / EU ETS'],
   ['LNG — CH₄ EF / N₂O EF', '0 / 0.00011 g/gFuel', 'Del. Reg. (EU) 2023/2776'],
   ['LNG — CH₄ slip Cslip (% of fuel mass)', 'Otto dual-fuel medium speed 3.1 · Otto dual-fuel slow speed 1.7 · Diesel dual-fuel slow speed 0.2 · Lean-burn spark-ignited 2.6', 'Del. Reg. (EU) 2023/2776'],
-  ['LPG (butane / propane) — CH₄, N₂O', 'TBM → highest default of the class: 0.00005 / 0.00018 g/gFuel', 'Del. Reg. (EU) 2023/2776 · Reg. 2023/1805 Annex II'],
+  ['LPG (butane / propane) — CH₄, N₂O', 'TBM → same as the fossil fuels: 0.00005 / 0.00018 g/gFuel', 'Del. Reg. (EU) 2023/2776 · Reg. 2023/1805 Annex II'],
+  ['Bio-diesel (FAME) — CO₂ EF 2.834; CH₄, N₂O', 'TBM → same as the fossil fuels: 0.00005 / 0.00018 g/gFuel', 'Del. Reg. (EU) 2023/2776 · used by EU MRV / EU ETS'],
+  ['Ethanol — CO₂ EF 1.913; CH₄, N₂O', 'TBM → same as the fossil fuels: 0.00005 / 0.00018 g/gFuel', 'Del. Reg. (EU) 2023/2776'],
   ['GWP100 — AR5', 'CH₄ 28 · N₂O 265', 'IMO (MEPC.376(80)); EU MRV / EU ETS'],
   ['GWP100 — AR4', 'CH₄ 25 · N₂O 298', 'FuelEU Maritime'],
 ]

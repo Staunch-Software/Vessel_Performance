@@ -39,8 +39,9 @@ ch4_n2o_co2e_t() below is shared by both EU MRV and EU ETS (from scope-year
 """
 
 # g of CH4 / N2O per g of fuel (= t per t) — Del. Reg. (EU) 2023/2776 table.
-# The table gives one pair for HFO, LFO and MDO/MGO; it lists nothing for FAME
-# biofuel, so bio_fuel uses the same fossil-class pair (flagged assumption).
+# The table gives one pair for HFO, LFO and MDO/MGO. Bio-diesel (FAME) is listed
+# with CH4/N2O as TBM, and the client (Meena, 2026-10) confirmed TBM fuels use
+# the same factors as the fossil fuels — so bio_fuel uses the same pair.
 CH4_EF_G_PER_G = {"hfo": 0.00005, "lfo": 0.00005, "mdo": 0.00005, "bio_fuel": 0.00005}
 N2O_EF_G_PER_G = {"hfo": 0.00018, "lfo": 0.00018, "mdo": 0.00018, "bio_fuel": 0.00018}
 GWP_EU_AR5 = {"ch4": 28, "n2o": 265}  # EU MRV / EU ETS use AR5 (Emission Reference Check); FuelEU uses AR4 (25/298)
