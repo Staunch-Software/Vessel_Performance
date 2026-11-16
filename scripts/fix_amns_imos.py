@@ -58,6 +58,8 @@ IMO_CORRECTIONS = {
 # -- All child tables that reference vessels.imo_number via FK ----------------
 CHILD_TABLES = [
     ("analysis_data",             "vessel_imo"),
+    ("expanded_wni_data",         "vessel_imo"),
+    ("expanded_mariapps_data",    "vessel_imo"),
     ("cp_vessel_description",     "vessel_imo"),
     ("iso19030_results",          "vessel_imo"),
     ("mariapps_bunker_reports",   "vessel_imo"),

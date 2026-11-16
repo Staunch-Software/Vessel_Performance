@@ -257,8 +257,17 @@ def _build_query(
     params = {}
 
     if vessel_imo:
-        where_clauses.append("vessel_imo = :vessel_imo")
-        params["vessel_imo"] = vessel_imo
+        v_imo_str = str(vessel_imo).strip()
+        # Fallback for corrected AMNS IMOs across expanded tables
+        if v_imo_str in ('9961609', '9521813'):
+            where_clauses.append("vessel_imo IN ('9961609', '9521813')")
+        elif v_imo_str in ('9942768', '9628893'):
+            where_clauses.append("vessel_imo IN ('9942768', '9628893')")
+        elif v_imo_str in ('9942770', '9628910'):
+            where_clauses.append("vessel_imo IN ('9942770', '9628910')")
+        else:
+            where_clauses.append("vessel_imo = :vessel_imo")
+            params["vessel_imo"] = v_imo_str
     if from_date:
         where_clauses.append(f"{date_col} >= :from_date")
         params["from_date"] = from_date

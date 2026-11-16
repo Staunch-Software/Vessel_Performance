@@ -171,6 +171,10 @@ def _ensure_scrape_flags():
                  'WHERE wni_enabled IS NULL'),
             {"names": list(_WNI_DEFAULT_VESSELS)},
         )
+        # Ensure corrected AMNS IMOs are synced in expanded tables
+        conn.execute(text("UPDATE expanded_wni_data SET vessel_imo = '9961609' WHERE vessel_imo = '9521813'"))
+        conn.execute(text("UPDATE expanded_wni_data SET vessel_imo = '9942768' WHERE vessel_imo = '9628893'"))
+        conn.execute(text("UPDATE expanded_wni_data SET vessel_imo = '9942770' WHERE vessel_imo = '9628910'"))
 
 
 def get_scrape_vessels(source: str):
