@@ -286,23 +286,6 @@ export default function TopFilterBar({
       .catch(console.error)
   }, []) // eslint-disable-line
 
-  // Ensure source is valid for the currently selected vessel
-  useEffect(() => {
-    if (!selectedVessel || !vessels.length) return
-    const vName = vessels.find(v => v.imo_number === selectedVessel)?.vessel_name
-    if (vName === 'AMNS TUFMAX') {
-      if (source !== 'wni') onSourceChange('wni')
-    } else if (vName === 'AMNS POLAR') {
-      if (source !== 'all' && source !== 'Wartsila FOS' && source !== 'mari_apps') {
-        onSourceChange('mari_apps')
-      }
-    } else {
-      if (source === 'Wartsila FOS') {
-        onSourceChange('mari_apps')
-      }
-    }
-  }, [selectedVessel, vessels, source, onSourceChange])
-
   // Reload voyages when vessel, source, or condition changes
   useEffect(() => {
     if (!selectedVessel) return
@@ -416,10 +399,7 @@ export default function TopFilterBar({
                 if (vName === 'AMNS TUFMAX' || newImo === '9486295') {
                   onSourceChange('wni')
                 } else if (vName === 'AMNS POLAR' || newImo === '9521813' || newImo === '9961609') {
-                  // AMNS POLAR supports 'all', 'Wartsila FOS', and 'mari_apps'
-                  if (source !== 'all' && source !== 'Wartsila FOS' && source !== 'mari_apps') {
-                    onSourceChange('mari_apps')
-                  }
+                  onSourceChange('Wartsila FOS')
                 } else {
                   // Every other vessel uses the normal All/WNI/MariApps source set, whose
                   // real default is 'mari_apps' (see LogbookPage's initial useState) — not
@@ -429,9 +409,7 @@ export default function TopFilterBar({
                   // source_id='Wartsila FOS' silently matched zero rows, so the chart went
                   // blank even though the table (which resolves source differently) still
                   // showed data.
-                  if (source === 'Wartsila FOS') {
-                    onSourceChange('mari_apps')
-                  }
+                  onSourceChange('mari_apps')
                 }
               }}>
               {vessels.map(v => <option key={v.imo_number} value={v.imo_number}>{v.vessel_name}</option>)}
@@ -593,7 +571,7 @@ export default function TopFilterBar({
                   checked={source === 'wni'} onChange={() => onSourceChange('wni')} />
                 Excel
               </label>
-            ) : vessels.find(v => v.imo_number === selectedVessel)?.vessel_name === 'AMNS POLAR' ? (
+            ) : (vessels.find(v => v.imo_number === selectedVessel)?.vessel_name === 'AMNS POLAR' || selectedVessel === '9961609' || selectedVessel === '9521813') ? (
               [['all', 'All'], ['Wartsila FOS', 'Wartsila'], ['mari_apps', 'MariApps']].map(([val, label]) => (
                 <label key={val} className={`radio-option source-pill${source === val ? ' active' : ''}`}>
                   <input type="radio" name="source" value={val}
