@@ -67,7 +67,8 @@ PILOT_VESSEL_IMOS = {
     "9832925",  # AM KIRTI (original clean pilot)
     "9832913",  # AM TARANG
     "9792058",  # AM UMANG
-    "9521813",  # AMNS POLAR
+    "9521813",  # AMNS POLAR (legacy IMO)
+    "9961609",  # AMNS POLAR (registered IMO)
     "9486295",  # AMNS TUFMAX
     "9628893",  # AMNSI MAXIMUS
     "9628910",  # AMNSI STALLION

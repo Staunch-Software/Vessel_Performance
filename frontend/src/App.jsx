@@ -264,7 +264,7 @@ function LogbookPage({ preloadVesselImo, currentUser }) {
   useEffect(() => { memoryStore.setItem('vp_source', source) }, [source])
   useEffect(() => { memoryStore.setItem('vp_cat_filter', catFilter) }, [catFilter])
 
-  const effSource = source === 'all' ? 'wni' : source
+  const effSource = (source === 'all' || source === 'Wartsila FOS') ? 'wni' : source
 
   // Column visibility/order now comes entirely from the admin-only Configure
   // Columns page (see ColumnConfigPage.jsx) rather than the old per-user/

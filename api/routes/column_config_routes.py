@@ -40,6 +40,8 @@ class CalcCategoryColumnsPayload(BaseModel):
 # ── Category order (All mode) ────────────────────────────────
 @router.get("/category-order")
 def get_category_order(source: str, db: Session = Depends(get_db_for_auth)):
+    if source == 'Wartsila FOS':
+        source = 'wni'
     rows = (
         db.query(CategoryOrder)
         .filter(CategoryOrder.source == source)
@@ -55,9 +57,10 @@ def save_category_order(
     db: Session = Depends(get_db_for_auth),
     _admin: User = Depends(require_admin),
 ):
-    db.query(CategoryOrder).filter(CategoryOrder.source == payload.source).delete()
+    source = 'wni' if payload.source == 'Wartsila FOS' else payload.source
+    db.query(CategoryOrder).filter(CategoryOrder.source == source).delete()
     for i, cat in enumerate(payload.categories):
-        db.add(CategoryOrder(source=payload.source, category=cat, sort_order=i))
+        db.add(CategoryOrder(source=source, category=cat, sort_order=i))
     db.commit()
     return {"status": "saved", "count": len(payload.categories)}
 
@@ -65,6 +68,8 @@ def save_category_order(
 # ── Calculation categories ───────────────────────────────────
 @router.get("/calculation-categories")
 def list_calculation_categories(source: str, db: Session = Depends(get_db_for_auth)):
+    if source == 'Wartsila FOS':
+        source = 'wni'
     rows = (
         db.query(CalculationCategory)
         .filter(CalculationCategory.source == source)

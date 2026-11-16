@@ -37,12 +37,12 @@ def _numexpr(col):
 _FO_EXPR = "(" + "+".join(_numexpr(f"n.{c}") for c in _FO_COLS) + ")"
 _DOGO_EXPR = "(" + "+".join(_numexpr(f"n.{c}") for c in _DOGO_COLS) + ")"
 
-# Per-source join: WNI links via raw_report_id, MariApps via raw_mariapps_id —
-# same convention as cp_routes.py's _SOURCE_SQL (Wartsila FOS omitted here,
-# it never feeds analysis_data per CLAUDE.md).
+# Per-source join: WNI links via raw_report_id, MariApps via raw_mariapps_id,
+# Wartsila FOS links via raw_report_id into noon_report_data.
 _SOURCE_SQL = {
     "wni": ('JOIN noon_report_data n ON n.raw_report_id = a.raw_report_id', "wni"),
     "mari_apps": ('JOIN mariapps_reports_data n ON n.raw_report_id = a.raw_mariapps_id', "mari_apps"),
+    "Wartsila FOS": ('JOIN noon_report_data n ON n.raw_report_id = a.raw_report_id', "Wartsila FOS"),
 }
 
 

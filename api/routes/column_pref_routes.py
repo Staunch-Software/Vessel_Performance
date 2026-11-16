@@ -40,6 +40,8 @@ def get_column_prefs(
     current_user: User = Depends(get_current_user),
 ):
     """Get the current user's column preferences for a source (+ optional vessel)."""
+    if source == 'Wartsila FOS':
+        source = 'wni'
     # First check for specific vessel
     pref = None
     if vessel_imo:

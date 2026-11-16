@@ -26,7 +26,7 @@ from backend.models import CPManualOverride, Vessel
 
 router = APIRouter(prefix="/cp-overrides", tags=["cp-overrides"])
 
-_VALID_SOURCES = {"wni", "mari_apps"}
+_VALID_SOURCES = {"wni", "mari_apps", "Wartsila FOS"}
 
 
 class OverridePayload(BaseModel):
